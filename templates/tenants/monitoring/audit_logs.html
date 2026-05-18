@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Audit logs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Audit logs</h1>
+    <div class="breadcrumb-trail">Tamper-evident activity trail for {{ current_tenant.name }}</div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Action, message, target type…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Level</label>
+        <select name="level" class="form-select">
+          <option value="">All levels</option>
+          {% for v, l in level_choices %}
+            <option value="{{ v }}" {% if request.GET.level == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>When</th><th>Action</th><th>User</th>
+          <th>Level</th><th>Target</th><th>Message</th><th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td class="small text-muted">{{ log.created_at|date:'M d, Y H:i' }}</td>
+            <td><code class="small">{{ log.action }}</code></td>
+            <td class="small">{{ log.user|default:'system' }}</td>
+            <td>
+              <span class="badge badge-soft-{% if log.level == 'critical' or log.level == 'error' %}danger{% elif log.level == 'warning' %}warning{% else %}info{% endif %}">
+                {{ log.get_level_display }}
+              </span>
+            </td>
+            <td class="small">
+              {% if log.target_type %}{{ log.target_type }}#{{ log.target_id }}{% else %}—{% endif %}
+            </td>
+            <td class="small">{{ log.message|default:'—' }}</td>
+            <td class="small text-muted">{{ log.ip_address|default:'—' }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No audit events match the filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
