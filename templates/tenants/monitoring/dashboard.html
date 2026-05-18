@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}Tenant health{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Tenant Health Monitoring</h1>
+    <div class="breadcrumb-trail">Resource usage, audit, and performance for {{ current_tenant.name }}</div>
+  </div>
+  <a href="{% url 'tenants:audit_log_list' %}" class="btn btn-outline-primary"><i class="ri-history-line me-1"></i> Audit logs</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="stat-widget">
+      <div class="stat-icon"><i class="ri-team-line"></i></div>
+      <div>
+        <p class="stat-label">Active users</p>
+        <p class="stat-value">{{ usage.user_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-widget">
+      <div class="stat-icon" style="background:rgba(34,197,94,.14);color:#15803d;"><i class="ri-database-2-line"></i></div>
+      <div>
+        <p class="stat-label">Storage used</p>
+        <p class="stat-value">{{ usage.storage_mb }} MB</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-widget">
+      <div class="stat-icon" style="background:rgba(245,158,11,.14);color:#b45309;"><i class="ri-flashlight-line"></i></div>
+      <div>
+        <p class="stat-label">Active subscriptions</p>
+        <p class="stat-value">{{ usage.active_subscriptions }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-widget">
+      <div class="stat-icon" style="background:rgba(239,68,68,.14);color:#b91c1c;"><i class="ri-bill-line"></i></div>
+      <div>
+        <p class="stat-label">Open invoices</p>
+        <p class="stat-value">{{ usage.open_invoices }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Active users (30d)</div>
+      <div class="card-body"><canvas id="chartUsers" height="120"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">API calls (30d)</div>
+      <div class="card-body"><canvas id="chartApi" height="120"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Storage growth (30d)</div>
+      <div class="card-body"><canvas id="chartStorage" height="120"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Active sessions (30d)</div>
+      <div class="card-body"><canvas id="chartSessions" height="120"></canvas></div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span>Recent audit events</span>
+        <a class="small" href="{% url 'tenants:audit_log_list' %}">View all</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>When</th><th>Action</th><th>User</th><th>Level</th><th>Message</th></tr></thead>
+          <tbody>
+            {% for log in latest_logs %}
+              <tr>
+                <td class="small text-muted">{{ log.created_at|date:'M d, H:i' }}</td>
+                <td><code class="small">{{ log.action }}</code></td>
+                <td class="small">{{ log.user|default:'system' }}</td>
+                <td><span class="badge badge-soft-{% if log.level == 'critical' or log.level == 'error' %}danger{% elif log.level == 'warning' %}warning{% else %}info{% endif %}">{{ log.get_level_display }}</span></td>
+                <td class="small">{{ log.message|default:'—' }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3 small">No audit events yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    function lineChart(id, data, label, color) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      new Chart(el, {
+        type: 'line',
+        data: {
+          labels: data.map(function(d){ return d.date; }),
+          datasets: [{
+            label: label, data: data.map(function(d){ return d.value; }),
+            borderColor: color, backgroundColor: color + '33',
+            tension: .35, fill: true
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } },
+                   scales: { y: { beginAtZero: true } } }
+      });
+    }
+    lineChart('chartUsers',    {{ series_users|safe }},    'Active users', '#3b5de7');
+    lineChart('chartApi',      {{ series_api_calls|safe }}, 'API calls',    '#22c55e');
+    lineChart('chartStorage',  {{ series_storage|safe }},   'Storage MB',   '#f59e0b');
+    lineChart('chartSessions', {{ series_sessions|safe }},  'Sessions',     '#ef4444');
+  })();
+</script>
+{% endblock %}
