@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Subscriptions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Subscriptions</h1>
+    <div class="breadcrumb-trail">Active and historic subscriptions</div>
+  </div>
+  {% if request.user.is_tenant_admin %}
+    <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-primary"><i class="ri-flashlight-line me-1"></i> Change plan</a>
+  {% endif %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for v, l in status_choices %}
+            <option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Tenant</th><th>Plan</th><th>Cycle</th><th>Status</th>
+          <th>Started</th><th>Renews</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscriptions %}
+          <tr>
+            <td>{{ s.tenant.name }}</td>
+            <td>{{ s.plan.name }}</td>
+            <td><span class="badge badge-soft-info">{{ s.get_billing_cycle_display }}</span></td>
+            <td>
+              <span class="badge badge-soft-{% if s.status == 'active' %}success{% elif s.status == 'trial' %}warning{% elif s.status == 'past_due' %}danger{% elif s.status == 'cancelled' or s.status == 'expired' %}secondary{% else %}info{% endif %}">
+                {{ s.get_status_display }}
+              </span>
+            </td>
+            <td class="small text-muted">{{ s.started_at|date:'M d, Y' }}</td>
+            <td class="small text-muted">{{ s.current_period_end|date:'M d, Y'|default:'—' }}</td>
+            <td class="text-end">
+              <a href="{% url 'tenants:subscription_detail' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No subscriptions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
