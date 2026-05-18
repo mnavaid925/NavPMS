@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Users</h1>
+    <div class="breadcrumb-trail">Manage users in {{ current_tenant.name }}</div>
+  </div>
+  <a href="{% url 'accounts:user_create' %}" class="btn btn-primary">
+    <i class="ri-user-add-line me-1"></i> Add user
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Name, email, username…"
+               value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Role</label>
+        <select name="role" class="form-select">
+          <option value="">All roles</option>
+          {% for v, l in role_choices %}
+            <option value="{{ v }}" {% if request.GET.role == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="active" class="form-select">
+          <option value="">All</option>
+          <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Job title</th>
+          <th>Status</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="user-avatar" style="width:32px;height:32px;font-size:12px;">{{ u.get_initials }}</span>
+                <div>
+                  <div><a href="{% url 'accounts:user_detail' u.pk %}">{{ u.get_full_name|default:u.username }}</a></div>
+                  <small class="text-muted">@{{ u.username }}</small>
+                </div>
+              </div>
+            </td>
+            <td>{{ u.email }}</td>
+            <td><span class="badge badge-soft-primary">{{ u.get_role_display }}</span></td>
+            <td>{{ u.job_title|default:'—' }}</td>
+            <td>
+              {% if u.is_active %}
+                <span class="badge badge-soft-success">Active</span>
+              {% else %}
+                <span class="badge badge-soft-secondary">Inactive</span>
+              {% endif %}
+              {% if u.is_tenant_admin %}<span class="badge badge-soft-warning ms-1">Admin</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'accounts:user_detail' u.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'accounts:user_edit' u.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              {% if u != request.user %}
+                <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-secondary" title="Toggle active"><i class="ri-toggle-line"></i></button>
+                </form>
+                <form method="post" action="{% url 'accounts:user_delete' u.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete this user?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No users found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
