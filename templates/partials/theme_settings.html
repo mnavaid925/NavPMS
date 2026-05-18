@@ -1,0 +1,71 @@
+{# Offcanvas theme customizer — every input has data-theme-setting which app.js reads. #}
+<div class="offcanvas offcanvas-end theme-settings" tabindex="-1" id="themeSettingsCanvas">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title mb-0"><i class="ri-settings-3-line me-2"></i> Theme Customizer</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+
+    <div class="setting-group">
+      <label class="section-label">Color Scheme</label>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="ts_theme" id="ts_theme_light" value="light" data-theme-setting="theme">
+        <label class="form-check-label" for="ts_theme_light">Light</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="ts_theme" id="ts_theme_dark" value="dark" data-theme-setting="theme">
+        <label class="form-check-label" for="ts_theme_dark">Dark</label>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Layout</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_layout" id="ts_layout_v" value="vertical" data-theme-setting="layout"><label class="form-check-label" for="ts_layout_v">Vertical</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_layout" id="ts_layout_h" value="horizontal" data-theme-setting="layout"><label class="form-check-label" for="ts_layout_h">Horizontal</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_layout" id="ts_layout_d" value="detached" data-theme-setting="layout"><label class="form-check-label" for="ts_layout_d">Detached</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Layout Width</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_width" id="ts_w_fluid" value="fluid" data-theme-setting="layoutWidth"><label class="form-check-label" for="ts_w_fluid">Fluid</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_width" id="ts_w_boxed" value="boxed" data-theme-setting="layoutWidth"><label class="form-check-label" for="ts_w_boxed">Boxed</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Layout Position</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_pos" id="ts_p_fixed" value="fixed" data-theme-setting="layoutPosition"><label class="form-check-label" for="ts_p_fixed">Fixed</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_pos" id="ts_p_scroll" value="scrollable" data-theme-setting="layoutPosition"><label class="form-check-label" for="ts_p_scroll">Scrollable</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Topbar Color</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_topbar" id="ts_tb_light" value="light" data-theme-setting="topbar"><label class="form-check-label" for="ts_tb_light">Light</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_topbar" id="ts_tb_dark" value="dark" data-theme-setting="topbar"><label class="form-check-label" for="ts_tb_dark">Dark</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Sidebar Color</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sb" id="ts_sb_light" value="light" data-theme-setting="sidebar"><label class="form-check-label" for="ts_sb_light">Light</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sb" id="ts_sb_dark" value="dark" data-theme-setting="sidebar"><label class="form-check-label" for="ts_sb_dark">Dark</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sb" id="ts_sb_brand" value="brand" data-theme-setting="sidebar"><label class="form-check-label" for="ts_sb_brand">Brand</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Sidebar Size</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sbs" id="ts_sbs_d" value="default" data-theme-setting="sidebarSize"><label class="form-check-label" for="ts_sbs_d">Default</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sbs" id="ts_sbs_c" value="compact" data-theme-setting="sidebarSize"><label class="form-check-label" for="ts_sbs_c">Compact</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sbs" id="ts_sbs_s" value="small" data-theme-setting="sidebarSize"><label class="form-check-label" for="ts_sbs_s">Small Icon</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_sbs" id="ts_sbs_h" value="hover" data-theme-setting="sidebarSize"><label class="form-check-label" for="ts_sbs_h">Icon Hover</label></div>
+    </div>
+
+    <div class="setting-group">
+      <label class="section-label">Direction</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_dir" id="ts_dir_ltr" value="ltr" data-theme-setting="direction"><label class="form-check-label" for="ts_dir_ltr">LTR</label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="ts_dir" id="ts_dir_rtl" value="rtl" data-theme-setting="direction"><label class="form-check-label" for="ts_dir_rtl">RTL</label></div>
+    </div>
+
+    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2" data-theme-reset>
+      <i class="ri-refresh-line me-1"></i> Reset to defaults
+    </button>
+  </div>
+</div>
