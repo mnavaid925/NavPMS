@@ -1,4 +1,4 @@
-/* NavPMS theme manager + sidebar toggle + preloader fade. */
+/* NavPMS theme manager + sidebar toggle + preloader fade + customizer tabs. */
 (function () {
   'use strict';
 
@@ -13,6 +13,10 @@
     layoutPosition: 'data-layout-position',
     direction: 'dir',
   };
+
+  // Captured ONCE at script init, before any pref is applied to <html>.
+  // Reset must reuse this, NOT re-read attrs (which would now reflect overrides).
+  var SERVER_DEFAULTS = readServerDefaults();
 
   function loadPrefs() {
     try {
@@ -32,20 +36,6 @@
     });
   }
 
-  function syncRadios(p) {
-    document.querySelectorAll('[data-theme-setting]').forEach(function (input) {
-      var key = input.getAttribute('data-theme-setting');
-      if (p[key] && input.value === p[key]) {
-        input.checked = true;
-      }
-    });
-    document.querySelectorAll('[data-theme-setting-toggle]').forEach(function (input) {
-      var key = input.getAttribute('data-theme-setting-toggle');
-      var on = input.getAttribute('data-on');
-      input.checked = (p[key] === on);
-    });
-  }
-
   function readServerDefaults() {
     var html = document.documentElement;
     var defaults = {};
@@ -57,8 +47,24 @@
     return defaults;
   }
 
+  // Sync radio inputs AND keep visual .is-checked class on parent label.
+  function syncRadios(p) {
+    document.querySelectorAll('[data-theme-setting]').forEach(function (input) {
+      var key = input.getAttribute('data-theme-setting');
+      var match = (p[key] != null && input.value === p[key]);
+      input.checked = match;
+      var label = input.closest('.tc-swatch, .tc-icon-pick');
+      if (label) label.classList.toggle('is-checked', match);
+    });
+    document.querySelectorAll('[data-theme-setting-toggle]').forEach(function (input) {
+      var key = input.getAttribute('data-theme-setting-toggle');
+      var on = input.getAttribute('data-on');
+      input.checked = (p[key] === on);
+    });
+  }
+
   function initThemeSettings() {
-    var merged = Object.assign({}, readServerDefaults(), loadPrefs());
+    var merged = Object.assign({}, SERVER_DEFAULTS, loadPrefs());
     applyPrefs(merged);
     syncRadios(merged);
 
@@ -68,6 +74,7 @@
         prefs[input.getAttribute('data-theme-setting')] = input.value;
         savePrefs(prefs);
         applyPrefs(prefs);
+        syncRadios(Object.assign({}, SERVER_DEFAULTS, prefs));
       });
     });
 
@@ -87,11 +94,25 @@
     if (reset) {
       reset.addEventListener('click', function () {
         try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-        var defaults = readServerDefaults();
-        applyPrefs(defaults);
-        syncRadios(defaults);
+        // Reapply defaults to <html> AND to every customizer control.
+        applyPrefs(SERVER_DEFAULTS);
+        syncRadios(SERVER_DEFAULTS);
       });
     }
+  }
+
+  function initCustomizerTabs() {
+    var tabs = document.querySelectorAll('[data-tc-tab]');
+    if (!tabs.length) return;
+    tabs.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = btn.getAttribute('data-tc-tab');
+        tabs.forEach(function (b) { b.classList.toggle('active', b === btn); });
+        document.querySelectorAll('[data-tc-pane]').forEach(function (pane) {
+          pane.classList.toggle('active', pane.getAttribute('data-tc-pane') === target);
+        });
+      });
+    });
   }
 
   function initThemeToggle() {
@@ -104,7 +125,7 @@
         prefs.theme = next;
         savePrefs(prefs);
         applyPrefs(prefs);
-        syncRadios(prefs);
+        syncRadios(Object.assign({}, SERVER_DEFAULTS, prefs));
       });
     });
   }
@@ -150,6 +171,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     initThemeSettings();
+    initCustomizerTabs();
     initThemeToggle();
     initSidebarToggle();
     markActiveNav();
