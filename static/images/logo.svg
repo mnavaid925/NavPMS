@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="NavPMS">
+  <defs>
+    <linearGradient id="navpmsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b5de7"/>
+      <stop offset="100%" stop-color="#6f4cf4"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <rect x="2" y="6" width="28" height="28" rx="7" fill="url(#navpmsGrad)"/>
+    <path d="M9 26 L9 14 L15 14 L21 22 L21 14 L23 14 L23 26 L17 26 L11 18 L11 26 Z" fill="#fff"/>
+  </g>
+  <g transform="translate(40 0)">
+    <text x="0" y="26" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="700" font-size="18" fill="#1f2937">NavPMS</text>
+    <text x="0" y="38" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="500" font-size="9" fill="#6b7280" letter-spacing="0.06em">PROCUREMENT</text>
+  </g>
+</svg>
