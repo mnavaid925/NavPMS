@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}{{ plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ plan.name }}</h1>
+    <div class="breadcrumb-trail"><a href="{% url 'tenants:plan_list' %}">Plans</a> &rsaquo; {{ plan.name }}</div>
+  </div>
+  {% if request.user.is_superuser or request.user.role == 'super_admin' %}
+    <a href="{% url 'tenants:plan_edit' plan.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Description</div>
+      <div class="card-body"><p class="mb-0">{{ plan.description|default:'No description.' }}</p></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Features</div>
+      <div class="card-body">
+        {% if plan.features %}
+          <ul class="list-unstyled mb-0">
+            {% for f in plan.features %}
+              <li class="py-1"><i class="ri-check-line text-success me-2"></i>{{ f }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No features listed.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="plan-price">${{ plan.price_monthly|floatformat:2 }}<small class="plan-period">/mo</small></div>
+        <p class="text-muted small mb-3">or ${{ plan.price_yearly|floatformat:2 }} / yr</p>
+        <dl class="row small mb-0">
+          <dt class="col-sm-6 text-muted">Currency</dt><dd class="col-sm-6">{{ plan.currency }}</dd>
+          <dt class="col-sm-6 text-muted">Trial</dt><dd class="col-sm-6">{{ plan.trial_days }} days</dd>
+          <dt class="col-sm-6 text-muted">Max users</dt><dd class="col-sm-6">{{ plan.max_users }}</dd>
+          <dt class="col-sm-6 text-muted">Storage</dt><dd class="col-sm-6">{{ plan.max_storage_gb }} GB</dd>
+          <dt class="col-sm-6 text-muted">Vendors</dt><dd class="col-sm-6">{{ plan.max_vendors }}</dd>
+          <dt class="col-sm-6 text-muted">POs / month</dt><dd class="col-sm-6">{{ plan.max_purchase_orders_per_month }}</dd>
+          <dt class="col-sm-6 text-muted">Status</dt>
+          <dd class="col-sm-6">
+            {% if plan.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
