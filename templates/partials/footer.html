@@ -1,0 +1,5 @@
+{% now "Y" as year %}
+<footer class="app-footer">
+  <small>&copy; {{ year }} {{ app_name }} &middot; Procurement Management System</small>
+  <small class="text-muted">Built with Django {% if current_tenant %}&middot; tenant: {{ current_tenant.name }}{% endif %}</small>
+</footer>
