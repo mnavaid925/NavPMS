@@ -1,0 +1,59 @@
+{% load static %}
+<header class="app-topbar">
+  <button type="button" class="topbar-icon-btn d-lg-none" data-sidebar-toggle aria-label="Toggle sidebar">
+    <i class="ri-menu-line"></i>
+  </button>
+
+  <div class="topbar-search d-none d-md-block">
+    <i class="ri-search-line"></i>
+    <input type="search" placeholder="Search…" aria-label="Search">
+  </div>
+
+  <div class="topbar-spacer"></div>
+
+  <button type="button" class="topbar-icon-btn" data-theme-toggle aria-label="Toggle dark mode">
+    <i class="ri-moon-line"></i>
+  </button>
+
+  <div class="dropdown">
+    <button type="button" class="topbar-icon-btn" data-bs-toggle="dropdown" aria-label="Notifications">
+      <i class="ri-notification-3-line"></i>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 320px;">
+      <h6 class="dropdown-header">Notifications</h6>
+      <div class="dropdown-divider"></div>
+      <a class="dropdown-item small text-muted" href="#">No new notifications</a>
+    </div>
+  </div>
+
+  <button type="button" class="topbar-icon-btn" data-bs-toggle="offcanvas"
+          data-bs-target="#themeSettingsCanvas" aria-label="Theme settings">
+    <i class="ri-settings-3-line"></i>
+  </button>
+
+  <div class="dropdown topbar-user">
+    <button type="button" class="dropdown-toggle" data-bs-toggle="dropdown">
+      <span class="user-avatar">
+        {% if request.user.is_authenticated %}{{ request.user.get_initials }}{% else %}?{% endif %}
+      </span>
+      <span class="d-none d-md-block text-start">
+        <small class="d-block lh-1">{{ request.user.get_full_name|default:request.user.username }}</small>
+        <small class="d-block text-muted lh-1">{{ request.user.get_role_display|default:'Guest' }}</small>
+      </span>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow border-0">
+      {% if request.user.is_authenticated %}
+        <a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="ri-user-line me-2"></i> Profile</a>
+        <a class="dropdown-item" href="{% url 'accounts:profile_edit' %}"><i class="ri-edit-line me-2"></i> Edit profile</a>
+        <a class="dropdown-item" href="{% url 'accounts:change_password' %}"><i class="ri-key-line me-2"></i> Change password</a>
+        <div class="dropdown-divider"></div>
+        <form method="post" action="{% url 'accounts:logout' %}" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="dropdown-item text-danger"><i class="ri-logout-box-line me-2"></i> Sign out</button>
+        </form>
+      {% else %}
+        <a class="dropdown-item" href="{% url 'accounts:login' %}"><i class="ri-login-box-line me-2"></i> Sign in</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
