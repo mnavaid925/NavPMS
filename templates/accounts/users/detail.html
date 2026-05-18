@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ user_obj.get_full_name|default:user_obj.username }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ user_obj.get_full_name|default:user_obj.username }}</h1>
+    <div class="breadcrumb-trail"><a href="{% url 'accounts:user_list' %}">Users</a> &rsaquo; {{ user_obj.username }}</div>
+  </div>
+  <div>
+    <a href="{% url 'accounts:user_edit' user_obj.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body text-center">
+        {% if user_obj.avatar %}
+          <img src="{{ user_obj.avatar.url }}" alt="" class="rounded-circle" style="width:96px;height:96px;object-fit:cover;">
+        {% else %}
+          <div class="user-avatar mx-auto" style="width:96px;height:96px;font-size:32px;">{{ user_obj.get_initials }}</div>
+        {% endif %}
+        <h4 class="mt-3 mb-1">{{ user_obj.get_full_name|default:user_obj.username }}</h4>
+        <p class="text-muted small mb-2">{{ user_obj.email }}</p>
+        <span class="badge badge-soft-primary">{{ user_obj.get_role_display }}</span>
+        {% if user_obj.is_tenant_admin %}<span class="badge badge-soft-warning">Tenant admin</span>{% endif %}
+        {% if user_obj.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">Account details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4 text-muted">Username</dt><dd class="col-sm-8">{{ user_obj.username }}</dd>
+          <dt class="col-sm-4 text-muted">Email</dt><dd class="col-sm-8">{{ user_obj.email }}</dd>
+          <dt class="col-sm-4 text-muted">Phone</dt><dd class="col-sm-8">{{ user_obj.phone|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Job title</dt><dd class="col-sm-8">{{ user_obj.job_title|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Role</dt><dd class="col-sm-8">{{ user_obj.get_role_display }}</dd>
+          <dt class="col-sm-4 text-muted">Tenant</dt><dd class="col-sm-8">{{ user_obj.tenant.name|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Joined</dt><dd class="col-sm-8">{{ user_obj.date_joined|date:'M d, Y' }}</dd>
+          <dt class="col-sm-4 text-muted">Last login</dt><dd class="col-sm-8">{{ user_obj.last_login|date:'M d, Y H:i'|default:'Never' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
