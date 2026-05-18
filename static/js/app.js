@@ -39,6 +39,11 @@
         input.checked = true;
       }
     });
+    document.querySelectorAll('[data-theme-setting-toggle]').forEach(function (input) {
+      var key = input.getAttribute('data-theme-setting-toggle');
+      var on = input.getAttribute('data-on');
+      input.checked = (p[key] === on);
+    });
   }
 
   function readServerDefaults() {
@@ -61,6 +66,18 @@
       input.addEventListener('change', function () {
         var prefs = Object.assign({}, loadPrefs());
         prefs[input.getAttribute('data-theme-setting')] = input.value;
+        savePrefs(prefs);
+        applyPrefs(prefs);
+      });
+    });
+
+    document.querySelectorAll('[data-theme-setting-toggle]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var prefs = Object.assign({}, loadPrefs());
+        var key = input.getAttribute('data-theme-setting-toggle');
+        prefs[key] = input.checked
+          ? input.getAttribute('data-on')
+          : input.getAttribute('data-off');
         savePrefs(prefs);
         applyPrefs(prefs);
       });
