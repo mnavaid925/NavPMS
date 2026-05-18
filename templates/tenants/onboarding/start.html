@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Onboard a tenant{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Tenant onboarding</h1>
+    <div class="breadcrumb-trail">Step 1 of 3 &middot; Welcome</div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body text-center p-5">
+        <div class="d-inline-flex align-items-center justify-content-center mb-3"
+             style="width:72px;height:72px;border-radius:18px;
+                    background:linear-gradient(135deg,#3b5de7,#6f4cf4);color:#fff;font-size:30px;">
+          <i class="ri-building-line"></i>
+        </div>
+        <h2 class="mb-2">Provision a new tenant workspace</h2>
+        <p class="text-muted mb-4">
+          You're about to spin up an isolated procurement workspace. We'll collect company
+          details, pick a plan, and configure a 14-day trial. Takes about 2 minutes.
+        </p>
+
+        <div class="row text-start g-3 mb-4">
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100">
+              <i class="ri-information-line text-primary fs-3"></i>
+              <h6 class="mt-2 mb-1">Company info</h6>
+              <small class="text-muted">Name, contact, domain</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100">
+              <i class="ri-price-tag-3-line text-primary fs-3"></i>
+              <h6 class="mt-2 mb-1">Pick a plan</h6>
+              <small class="text-muted">Free trial on any tier</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100">
+              <i class="ri-rocket-line text-primary fs-3"></i>
+              <h6 class="mt-2 mb-1">Launch</h6>
+              <small class="text-muted">Branding, security, users</small>
+            </div>
+          </div>
+        </div>
+
+        <a href="{% url 'tenants:onboarding_company' %}" class="btn btn-primary btn-lg">
+          Get started <i class="ri-arrow-right-line ms-1"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
