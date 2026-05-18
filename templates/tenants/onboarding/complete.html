@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Tenant created{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body text-center p-5">
+        <div class="d-inline-flex align-items-center justify-content-center mb-3"
+             style="width:80px;height:80px;border-radius:50%;background:rgba(34,197,94,.14);color:#16a34a;font-size:36px;">
+          <i class="ri-check-line"></i>
+        </div>
+        <h2 class="mb-2">Tenant created!</h2>
+        <p class="text-muted mb-4">
+          <strong>{{ tenant.name }}</strong> is ready. A trial subscription, default branding,
+          and security policy have been provisioned.
+        </p>
+
+        <div class="row text-start g-3 mb-4">
+          <div class="col-md-6">
+            <a href="{% url 'tenants:subscription_list' %}" class="border rounded p-3 d-block text-decoration-none">
+              <i class="ri-flashlight-line text-primary fs-4"></i>
+              <h6 class="mt-2 mb-0">Review subscription</h6>
+              <small class="text-muted">See plan + billing cycle</small>
+            </a>
+          </div>
+          <div class="col-md-6">
+            <a href="{% url 'tenants:branding_edit' %}" class="border rounded p-3 d-block text-decoration-none">
+              <i class="ri-palette-line text-primary fs-4"></i>
+              <h6 class="mt-2 mb-0">Customize branding</h6>
+              <small class="text-muted">Logo, colors, email</small>
+            </a>
+          </div>
+          <div class="col-md-6">
+            <a href="{% url 'tenants:security_edit' %}" class="border rounded p-3 d-block text-decoration-none">
+              <i class="ri-shield-keyhole-line text-primary fs-4"></i>
+              <h6 class="mt-2 mb-0">Security policy</h6>
+              <small class="text-muted">Password rules + MFA</small>
+            </a>
+          </div>
+          <div class="col-md-6">
+            <a href="{% url 'accounts:invite_send' %}" class="border rounded p-3 d-block text-decoration-none">
+              <i class="ri-team-line text-primary fs-4"></i>
+              <h6 class="mt-2 mb-0">Invite teammates</h6>
+              <small class="text-muted">Send first invitations</small>
+            </a>
+          </div>
+        </div>
+
+        <a href="{% url 'dashboard' %}" class="btn btn-primary"><i class="ri-dashboard-line me-1"></i> Go to dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
