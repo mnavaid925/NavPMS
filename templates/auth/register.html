@@ -1,0 +1,76 @@
+{% extends 'base_auth.html' %}
+{% block title %}Create account{% endblock %}
+{% block content %}
+  <h1 class="auth-title">Create your workspace</h1>
+  <p class="auth-subtitle">Start a 14-day trial. No credit card required.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="mb-3">
+      <label class="form-label" for="id_company_name">Company name</label>
+      <input type="text" id="id_company_name" name="company_name"
+             class="form-control{% if form.company_name.errors %} is-invalid{% endif %}"
+             value="{{ form.company_name.value|default:'' }}" required>
+      {% for e in form.company_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="row g-2">
+      <div class="col-6">
+        <label class="form-label" for="id_first_name">First name</label>
+        <input type="text" id="id_first_name" name="first_name"
+               class="form-control{% if form.first_name.errors %} is-invalid{% endif %}"
+               value="{{ form.first_name.value|default:'' }}" required>
+      </div>
+      <div class="col-6">
+        <label class="form-label" for="id_last_name">Last name</label>
+        <input type="text" id="id_last_name" name="last_name"
+               class="form-control{% if form.last_name.errors %} is-invalid{% endif %}"
+               value="{{ form.last_name.value|default:'' }}" required>
+      </div>
+    </div>
+
+    <div class="mb-3 mt-2">
+      <label class="form-label" for="id_email">Work email</label>
+      <input type="email" id="id_email" name="email"
+             class="form-control{% if form.email.errors %} is-invalid{% endif %}"
+             value="{{ form.email.value|default:'' }}" required>
+      {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="id_username">Username</label>
+      <input type="text" id="id_username" name="username"
+             class="form-control{% if form.username.errors %} is-invalid{% endif %}"
+             value="{{ form.username.value|default:'' }}" required>
+      {% for e in form.username.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="id_password1">Password</label>
+      <input type="password" id="id_password1" name="password1"
+             class="form-control{% if form.password1.errors %} is-invalid{% endif %}" required>
+      {% for e in form.password1.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="id_password2">Confirm password</label>
+      <input type="password" id="id_password2" name="password2"
+             class="form-control{% if form.password2.errors %} is-invalid{% endif %}" required>
+      {% for e in form.password2.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" name="terms" id="id_terms" required>
+      <label class="form-check-label small" for="id_terms">
+        I agree to the Terms of Service and Privacy Policy
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create workspace</button>
+  </form>
+
+  <div class="auth-footer">
+    Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a>
+  </div>
+{% endblock %}
