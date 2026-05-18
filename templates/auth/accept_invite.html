@@ -1,0 +1,57 @@
+{% extends 'base_auth.html' %}
+{% block title %}Accept invitation{% endblock %}
+{% block content %}
+  <h1 class="auth-title">Join {{ invite.tenant.name }}</h1>
+  <p class="auth-subtitle">
+    You've been invited as <strong>{{ invite.get_role_display }}</strong>.<br>
+    Create your account to continue.
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" class="form-control" value="{{ invite.email }}" readonly disabled>
+    </div>
+
+    <div class="row g-2">
+      <div class="col-6">
+        <label class="form-label" for="id_first_name">First name</label>
+        <input type="text" id="id_first_name" name="first_name"
+               class="form-control{% if form.first_name.errors %} is-invalid{% endif %}"
+               value="{{ form.first_name.value|default:'' }}" required>
+      </div>
+      <div class="col-6">
+        <label class="form-label" for="id_last_name">Last name</label>
+        <input type="text" id="id_last_name" name="last_name"
+               class="form-control{% if form.last_name.errors %} is-invalid{% endif %}"
+               value="{{ form.last_name.value|default:'' }}" required>
+      </div>
+    </div>
+
+    <div class="mb-3 mt-2">
+      <label class="form-label" for="id_username">Username</label>
+      <input type="text" id="id_username" name="username"
+             class="form-control{% if form.username.errors %} is-invalid{% endif %}"
+             value="{{ form.username.value|default:'' }}" required>
+      {% for e in form.username.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="id_password1">Password</label>
+      <input type="password" id="id_password1" name="password1"
+             class="form-control{% if form.password1.errors %} is-invalid{% endif %}" required>
+      {% for e in form.password1.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="id_password2">Confirm password</label>
+      <input type="password" id="id_password2" name="password2"
+             class="form-control{% if form.password2.errors %} is-invalid{% endif %}" required>
+      {% for e in form.password2.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Accept and sign in</button>
+  </form>
+{% endblock %}
