@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Invoice {{ invoice.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Invoice {{ invoice.number }}</h1>
+    <div class="breadcrumb-trail"><a href="{% url 'tenants:invoice_list' %}">Invoices</a> &rsaquo; {{ invoice.number }}</div>
+  </div>
+  <div>
+    {% if invoice.status != 'paid' and invoice.status != 'void' and request.user.is_tenant_admin %}
+      <form method="post" action="{% url 'tenants:invoice_pay' invoice.pk %}" class="d-inline"
+            onsubmit="return confirm('Charge ${{ invoice.total|floatformat:2 }} via mock gateway?');">
+        {% csrf_token %}
+        <button class="btn btn-primary"><i class="ri-bank-card-line me-1"></i> Pay now</button>
+      </form>
+    {% endif %}
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="ri-printer-line me-1"></i> Print</button>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-4">
+          <div>
+            <h4 class="mb-1">{{ invoice.number }}</h4>
+            <small class="text-muted">Issued {{ invoice.issued_at|date:'M d, Y' }}</small><br>
+            <small class="text-muted">Due {{ invoice.due_at|date:'M d, Y'|default:'on receipt' }}</small>
+          </div>
+          <div class="text-end">
+            <span class="badge badge-soft-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'overdue' %}danger{% elif invoice.status == 'sent' %}warning{% else %}secondary{% endif %} fs-6">
+              {{ invoice.get_status_display|upper }}
+            </span>
+          </div>
+        </div>
+
+        <div class="row mb-4">
+          <div class="col-6">
+            <small class="text-muted d-block mb-1">Billed to</small>
+            <strong>{{ invoice.tenant.name }}</strong><br>
+            <small>{{ invoice.tenant.email }}</small>
+          </div>
+          <div class="col-6 text-end">
+            <small class="text-muted d-block mb-1">Plan</small>
+            <strong>{{ invoice.subscription.plan.name|default:'—' }}</strong><br>
+            <small>{{ invoice.subscription.get_billing_cycle_display|default:'' }}</small>
+          </div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Amount</th></tr>
+          </thead>
+          <tbody>
+            {% for li in invoice.line_items %}
+              <tr>
+                <td>
+                  {{ li.description }}
+                  {% if li.period_start %}<br><small class="text-muted">{{ li.period_start }} – {{ li.period_end }}</small>{% endif %}
+                </td>
+                <td class="text-end">{{ li.quantity }}</td>
+                <td class="text-end">${{ li.unit_price }}</td>
+                <td class="text-end">${{ li.amount }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="3" class="text-end text-muted">Subtotal</td><td class="text-end">${{ invoice.subtotal|floatformat:2 }}</td></tr>
+            <tr><td colspan="3" class="text-end text-muted">Tax</td><td class="text-end">${{ invoice.tax|floatformat:2 }}</td></tr>
+            <tr><td colspan="3" class="text-end"><strong>Total</strong></td><td class="text-end"><strong>${{ invoice.total|floatformat:2 }} {{ invoice.currency }}</strong></td></tr>
+          </tfoot>
+        </table>
+
+        {% if invoice.notes %}
+          <hr><small class="text-muted">{{ invoice.notes }}</small>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Payment history</div>
+      <div class="card-body p-0">
+        {% if transactions %}
+          <table class="table table-sm mb-0">
+            <thead><tr><th>When</th><th>Gateway</th><th class="text-end">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for tx in transactions %}
+                <tr>
+                  <td class="small text-muted">{{ tx.created_at|date:'M d, H:i' }}</td>
+                  <td class="small"><code>{{ tx.gateway_ref|default:'—' }}</code></td>
+                  <td class="text-end small">${{ tx.amount|floatformat:2 }}</td>
+                  <td><span class="badge badge-soft-{% if tx.status == 'succeeded' %}success{% elif tx.status == 'failed' %}danger{% else %}warning{% endif %}">{{ tx.get_status_display }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="text-center text-muted py-4 small">No payment attempts yet.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
