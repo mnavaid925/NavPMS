@@ -1,0 +1,109 @@
+/* Auth page layout (login, register, forgot, reset, accept invite) */
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(135deg, #3b5de7 0%, #6f4cf4 100%);
+}
+
+.auth-shell::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  right: -120px;
+  width: 360px;
+  height: 360px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+.auth-shell::after {
+  content: '';
+  position: absolute;
+  bottom: -160px;
+  left: -120px;
+  width: 420px;
+  height: 420px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  margin: auto;
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  padding: 36px 32px;
+}
+
+.auth-card .auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.auth-card .auth-brand .brand-mark {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b5de7, #6f4cf4);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.auth-card h1.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 6px;
+  color: #111827;
+}
+.auth-card p.auth-subtitle {
+  font-size: 14px;
+  text-align: center;
+  color: #6b7280;
+  margin: 0 0 22px;
+}
+.auth-card .form-label { font-size: 13px; font-weight: 600; color: #374151; }
+.auth-card .form-control {
+  border-radius: 10px;
+  padding: 11px 14px;
+  border: 1px solid #e5e7eb;
+}
+.auth-card .form-control:focus {
+  border-color: #3b5de7;
+  box-shadow: 0 0 0 4px rgba(59, 93, 231, 0.15);
+}
+.auth-card .btn-primary {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #3b5de7, #2f4cd6);
+  border: 0;
+}
+.auth-card .auth-footer {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 22px;
+  color: #6b7280;
+}
+.auth-card .auth-footer a { color: #3b5de7; font-weight: 600; }
+
+.password-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #9ca3af;
+  background: transparent;
+  border: 0;
+}
+.password-wrapper { position: relative; }
