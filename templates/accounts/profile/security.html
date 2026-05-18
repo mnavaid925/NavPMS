@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Change password{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Change password</h1>
+    <div class="breadcrumb-trail"><a href="{% url 'accounts:profile' %}">My profile</a> &rsaquo; Security</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="card">
+        <div class="card-body">
+          <p class="text-muted small">
+            Choose a strong, unique password. You'll stay signed in on this device.
+          </p>
+          {{ form|crispy }}
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+          <a href="{% url 'accounts:profile' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary"><i class="ri-shield-keyhole-line me-1"></i> Update password</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
