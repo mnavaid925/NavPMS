@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+{% if no_tenant %}
+  <div class="card">
+    <div class="card-body text-center py-5">
+      <i class="ri-building-line text-primary" style="font-size:48px;"></i>
+      <h2 class="mt-3 mb-2">Welcome to {{ app_name }}</h2>
+      <p class="text-muted mb-4">
+        Your account isn't attached to a tenant workspace yet.<br>
+        Onboard a new tenant or ask your administrator for access.
+      </p>
+      <a href="{% url 'tenants:onboarding_start' %}" class="btn btn-primary">
+        <i class="ri-add-line me-1"></i> Onboard a tenant
+      </a>
+    </div>
+  </div>
+{% else %}
+
+  <div class="page-header">
+    <div>
+      <h1>Dashboard</h1>
+      <div class="breadcrumb-trail">
+        Welcome back, {{ request.user.get_full_name|default:request.user.username }}
+      </div>
+    </div>
+    <div>
+      {% if request.user.is_tenant_admin %}
+        <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-outline-primary btn-sm">
+          <i class="ri-flashlight-line me-1"></i> Manage subscription
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+      <div class="stat-widget">
+        <div class="stat-icon" style="background:rgba(59,93,231,.12);color:#3b5de7;">
+          <i class="ri-team-line"></i>
+        </div>
+        <div>
+          <p class="stat-label">Active users</p>
+          <p class="stat-value">{{ active_users }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="stat-widget">
+        <div class="stat-icon" style="background:rgba(245,158,11,.14);color:#b45309;">
+          <i class="ri-mail-send-line"></i>
+        </div>
+        <div>
+          <p class="stat-label">Pending invites</p>
+          <p class="stat-value">{{ pending_invites }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="stat-widget">
+        <div class="stat-icon" style="background:rgba(239,68,68,.14);color:#b91c1c;">
+          <i class="ri-bill-line"></i>
+        </div>
+        <div>
+          <p class="stat-label">Open invoices</p>
+          <p class="stat-value">{{ open_invoices_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="stat-widget">
+        <div class="stat-icon" style="background:rgba(34,197,94,.14);color:#15803d;">
+          <i class="ri-wallet-3-line"></i>
+        </div>
+        <div>
+          <p class="stat-label">Outstanding balance</p>
+          <p class="stat-value">${{ outstanding_balance|floatformat:2 }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Usage trend (last 30 days)</span>
+          <small class="text-muted">Active users &middot; API calls</small>
+        </div>
+        <div class="card-body">
+          <canvas id="usageChart" height="100"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-3">
+        <div class="card-header">Subscription</div>
+        <div class="card-body">
+          {% if subscription %}
+            <h5 class="mb-1">{{ subscription.plan.name }}</h5>
+            <p class="text-muted mb-2 small">
+              {{ subscription.get_status_display }} &middot;
+              {{ subscription.get_billing_cycle_display }}
+              {% if subscription.is_trialing %}
+                <span class="badge badge-soft-warning ms-1">Trial ends {{ subscription.trial_ends_at|date:'M d' }}</span>
+              {% endif %}
+            </p>
+            <ul class="list-unstyled small mb-3">
+              <li><i class="ri-calendar-line me-1 text-muted"></i> Renews: {{ subscription.current_period_end|date:'M d, Y'|default:'—' }}</li>
+              <li><i class="ri-team-line me-1 text-muted"></i> Up to {{ subscription.plan.max_users }} users</li>
+              <li><i class="ri-database-2-line me-1 text-muted"></i> {{ subscription.plan.max_storage_gb }} GB storage</li>
+            </ul>
+            <a href="{% url 'tenants:subscription_detail' subscription.pk %}" class="btn btn-sm btn-outline-primary">View details</a>
+          {% else %}
+            <p class="text-muted mb-3">No active subscription.</p>
+            {% if request.user.is_tenant_admin %}
+              <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-sm btn-primary">Choose a plan</a>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Recent activity</span>
+          {% if request.user.is_tenant_admin %}
+            <a href="{% url 'tenants:audit_log_list' %}" class="small">View all</a>
+          {% endif %}
+        </div>
+        <div class="card-body p-0">
+          {% if recent_activity %}
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>When</th><th>Action</th><th>User</th><th>Level</th><th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for log in recent_activity %}
+                  <tr>
+                    <td class="text-muted small">{{ log.created_at|date:'M d, H:i' }}</td>
+                    <td><code>{{ log.action }}</code></td>
+                    <td>{{ log.user|default:'system' }}</td>
+                    <td>
+                      <span class="badge badge-soft-{% if log.level == 'critical' %}danger{% elif log.level == 'error' %}danger{% elif log.level == 'warning' %}warning{% else %}info{% endif %}">{{ log.get_level_display }}</span>
+                    </td>
+                    <td class="small">{{ log.message|default:'—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="text-muted text-center py-4 small">No activity yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    var el = document.getElementById('usageChart');
+    if (!el) return;
+    var labels = {{ metric_dates|safe|default:'[]' }};
+    var users  = {{ user_count_series|safe|default:'[]' }};
+    var apis   = {{ api_call_series|safe|default:'[]' }};
+    new Chart(el, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Active users', data: users, borderColor: '#3b5de7', backgroundColor: 'rgba(59,93,231,.12)', tension: .35, fill: true },
+          { label: 'API calls', data: apis, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.10)', tension: .35, yAxisID: 'y1', fill: true }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { intersect: false, mode: 'index' },
+        scales: {
+          y:  { beginAtZero: true, position: 'left',  title: { display: true, text: 'Users' } },
+          y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'API calls' } }
+        }
+      }
+    });
+  })();
+</script>
+{% endblock %}
