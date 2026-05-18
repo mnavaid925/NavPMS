@@ -1,0 +1,73 @@
+{% load static %}
+<aside class="app-sidebar">
+  <div class="sidebar-header">
+    <a href="{% url 'dashboard' %}" class="d-flex align-items-center gap-2 text-decoration-none">
+      <img src="{% static 'images/logo.svg' %}" alt="{{ app_name }}" height="34">
+    </a>
+  </div>
+
+  <nav>
+    <div class="sidebar-section">Overview</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'dashboard' %}">
+          <i class="ri-dashboard-line"></i> <span>Dashboard</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-section">Tenant Management</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbTenants" role="button" aria-expanded="false">
+          <i class="ri-building-line"></i> <span class="flex-grow-1">Module 1</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbTenants">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:plan_list' %}">Plans</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:subscription_list' %}">Subscriptions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:invoice_list' %}">Invoices</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:branding_edit' %}">Branding</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:security_edit' %}">Security</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:monitoring_dashboard' %}">Monitoring</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:audit_log_list' %}">Audit Logs</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'tenants:onboarding_start' %}">Onboard new tenant</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <div class="sidebar-section">User Management</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'accounts:user_list' %}">
+          <i class="ri-team-line"></i> <span>Users</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'accounts:invite_list' %}">
+          <i class="ri-mail-send-line"></i> <span>Invites</span>
+        </a>
+      </li>
+    </ul>
+    {% endif %}
+
+    <div class="sidebar-section">My Account</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'accounts:profile' %}">
+          <i class="ri-user-line"></i> <span>Profile</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'accounts:change_password' %}">
+          <i class="ri-shield-keyhole-line"></i> <span>Security</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</aside>
