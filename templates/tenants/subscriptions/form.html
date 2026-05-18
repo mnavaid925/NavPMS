@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Change subscription{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Change subscription</h1>
+    <div class="breadcrumb-trail"><a href="{% url 'tenants:subscription_list' %}">Subscriptions</a> &rsaquo; Change plan</div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-body">
+          {{ form|crispy }}
+          <small class="text-muted">An invoice for the new plan period will be issued automatically.</small>
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+          <a href="{% url 'tenants:subscription_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save subscription</button>
+        </div>
+      </div>
+    </div>
+
+    {% if current %}
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header">Current</div>
+        <div class="card-body small">
+          <p class="mb-1"><strong>{{ current.plan.name }}</strong></p>
+          <p class="mb-1 text-muted">{{ current.get_status_display }} &middot; {{ current.get_billing_cycle_display }}</p>
+          <p class="mb-0 text-muted">Renews: {{ current.current_period_end|date:'M d, Y'|default:'—' }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
