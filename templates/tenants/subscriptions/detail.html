@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}{{ subscription.plan.name }} subscription{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ subscription.plan.name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'tenants:subscription_list' %}">Subscriptions</a> &rsaquo;
+      {{ subscription.tenant.name }}
+    </div>
+  </div>
+  {% if request.user.is_tenant_admin %}
+    <div>
+      <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-outline-primary"><i class="ri-flashlight-line me-1"></i> Change plan</a>
+      <form method="post" action="{% url 'tenants:subscription_cancel' subscription.pk %}" class="d-inline"
+            onsubmit="return confirm('Cancel at period end?');">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger"><i class="ri-close-line me-1"></i> Cancel</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header">Subscription details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4 text-muted">Tenant</dt><dd class="col-sm-8">{{ subscription.tenant.name }}</dd>
+          <dt class="col-sm-4 text-muted">Plan</dt><dd class="col-sm-8">{{ subscription.plan.name }}</dd>
+          <dt class="col-sm-4 text-muted">Status</dt>
+          <dd class="col-sm-8">
+            <span class="badge badge-soft-{% if subscription.status == 'active' %}success{% elif subscription.status == 'trial' %}warning{% else %}secondary{% endif %}">
+              {{ subscription.get_status_display }}
+            </span>
+            {% if subscription.cancel_at_period_end %}<span class="badge badge-soft-warning ms-1">Cancels at period end</span>{% endif %}
+          </dd>
+          <dt class="col-sm-4 text-muted">Billing cycle</dt><dd class="col-sm-8">{{ subscription.get_billing_cycle_display }}</dd>
+          <dt class="col-sm-4 text-muted">Started</dt><dd class="col-sm-8">{{ subscription.started_at|date:'M d, Y' }}</dd>
+          {% if subscription.trial_ends_at %}
+            <dt class="col-sm-4 text-muted">Trial ends</dt><dd class="col-sm-8">{{ subscription.trial_ends_at|date:'M d, Y' }}</dd>
+          {% endif %}
+          <dt class="col-sm-4 text-muted">Current period</dt>
+          <dd class="col-sm-8">{{ subscription.current_period_start|date:'M d, Y' }} &rarr; {{ subscription.current_period_end|date:'M d, Y'|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Auto-renew</dt>
+          <dd class="col-sm-8">{% if subscription.auto_renew %}Yes{% else %}No{% endif %}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Recent invoices</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>Number</th><th>Status</th><th>Issued</th><th class="text-end">Total</th><th></th></tr></thead>
+          <tbody>
+            {% for inv in invoices %}
+              <tr>
+                <td><a href="{% url 'tenants:invoice_detail' inv.pk %}">{{ inv.number }}</a></td>
+                <td>
+                  <span class="badge badge-soft-{% if inv.status == 'paid' %}success{% elif inv.status == 'overdue' %}danger{% elif inv.status == 'sent' %}warning{% else %}secondary{% endif %}">
+                    {{ inv.get_status_display }}
+                  </span>
+                </td>
+                <td class="small text-muted">{{ inv.issued_at|date:'M d, Y' }}</td>
+                <td class="text-end">${{ inv.total|floatformat:2 }}</td>
+                <td class="text-end">
+                  <a href="{% url 'tenants:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3 small">No invoices yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Plan limits</div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="py-1"><i class="ri-team-line text-muted me-2"></i> {{ subscription.plan.max_users }} users</li>
+          <li class="py-1"><i class="ri-database-2-line text-muted me-2"></i> {{ subscription.plan.max_storage_gb }} GB storage</li>
+          <li class="py-1"><i class="ri-user-3-line text-muted me-2"></i> {{ subscription.plan.max_vendors }} vendors</li>
+          <li class="py-1"><i class="ri-file-list-3-line text-muted me-2"></i> {{ subscription.plan.max_purchase_orders_per_month }} POs / month</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
