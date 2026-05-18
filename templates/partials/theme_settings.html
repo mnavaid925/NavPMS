@@ -1,176 +1,196 @@
-{# Modern theme customizer. Inputs keep data-theme-setting so app.js still works. #}
-<div class="offcanvas offcanvas-end theme-customizer" tabindex="-1" id="themeSettingsCanvas" style="width:380px;">
+{# Tabbed theme customizer. Inputs keep data-theme-setting / data-theme-setting-toggle
+   attributes so app.js continues to drive state. JS adds/removes .is-checked on
+   <label> wrappers for cross-browser visual selection. #}
+<div class="offcanvas offcanvas-end theme-customizer" tabindex="-1" id="themeSettingsCanvas">
   <div class="offcanvas-header">
-    <div>
-      <h5 class="offcanvas-title mb-0">Theme Customizer</h5>
-      <small class="opacity-75">Personalize your workspace</small>
+    <div class="tc-head-row">
+      <div>
+        <h5 class="offcanvas-title mb-0">Theme Customizer</h5>
+        <small>Personalize your workspace</small>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+
+    <ul class="tc-tabs" role="tablist">
+      <li><button type="button" class="active" data-tc-tab="appearance">Appearance</button></li>
+      <li><button type="button" data-tc-tab="layout">Layout</button></li>
+      <li><button type="button" data-tc-tab="options">Options</button></li>
+    </ul>
   </div>
 
   <div class="offcanvas-body">
 
-    <p class="tc-tagline">Choose a look that fits how you work. Changes save locally and apply instantly.</p>
+    {# ============================== APPEARANCE ============================== #}
+    <div class="tc-pane active" data-tc-pane="appearance">
 
-    {# ---------- Color scheme ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-contrast-2-line"></i> Color scheme</h6>
-      <div class="tc-swatch-grid">
-        <label class="tc-swatch">
-          <input type="radio" name="ts_theme" value="light" data-theme-setting="theme">
-          <span class="tc-swatch-preview tc-preview-light"></span>
-          <span class="tc-swatch-label">Light</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_theme" value="dark" data-theme-setting="theme">
-          <span class="tc-swatch-preview tc-preview-dark"></span>
-          <span class="tc-swatch-label">Dark</span>
-        </label>
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-contrast-2-line"></i> Color scheme</h6>
+        <div class="tc-grid cols-2">
+          <label class="tc-swatch">
+            <input type="radio" name="ts_theme" value="light" data-theme-setting="theme">
+            <span class="tc-mini-app">
+              <span class="mini-top"></span>
+              <span class="mini-body"><span class="mini-side"></span><span class="mini-main"></span></span>
+            </span>
+            <span class="tc-label">Light</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_theme" value="dark" data-theme-setting="theme">
+            <span class="tc-mini-app is-dark">
+              <span class="mini-top"></span>
+              <span class="mini-body"><span class="mini-side"></span><span class="mini-main"></span></span>
+            </span>
+            <span class="tc-label">Dark</span>
+          </label>
+        </div>
       </div>
+
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-window-line"></i> Topbar color</h6>
+        <div class="tc-grid cols-2">
+          <label class="tc-swatch">
+            <input type="radio" name="ts_topbar" value="light" data-theme-setting="topbar">
+            <span class="tc-chip is-light"></span>
+            <span class="tc-label">Light</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_topbar" value="dark" data-theme-setting="topbar">
+            <span class="tc-chip is-dark"></span>
+            <span class="tc-label">Dark</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-side-bar-line"></i> Sidebar color</h6>
+        <div class="tc-grid cols-3">
+          <label class="tc-swatch">
+            <input type="radio" name="ts_sidebar" value="light" data-theme-setting="sidebar">
+            <span class="tc-chip is-light"></span>
+            <span class="tc-label">Light</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_sidebar" value="dark" data-theme-setting="sidebar">
+            <span class="tc-chip is-dark"></span>
+            <span class="tc-label">Dark</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_sidebar" value="brand" data-theme-setting="sidebar">
+            <span class="tc-chip is-brand"></span>
+            <span class="tc-label">Brand</span>
+          </label>
+        </div>
+      </div>
+
     </div>
 
-    {# ---------- Layout style ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-layout-grid-line"></i> Layout style</h6>
-      <div class="tc-swatch-grid cols-3">
-        <label class="tc-swatch">
-          <input type="radio" name="ts_layout" value="vertical" data-theme-setting="layout">
-          <span class="tc-layout-thumb">
-            <span class="lt-sidebar"></span><span class="lt-main"></span>
-          </span>
-          <span class="tc-swatch-label">Vertical</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_layout" value="horizontal" data-theme-setting="layout">
-          <span class="tc-layout-thumb is-horizontal">
-            <span class="lt-sidebar"></span><span class="lt-main"></span>
-          </span>
-          <span class="tc-swatch-label">Horizontal</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_layout" value="detached" data-theme-setting="layout">
-          <span class="tc-layout-thumb is-detached">
-            <span class="lt-sidebar"></span><span class="lt-main"></span>
-          </span>
-          <span class="tc-swatch-label">Detached</span>
-        </label>
+    {# ============================== LAYOUT ============================== #}
+    <div class="tc-pane" data-tc-pane="layout">
+
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-layout-grid-line"></i> Layout style</h6>
+        <div class="tc-grid cols-3">
+          <label class="tc-swatch">
+            <input type="radio" name="ts_layout" value="vertical" data-theme-setting="layout">
+            <span class="tc-layout-thumb">
+              <span class="lt-side"></span><span class="lt-top"></span><span class="lt-main"></span>
+            </span>
+            <span class="tc-label">Vertical</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_layout" value="horizontal" data-theme-setting="layout">
+            <span class="tc-layout-thumb is-horizontal">
+              <span class="lt-side"></span><span class="lt-top"></span><span class="lt-main"></span>
+            </span>
+            <span class="tc-label">Horizontal</span>
+          </label>
+          <label class="tc-swatch">
+            <input type="radio" name="ts_layout" value="detached" data-theme-setting="layout">
+            <span class="tc-layout-thumb is-detached">
+              <span class="lt-side"></span><span class="lt-top"></span><span class="lt-main"></span>
+            </span>
+            <span class="tc-label">Detached</span>
+          </label>
+        </div>
       </div>
+
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-layout-left-line"></i> Sidebar size</h6>
+        <div class="tc-grid cols-4">
+          <label class="tc-icon-pick">
+            <input type="radio" name="ts_sbsize" value="default" data-theme-setting="sidebarSize">
+            <i class="ri-menu-line"></i>
+            <span class="ip-label">Default</span>
+          </label>
+          <label class="tc-icon-pick">
+            <input type="radio" name="ts_sbsize" value="compact" data-theme-setting="sidebarSize">
+            <i class="ri-menu-fold-line"></i>
+            <span class="ip-label">Compact</span>
+          </label>
+          <label class="tc-icon-pick">
+            <input type="radio" name="ts_sbsize" value="small" data-theme-setting="sidebarSize">
+            <i class="ri-menu-2-line"></i>
+            <span class="ip-label">Small</span>
+          </label>
+          <label class="tc-icon-pick">
+            <input type="radio" name="ts_sbsize" value="hover" data-theme-setting="sidebarSize">
+            <i class="ri-menu-add-line"></i>
+            <span class="ip-label">Hover</span>
+          </label>
+        </div>
+      </div>
+
     </div>
 
-    {# ---------- Topbar color ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-window-line"></i> Topbar color</h6>
-      <div class="tc-swatch-grid">
-        <label class="tc-swatch">
-          <input type="radio" name="ts_topbar" value="light" data-theme-setting="topbar">
-          <span class="tc-swatch-preview tc-preview-light"></span>
-          <span class="tc-swatch-label">Light</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_topbar" value="dark" data-theme-setting="topbar">
-          <span class="tc-swatch-preview tc-preview-dark"></span>
-          <span class="tc-swatch-label">Dark</span>
-        </label>
-      </div>
-    </div>
+    {# ============================== OPTIONS ============================== #}
+    <div class="tc-pane" data-tc-pane="options">
 
-    {# ---------- Sidebar color ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-side-bar-line"></i> Sidebar color</h6>
-      <div class="tc-swatch-grid cols-3">
-        <label class="tc-swatch">
-          <input type="radio" name="ts_sidebar" value="light" data-theme-setting="sidebar">
-          <span class="tc-swatch-preview tc-preview-light"></span>
-          <span class="tc-swatch-label">Light</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_sidebar" value="dark" data-theme-setting="sidebar">
-          <span class="tc-swatch-preview tc-preview-dark"></span>
-          <span class="tc-swatch-label">Dark</span>
-        </label>
-        <label class="tc-swatch">
-          <input type="radio" name="ts_sidebar" value="brand" data-theme-setting="sidebar">
-          <span class="tc-swatch-preview tc-preview-brand"></span>
-          <span class="tc-swatch-label">Brand</span>
-        </label>
-      </div>
-    </div>
+      <div class="tc-block">
+        <h6 class="tc-block-title"><i class="ri-tools-line"></i> Page options</h6>
 
-    {# ---------- Sidebar size ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-layout-left-line"></i> Sidebar size</h6>
-      <div class="tc-icon-grid">
-        <label class="tc-icon-pick">
-          <input type="radio" name="ts_sbsize" value="default" data-theme-setting="sidebarSize">
-          <i class="ri-menu-line"></i>
-          <span class="ip-label">Default</span>
-        </label>
-        <label class="tc-icon-pick">
-          <input type="radio" name="ts_sbsize" value="compact" data-theme-setting="sidebarSize">
-          <i class="ri-menu-fold-line"></i>
-          <span class="ip-label">Compact</span>
-        </label>
-        <label class="tc-icon-pick">
-          <input type="radio" name="ts_sbsize" value="small" data-theme-setting="sidebarSize">
-          <i class="ri-menu-2-line"></i>
-          <span class="ip-label">Small</span>
-        </label>
-        <label class="tc-icon-pick">
-          <input type="radio" name="ts_sbsize" value="hover" data-theme-setting="sidebarSize">
-          <i class="ri-menu-add-line"></i>
-          <span class="ip-label">Hover</span>
-        </label>
-      </div>
-    </div>
-
-    {# ---------- Toggles (width / position / direction) ---------- #}
-    <div class="tc-section">
-      <h6 class="tc-section-title"><i class="ri-tools-line"></i> Page options</h6>
-
-      <div class="tc-toggle-row">
-        <div>
-          <div class="tr-label">Boxed width</div>
-          <div class="tr-hint">Centers content with a max width</div>
+        <div class="tc-toggle-row">
+          <div>
+            <div class="tr-label">Boxed width</div>
+            <div class="tr-hint">Center content with a max width</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   data-theme-setting-toggle="layoutWidth" data-on="boxed" data-off="fluid">
+          </div>
         </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="tsBoxed"
-                 data-theme-setting-toggle="layoutWidth"
-                 data-on="boxed" data-off="fluid">
+
+        <div class="tc-toggle-row">
+          <div>
+            <div class="tr-label">Scrollable layout</div>
+            <div class="tr-hint">Sidebar and topbar scroll with the page</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   data-theme-setting-toggle="layoutPosition" data-on="scrollable" data-off="fixed">
+          </div>
+        </div>
+
+        <div class="tc-toggle-row">
+          <div>
+            <div class="tr-label">Right-to-left (RTL)</div>
+            <div class="tr-hint">Flip direction for Arabic / Hebrew</div>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   data-theme-setting-toggle="direction" data-on="rtl" data-off="ltr">
+          </div>
         </div>
       </div>
 
-      <div class="tc-toggle-row">
-        <div>
-          <div class="tr-label">Scrollable layout</div>
-          <div class="tr-hint">Sidebar and topbar scroll with the page</div>
-        </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="tsScroll"
-                 data-theme-setting-toggle="layoutPosition"
-                 data-on="scrollable" data-off="fixed">
-        </div>
-      </div>
-
-      <div class="tc-toggle-row">
-        <div>
-          <div class="tr-label">Right-to-left (RTL)</div>
-          <div class="tr-hint">Flip direction for Arabic / Hebrew</div>
-        </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="tsRtl"
-                 data-theme-setting-toggle="direction"
-                 data-on="rtl" data-off="ltr">
-        </div>
-      </div>
     </div>
 
   </div>
 
-  <div class="tc-footer d-flex gap-2">
-    <button type="button" class="btn btn-outline-secondary flex-grow-1" data-theme-reset>
-      <i class="ri-refresh-line me-1"></i> Reset
+  <div class="tc-footer">
+    <button type="button" class="btn btn-outline-secondary" data-theme-reset>
+      <i class="ri-refresh-line me-1"></i> Reset to defaults
     </button>
-    <button type="button" class="btn btn-primary flex-grow-1" data-bs-dismiss="offcanvas">
+    <button type="button" class="btn btn-primary" data-bs-dismiss="offcanvas">
       <i class="ri-check-line me-1"></i> Done
     </button>
   </div>
