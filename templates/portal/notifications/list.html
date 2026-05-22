@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Task &amp; Alert Center{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Task &amp; Alert Center</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo;
+      Notifications &middot; {{ unread_count }} unread
+    </div>
+  </div>
+  <div>
+    {% if unread_count %}
+    <form method="post" action="{% url 'portal:notification_mark_all_read' %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-outline-secondary"><i class="ri-check-double-line me-1"></i> Mark all read</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'portal:notification_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New alert
+    </a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Title or message…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for v, l in category_choices %}
+            <option value="{{ v }}" {% if request.GET.category == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Priority</label>
+        <select name="priority" class="form-select">
+          <option value="">All</option>
+          {% for v, l in priority_choices %}
+            <option value="{{ v }}" {% if request.GET.priority == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="read" class="form-select">
+          <option value="">All</option>
+          <option value="unread" {% if request.GET.read == 'unread' %}selected{% endif %}>Unread</option>
+          <option value="read" {% if request.GET.read == 'read' %}selected{% endif %}>Read</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Alert</th><th>Category</th><th>Priority</th>
+          <th>Received</th><th>Status</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notifications %}
+          <tr class="{% if not n.is_read %}fw-semibold{% endif %}">
+            <td>
+              <a href="{% url 'portal:notification_detail' n.pk %}" class="text-decoration-none">{{ n.title }}</a>
+              <small class="text-muted d-block fw-normal">{{ n.message|truncatechars:70 }}</small>
+            </td>
+            <td><span class="badge badge-soft-info">{{ n.get_category_display }}</span></td>
+            <td>
+              <span class="badge badge-soft-{% if n.priority == 'urgent' or n.priority == 'high' %}danger{% elif n.priority == 'normal' %}info{% else %}secondary{% endif %}">
+                {{ n.get_priority_display }}
+              </span>
+            </td>
+            <td class="small text-muted fw-normal">{{ n.created_at|naturaltime }}</td>
+            <td>
+              {% if n.is_read %}
+                <span class="badge badge-soft-secondary">Read</span>
+              {% else %}
+                <span class="badge badge-soft-success">Unread</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'portal:notification_detail' n.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'portal:notification_edit' n.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'portal:notification_mark_read' n.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'portal:notification_list' %}">
+                <button class="btn btn-sm btn-outline-secondary" title="Toggle read"><i class="ri-check-line"></i></button>
+              </form>
+              <form method="post" action="{% url 'portal:notification_delete' n.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete this alert?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No alerts found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
