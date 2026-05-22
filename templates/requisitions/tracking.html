@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Requisition Tracking{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Requisition Tracking</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'requisitions:requisition_list' %}">Requisitions</a> &rsaquo;
+      Real-time status board &middot; {{ total_count }} requisition{{ total_count|pluralize }}
+      &middot; ${{ grand_total|floatformat:2|intcomma }} estimated
+    </div>
+  </div>
+  <form method="get">
+    <select name="scope" class="form-select" onchange="this.form.submit()">
+      <option value="">All requesters</option>
+      <option value="mine" {% if request.GET.scope == 'mine' %}selected{% endif %}>Only mine</option>
+    </select>
+  </form>
+</div>
+
+<div class="row g-3">
+  {% for col in columns %}
+    <div class="col-lg-4 col-xl-2">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">{{ col.label }}</span>
+          <span class="badge badge-soft-{% if col.value == 'approved' %}success{% elif col.value == 'rejected' or col.value == 'cancelled' %}danger{% elif col.value == 'submitted' %}warning{% elif col.value == 'converted' %}primary{% else %}secondary{% endif %}">
+            {{ col.requisitions|length }}
+          </span>
+        </div>
+        <div class="card-body p-2 d-flex flex-column gap-2">
+          {% for r in col.requisitions %}
+            <a href="{% url 'requisitions:requisition_detail' r.pk %}"
+               class="d-block text-decoration-none border rounded p-2">
+              <div class="d-flex justify-content-between">
+                <strong class="small">{{ r.number }}</strong>
+                <span class="badge badge-soft-{% if r.priority == 'urgent' or r.priority == 'high' %}danger{% elif r.priority == 'normal' %}info{% else %}secondary{% endif %}">
+                  {{ r.get_priority_display }}
+                </span>
+              </div>
+              <div class="small text-truncate">{{ r.title }}</div>
+              <div class="small text-muted">
+                ${{ r.estimated_total|floatformat:0|intcomma }}
+                &middot; {{ r.requested_by.get_full_name|default:r.requested_by.username }}
+              </div>
+            </a>
+          {% empty %}
+            <p class="text-muted small text-center py-3 mb-0">No requisitions.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
