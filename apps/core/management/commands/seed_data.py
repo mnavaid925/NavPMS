@@ -21,6 +21,7 @@ class Command(BaseCommand):
             ('seed_plans', 'Subscription plans'),
             ('seed_tenants', 'Tenants + subscriptions + invoices + branding + audit'),
             ('seed_users', 'Tenant admin + staff users'),
+            ('seed_portal', 'Portal widgets + notifications + requisitions + reports'),
         ]
 
         for cmd, label in steps:
