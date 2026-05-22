@@ -1,6 +1,6 @@
 # User Dashboard & Portal — Manual Test Plan
 
-> Target: **Module 2 — User Dashboard & Portal** ([apps/portal/](apps/portal/)) plus the platform **Dashboard** landing page ([apps/core/views.py](apps/core/views.py#L9)).
+> Target: **Module 2 — User Dashboard & Portal** ([apps/portal/](../../apps/portal/)) plus the platform **Dashboard** landing page ([apps/core/views.py](../../apps/core/views.py#L10)).
 > Persona: Senior Manual QA Engineer. This is a runnable click-through script — a non-developer can execute every step.
 
 ---
@@ -11,13 +11,13 @@
 
 | # | Surface | Entry URL | Code |
 |---|---|---|---|
-| A | Platform Dashboard (KPI landing) | `/` | [apps/core/views.py:9](apps/core/views.py#L9), [templates/dashboard/index.html](templates/dashboard/index.html) |
-| B | Personalized Portal Dashboard (widget grid) | `/portal/` | [apps/portal/views.py:30](apps/portal/views.py#L30), [templates/portal/dashboard.html](templates/portal/dashboard.html) |
-| C | Dashboard Widgets — CRUD | `/portal/widgets/` | [apps/portal/views.py:45](apps/portal/views.py#L45) |
-| D | Notifications / Task & Alert Center — CRUD + read state | `/portal/notifications/` | [apps/portal/views.py:131](apps/portal/views.py#L131) |
-| E | Quick Requisitions — CRUD + inline items + submit | `/portal/requisitions/` | [apps/portal/views.py:259](apps/portal/views.py#L259) |
-| F | Recent Activity Feed — read-only | `/portal/activity/` | [apps/portal/views.py:417](apps/portal/views.py#L417) |
-| G | Self-Service Reports — CRUD + run | `/portal/reports/` | [apps/portal/views.py:440](apps/portal/views.py#L440) |
+| A | Platform Dashboard (KPI landing) | `/` | [apps/core/views.py:10](../../apps/core/views.py#L10), [templates/dashboard/index.html](../../templates/dashboard/index.html) |
+| B | Personalized Portal Dashboard (widget grid) | `/portal/` | [apps/portal/views.py:30](../../apps/portal/views.py#L30), [templates/portal/dashboard.html](../../templates/portal/dashboard.html) |
+| C | Dashboard Widgets — CRUD | `/portal/widgets/` | [apps/portal/views.py:45](../../apps/portal/views.py#L45) |
+| D | Notifications / Task & Alert Center — CRUD + read state | `/portal/notifications/` | [apps/portal/views.py:131](../../apps/portal/views.py#L131) |
+| E | Quick Requisitions — CRUD + inline items + submit | `/portal/requisitions/` | [apps/portal/views.py:261](../../apps/portal/views.py#L261) |
+| F | Recent Activity Feed — read-only | `/portal/activity/` | [apps/portal/views.py:456](../../apps/portal/views.py#L456) |
+| G | Self-Service Reports — CRUD + run | `/portal/reports/` | [apps/portal/views.py:481](../../apps/portal/views.py#L481) |
 
 ### Objectives
 
@@ -30,7 +30,7 @@
 
 - The full Requisition Management module (`/requisitions/`) — covered by its own plan.
 - Tenant onboarding, billing, user management — separate modules.
-- Automated tests — see [.claude/skills/sqa-review/SKILL.md](.claude/skills/sqa-review/SKILL.md).
+- Automated tests — see [.claude/skills/sqa-review/SKILL.md](../skills/sqa-review/SKILL.md).
 
 ---
 
@@ -84,11 +84,11 @@ Use **`admin_acme`** as the primary test account. You will also need a **second 
 
 ### 2.5 Verify seed data exists
 
-[apps/portal/management/commands/seed_portal.py](apps/portal/management/commands/seed_portal.py) seeds, **per active user per tenant**:
+[apps/portal/management/commands/seed_portal.py](../../apps/portal/management/commands/seed_portal.py) seeds, **per active user per tenant**:
 
 | Entity | Expected count | Notes |
 |---|---|---|
-| Dashboard widgets | 6 | The default starter set ([apps/portal/services.py:50](apps/portal/services.py#L50)) |
+| Dashboard widgets | 6 | The default starter set ([apps/portal/services.py:47](../../apps/portal/services.py#L47)) |
 | Notifications | 5 | First 3 **unread**, last 2 **read** |
 | Quick requisitions | 5 | Statuses: approved, submitted, approved, draft, draft. The last draft ("Printer maintenance kit") has **no items** |
 | Saved reports | 3 | spend_by_category, spend_by_month, requisition_status |
@@ -124,7 +124,7 @@ Created widgets/alerts/requisitions/reports persist. To return to a clean state 
 | Activity Feed | `/portal/activity/` | — | — | — | — | — (read-only) |
 | Reports | `/portal/reports/` | `/portal/reports/create/` | `/portal/reports/<pk>/` (run) | `/portal/reports/<pk>/edit/` | `/portal/reports/<pk>/delete/` | run-on-view recompute |
 
-URLs verified in [apps/portal/urls.py](apps/portal/urls.py) and [config/urls.py](config/urls.py).
+URLs verified in [apps/portal/urls.py](../../apps/portal/urls.py) and [config/urls.py](../../config/urls.py).
 
 ### 3.2 Search / filter params per list page
 
@@ -150,13 +150,13 @@ URLs verified in [apps/portal/urls.py](apps/portal/urls.py) and [config/urls.py]
 
 ### 3.4 Behaviour notes baked into the test cases
 
-- **All portal views use `TenantRequiredMixin`** ([apps/portal/views.py:9](apps/portal/views.py#L9)) — no tenant-admin gating; any tenant user has full access to their own data.
+- **All portal views use `TenantRequiredMixin`** ([apps/portal/views.py:10](../../apps/portal/views.py#L10)) — no tenant-admin gating; any tenant user has full access to their own data.
 - **Double scoping.** Every portal `get_object_or_404` filters `tenant=request.tenant, user=request.user` — so another user's record returns **404**, not just a different tenant's.
-- **Auto-provision widgets.** First visit to `/portal/` calls `ensure_default_widgets` ([apps/portal/services.py:64](apps/portal/services.py#L64)) → a brand-new user gets 6 widgets automatically; they never see a truly empty dashboard on first load.
-- **Notification detail auto-marks-read.** Opening `/portal/notifications/<pk>/` calls `note.mark_read()` ([apps/portal/views.py:165](apps/portal/views.py#L165)) — viewing an unread alert flips it to read.
+- **Auto-provision widgets.** First visit to `/portal/` calls `ensure_default_widgets` ([apps/portal/services.py:57](../../apps/portal/services.py#L57)) → a brand-new user gets 6 widgets automatically; they never see a truly empty dashboard on first load.
+- **Notification detail auto-marks-read.** Opening `/portal/notifications/<pk>/` calls `note.mark_read()` ([apps/portal/views.py:172](../../apps/portal/views.py#L172)) — viewing an unread alert flips it to read.
 - **Quick requisition `is_editable`** is `True` only while `status == 'draft'`. Edit / Delete / item add / item delete are all blocked otherwise.
-- **Submit requires ≥1 item** ([apps/portal/views.py:340](apps/portal/views.py#L340)).
-- **Auto numbers.** `QuickRequisition.number` = `QR-<SLUG>-NNNNN`, globally unique ([apps/portal/services.py:18](apps/portal/services.py#L18)).
+- **Submit requires ≥1 item** ([apps/portal/views.py:390](../../apps/portal/views.py#L390)).
+- **Auto numbers.** `QuickRequisition.number` = `QR-<SLUG>-NNNNN`, globally unique ([apps/portal/services.py:17](../../apps/portal/services.py#L17)).
 - **Report create → run redirect.** Saving a new report redirects straight to its run page; viewing a run recomputes the result and updates `last_run_at`.
 - **No file uploads anywhere in this module.**
 
@@ -175,7 +175,7 @@ URLs verified in [apps/portal/urls.py](apps/portal/urls.py) and [config/urls.py]
 | TC-AUTH-03 | Anonymous → portal sub-page redirects to login | Logged out | 1. Open `/portal/notifications/` | — | Redirected to `/accounts/login/` | | |
 | TC-AUTH-04 | Valid login lands on platform dashboard | Seed data present | 1. Go to `/accounts/login/`<br>2. Enter `admin_acme` / `Welcome@123`<br>3. Click **Sign in** | `admin_acme` / `Welcome@123` | Lands on `/` showing the Dashboard with KPI cards | | |
 | TC-AUTH-05 | Authenticated user with NO tenant — portal redirects to onboarding | Log in as a user with no tenant (the superuser `admin`) | 1. Log in as `admin` at `/admin/` then visit `/portal/` | superuser `admin` | Redirected to tenant onboarding (`/tenants/onboarding/...`) — NOT login, NOT a 500 | | |
-| TC-AUTH-06 | Authenticated user with NO tenant — platform dashboard shows the no-tenant screen | Logged in as superuser `admin` | 1. Visit `/` | superuser `admin` | Page renders the **"You're signed in without a tenant"** message ([templates/dashboard/index.html:8](templates/dashboard/index.html#L8)) — BY DESIGN, no crash | | |
+| TC-AUTH-06 | Authenticated user with NO tenant — platform dashboard shows the no-tenant screen | Logged in as superuser `admin` | 1. Visit `/` | superuser `admin` | Page renders the **"You're signed in without a tenant"** message ([templates/dashboard/index.html:8](../../templates/dashboard/index.html#L8)) — BY DESIGN, no crash | | |
 | TC-AUTH-07 | Logout ends the session | Logged in as `admin_acme` | 1. Click the user menu → **Logout**<br>2. Re-open `/portal/` | — | After logout, `/portal/` redirects to `/accounts/login/` | | |
 
 ### 4.2 Multi-Tenancy & Multi-User Isolation
