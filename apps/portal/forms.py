@@ -25,6 +25,25 @@ class NotificationForm(forms.ModelForm):
             'link_url': forms.TextInput(attrs={'placeholder': '/portal/requisitions/'}),
         }
 
+    def clean_link_url(self):
+        """Reject script-scheme URIs (javascript:, data:, vbscript:, …).
+
+        link_url is rendered as an <a href> in the notification detail page;
+        auto-escaping does not neutralise script-scheme URIs, so a value such
+        as ``javascript:alert(1)`` would execute on click (SQA defect D-02).
+        Only http(s) and site-relative paths are allowed.
+        """
+        url = (self.cleaned_data.get('link_url') or '').strip()
+        if not url:
+            return url
+        if url.startswith(('/', '#', '?')):
+            return url
+        if url.lower().startswith(('http://', 'https://')):
+            return url
+        raise forms.ValidationError(
+            'Enter a relative path (starting with /) or an http(s):// URL.'
+        )
+
 
 class QuickRequisitionForm(forms.ModelForm):
     class Meta:
