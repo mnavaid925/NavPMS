@@ -192,7 +192,8 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Coverage | [apps/portal/tests/](apps/portal/tests/) — Module 2 suite, 94 tests, ~91% line coverage |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/) — Modules 1–4, **253 tests** |
+| Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
 
