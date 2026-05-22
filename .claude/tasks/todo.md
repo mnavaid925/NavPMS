@@ -106,3 +106,35 @@ integrated with Module 3 requisitions.
 
 **Note:** `.claude/manual-tests/` changes + a stray `.tmp` file are from the user's
 manual-test skill run — not part of this module and left untouched.
+
+---
+
+## Manual Test — Requisition Management (Module 3) — 2026-05-23
+
+**Scope:** `/manual-test "Requisition Management"` → produced
+`.claude/manual-tests/requisitions-manual-test.md` (145 test cases), then executed
+the back-end-verifiable subset and fixed the defect found.
+
+**Work done:**
+- Built a 145-case manual test plan (auth, multi-tenancy, CRUD, search, pagination,
+  filters, workflow, UI/UX, negative, integration), verified against the codebase.
+- Auto-executed 60 cases via Django's test `Client` (throwaway harness, since removed).
+- **Bug found & fixed — BUG-01:** creating an `AccountCode` with a `code` that already
+  exists for the tenant raised a 500 `IntegrityError` instead of a clean form error.
+  Root cause: `tenant` is excluded from `AccountCodeForm`, so `validate_unique()`
+  skipped the `unique_together('tenant','code')` check.
+
+**Fix:**
+- `apps/requisitions/forms.py` — `AccountCodeForm` now takes a `tenant` kwarg and
+  validates tenant-scoped code uniqueness in `clean_code()`.
+- `apps/requisitions/views.py` — create & edit views pass `tenant=request.tenant`.
+
+**Verification:**
+- All 60 auto-executed cases PASS after the fix (0 fail); TC-CREATE-08 re-run →
+  clean form error "An account code with this code already exists.", no 500.
+- `seed_requisitions --flush` re-run to leave a clean data baseline.
+- Lesson captured in `lessons.md` (unique_together + excluded-field 500 trap).
+
+**Remaining:** 85 UI/UX cases need a human in a browser (responsive layouts, badge
+colours, confirm dialogs, console errors). Release recommendation: GO-with-fixes.
+
