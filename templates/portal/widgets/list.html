@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Widgets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard Widgets</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo; Customize widgets
+    </div>
+  </div>
+  <a href="{% url 'portal:widget_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> Add widget
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Widget type</label>
+        <select name="widget_type" class="form-select">
+          <option value="">All types</option>
+          {% for v, l in widget_type_choices %}
+            <option value="{{ v }}" {% if request.GET.widget_type == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Visibility</label>
+        <select name="visible" class="form-select">
+          <option value="">All</option>
+          <option value="visible" {% if request.GET.visible == 'visible' %}selected{% endif %}>Visible</option>
+          <option value="hidden" {% if request.GET.visible == 'hidden' %}selected{% endif %}>Hidden</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>#</th><th>Title</th><th>Type</th><th>Size</th>
+          <th>Visibility</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in widgets %}
+          <tr>
+            <td class="text-muted">{{ w.position }}</td>
+            <td><strong>{{ w.title }}</strong></td>
+            <td><span class="badge badge-soft-primary">{{ w.get_widget_type_display }}</span></td>
+            <td class="small text-muted">{{ w.get_size_display }}</td>
+            <td>
+              {% if w.is_visible %}
+                <span class="badge badge-soft-success">Visible</span>
+              {% else %}
+                <span class="badge badge-soft-secondary">Hidden</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'portal:widget_edit' w.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'portal:widget_delete' w.pk %}" class="d-inline"
+                    onsubmit="return confirm('Remove this widget?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No widgets yet. Add one to build your dashboard.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
