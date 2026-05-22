@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Requisition Templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Requisition Templates</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'requisitions:requisition_list' %}">Requisitions</a> &rsaquo;
+      Pre-defined forms for recurring orders
+    </div>
+  </div>
+  <a href="{% url 'requisitions:template_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> New template
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-7">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Template name…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for v, l in category_choices %}
+            <option value="{{ v }}" {% if request.GET.category == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Name</th><th>Category</th><th>Owner</th><th>Lines</th>
+          <th>Visibility</th><th class="text-end">Est. total</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+          <tr>
+            <td><a href="{% url 'requisitions:template_detail' t.pk %}">{{ t.name }}</a></td>
+            <td class="small text-muted">{{ t.get_category_display }}</td>
+            <td class="small">{{ t.owner.get_full_name|default:t.owner.username }}</td>
+            <td>{{ t.lines.count }}</td>
+            <td>
+              {% if t.is_shared %}
+                <span class="badge badge-soft-info">Shared</span>
+              {% else %}
+                <span class="badge badge-soft-secondary">Private</span>
+              {% endif %}
+            </td>
+            <td class="text-end">${{ t.estimated_total|floatformat:2|intcomma }}</td>
+            <td class="text-end">
+              <a href="{% url 'requisitions:template_detail' t.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              <form method="post" action="{% url 'requisitions:template_use' t.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-primary" title="Create requisition from template"><i class="ri-file-copy-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No templates yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
