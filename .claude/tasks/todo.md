@@ -135,6 +135,22 @@ the back-end-verifiable subset and fixed the defect found.
 - `seed_requisitions --flush` re-run to leave a clean data baseline.
 - Lesson captured in `lessons.md` (unique_together + excluded-field 500 trap).
 
-**Remaining:** 85 UI/UX cases need a human in a browser (responsive layouts, badge
-colours, confirm dialogs, console errors). Release recommendation: GO-with-fixes.
+**Browser pass (Playwright + system Chrome):**
+- Drove 43 more UI/UX cases at 1920×1080, 768×1024 and 375×667 mobile — page
+  titles, sidebar, breadcrumbs, badge colours, confirm dialogs, console errors,
+  pagination, filters, responsive layout. All 43 PASS after the fix below.
+- **Bug found & fixed — BUG-02:** horizontal page overflow on mobile (≤992px).
+  Two causes: (a) wide tables not wrapped in `.table-responsive`; (b) the theme
+  rule `html[data-layout-position="fixed"] .app-sidebar { position: sticky }`
+  overrode the mobile `position: fixed`, jamming the 260px sidebar in-flow.
+- **Fix:** `static/css/style.css` — `.app-main { min-width: 0 }` + the mobile
+  sidebar rule re-scoped to `html[data-layout-position] .app-sidebar`; five
+  requisition list/detail tables wrapped in `.table-responsive`. The sidebar
+  half is an app-wide layout defect — the CSS fix corrects it globally.
+- Verified: every module page now `scrollWidth = 375` at a 375px viewport;
+  desktop 1920px layout unchanged.
+
+**Totals:** 103 / 145 cases executed (60 back-end + 43 browser), 0 fail,
+2 bugs found & fixed (BUG-01, BUG-02). 42 cases still need a human (visual
+judgement, double-submit timing, browser back/forward). GO-with-fixes.
 
