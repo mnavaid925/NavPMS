@@ -6,9 +6,11 @@ dashboard, light/dark mode, multiple layout variants, and a pluggable payment ga
 This release ships the **Foundation** (project scaffolding, multi-tenancy, authentication,
 user management, themed dashboard), **Module 1 — Tenant & Subscription Management** (all
 five sub-modules: Onboarding, Subscription & Billing, Isolation & Security, Custom Branding,
-Health Monitoring), and **Module 2 — User Dashboard & Portal** (all five sub-modules:
+Health Monitoring), **Module 2 — User Dashboard & Portal** (all five sub-modules:
 Personalized Overview, Task & Alert Center, Quick Requisition Entry, Recent Activity Feed,
-Self-Service Reporting).
+Self-Service Reporting), and **Module 3 — Requisition Management** (all five sub-modules:
+Requisition Creation, Requisition Tracking, Duplicate Requisition Check, Requisition
+Templates, Cancellation/Amendment).
 
 ---
 
@@ -22,11 +24,12 @@ Self-Service Reporting).
 7. [Dashboard Features](#dashboard-features)
 8. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
 9. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
-10. [Routes / UI Tour](#routes--ui-tour)
-11. [Multi-tenancy Model](#multi-tenancy-model)
-12. [Payment Gateway](#payment-gateway)
-13. [Browser Compatibility](#browser-compatibility)
-14. [Roadmap](#roadmap)
+10. [Module 3 — Requisition Management](#module-3--requisition-management)
+11. [Routes / UI Tour](#routes--ui-tour)
+12. [Multi-tenancy Model](#multi-tenancy-model)
+13. [Payment Gateway](#payment-gateway)
+14. [Browser Compatibility](#browser-compatibility)
+15. [Roadmap](#roadmap)
 
 ---
 
@@ -55,8 +58,10 @@ NavPMS/
 │   ├── accounts/             # Custom User, UserProfile, UserInvite, auth flow
 │   ├── tenants/              # Module 1: Plans, Subscriptions, Invoices, Branding,
 │   │                         # Security, Audit, Health Monitoring + onboarding wizard
-│   └── portal/               # Module 2: DashboardWidget, Notification,
-│                             # QuickRequisition(+Item), SavedReport, activity feed
+│   ├── portal/               # Module 2: DashboardWidget, Notification,
+│   │                         # QuickRequisition(+Item), SavedReport, activity feed
+│   └── requisitions/         # Module 3: AccountCode, RequisitionTemplate(+Line),
+│                             # Requisition(+Line), RequisitionStatusEvent
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -70,7 +75,8 @@ NavPMS/
 │   ├── dashboard/index.html
 │   ├── accounts/{users,invites,profile}/
 │   ├── tenants/{onboarding,plans,subscriptions,invoices,branding,security,monitoring}/
-│   └── portal/{widgets,notifications,requisitions,reports,activity}/ + dashboard.html
+│   ├── portal/{widgets,notifications,requisitions,reports,activity}/ + dashboard.html
+│   └── requisitions/{account_codes,req_templates,requisitions}/ + tracking.html
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -151,11 +157,12 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
 | `python manage.py seed_portal` | Creates dashboard widgets, notifications, quick requisitions and saved reports for every tenant user. |
+| `python manage.py seed_requisitions` | Creates account codes, requisition templates and requisitions across every status for each tenant. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -191,6 +198,11 @@ monitoring dashboard chart.
 Every tenant user receives the 6-widget starter dashboard, 5 notifications (mixed
 categories/priorities, 2 unread), 5 quick requisitions (draft / submitted / approved with
 line items), and 3 saved reports — enough to populate every Module 2 page on first login.
+
+### Requisition data
+Each tenant gets 5 account codes, 2 shared requisition templates (with pre-defined lines),
+and 6 requisitions — one in every status (draft, submitted, approved, rejected, cancelled,
+converted) — each with line items and a status-event timeline.
 
 ---
 
@@ -251,6 +263,28 @@ Every list page has search + filters; every model has full CRUD per the project 
 
 ---
 
+## Module 3 — Requisition Management
+
+A tenant-shared procurement workflow ([`apps/requisitions/`](apps/requisitions/)) — formal
+purchase requests moving from draft through approval to PO conversion. All five PMS
+sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Requisition Creation** | `Requisition` + `RequisitionLine` — auto-numbered `REQ-<SLUG>-NNNNN`, item descriptions, quantities, required dates, per-line `AccountCode`. Inline line-item CRUD on the detail page. |
+| **Requisition Tracking** | A `status` field (`draft → submitted → approved/rejected → converted`, plus `cancelled`) with an immutable `RequisitionStatusEvent` timeline, and a dedicated tracking board at `/requisitions/tracking/` that groups every requisition into status columns with counts and totals. |
+| **Duplicate Requisition Check** | `find_potential_duplicates()` scans the last 30 days for same-requester requests with an equal title or a shared line description. Create / edit / submit set `possible_duplicate` + `duplicate_of`; the detail page shows a warning banner with links. |
+| **Requisition Templates** | `RequisitionTemplate` + `RequisitionTemplateLine` — reusable pre-defined forms (private or shared), with a one-click "Create requisition from template" that copies the lines into a fresh draft. |
+| **Cancellation/Amendment** | Cancel from any open status; Amend pulls a submitted/approved requisition back to `draft`, bumps the `revision` counter, and records a status event. |
+
+A dedicated **`AccountCode`** master (tenant-scoped, full CRUD, unique `code` per tenant) is
+charged against requisition and template lines. Approve / reject / convert-to-PO are tenant
+-admin actions; the requester (or an admin) owns draft editing, submit, amend and cancel.
+Every workflow transition also writes an `AuditLog` entry, so Module 2's Activity Feed shows
+requisition activity.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -276,6 +310,11 @@ Every list page has search + filters; every model has full CRUD per the project 
 | `/portal/requisitions/` | Quick requisition list + fast-track entry + inline items |
 | `/portal/activity/` | Recent activity feed (the user's own actions) |
 | `/portal/reports/` | Self-service reports — save, run, chart |
+| `/requisitions/` | Requisition list — search + status/category/scope filters |
+| `/requisitions/create/` | New requisition (header → detail for line items) |
+| `/requisitions/tracking/` | Status board grouping requisitions by workflow state |
+| `/requisitions/templates/` | Requisition templates — pre-defined recurring forms |
+| `/requisitions/account-codes/` | Account-code master CRUD (tenant admin) |
 | `/admin/` | Django admin |
 
 ---
@@ -314,13 +353,13 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–2 ship. Modules 3–21 from the PMS spec are not yet implemented:
+Modules 1–3 ship. Modules 4–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
 | 1 | Tenant & Subscription Management | Shipped |
 | 2 | User Dashboard & Portal | Shipped |
-| 3 | Requisition Management | Planned |
+| 3 | Requisition Management | Shipped |
 | 4 | Approval Workflow Engine | Planned |
 | 5 | Vendor Management | Planned |
 | 6 | Sourcing & Tendering | Planned |
