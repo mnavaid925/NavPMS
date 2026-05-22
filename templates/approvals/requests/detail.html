@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Approval · {{ appr.requisition.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Approval · {{ appr.requisition.number }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'approvals:request_list' %}">Approval Requests</a> &rsaquo;
+      {{ appr.requisition.title }}
+    </div>
+  </div>
+  <span class="badge badge-soft-{% if appr.status == 'approved' %}success{% elif appr.status == 'rejected' or appr.status == 'cancelled' %}danger{% else %}warning{% endif %} fs-6">
+    {{ appr.get_status_display }}
+  </span>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span>Approval chain</span>
+        <span class="small text-muted">Rule: {{ appr.rule.name|default:'—' }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr><th>#</th><th>Step</th><th>Assigned to</th><th>Status</th><th>Decided</th></tr>
+          </thead>
+          <tbody>
+            {% for t in tasks %}
+              <tr {% if t == active_task %}class="table-active"{% endif %}>
+                <td><span class="badge badge-soft-primary">{{ t.order }}</span></td>
+                <td>
+                  <a href="{% url 'approvals:task_detail' t.pk %}">{{ t.name }}</a>
+                  {% if t.original_approver and t.original_approver_id != t.assigned_to_id %}
+                    <small class="text-muted d-block">delegated from {{ t.original_approver }}</small>
+                  {% endif %}
+                </td>
+                <td class="small">{{ t.assigned_to.get_full_name|default:t.assigned_to.username }}</td>
+                <td>
+                  <span class="badge badge-soft-{% if t.status == 'approved' %}success{% elif t.status == 'rejected' %}danger{% elif t.status == 'escalated' %}warning{% elif t.status == 'skipped' %}secondary{% else %}info{% endif %}">
+                    {{ t.get_status_display }}
+                  </span>
+                  {% if t.is_overdue %}<span class="badge badge-soft-danger ms-1">Overdue</span>{% endif %}
+                </td>
+                <td class="small text-muted">
+                  {% if t.acted_at %}{{ t.acted_by }} · {{ t.acted_at|date:'M d, H:i' }}{% else %}—{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if can_act %}
+        <div class="card-footer text-end">
+          <a href="{% url 'approvals:task_detail' active_task.pk %}" class="btn btn-primary">
+            <i class="ri-checkbox-circle-line me-1"></i> Review current step
+          </a>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header">History &amp; audit trail</div>
+      <div class="card-body">
+        <ul class="activity-timeline mb-0">
+          {% for ev in actions %}
+            <li>
+              <span class="at-dot
+                {% if ev.action == 'rejected' or ev.action == 'cancelled' %}is-danger
+                {% elif ev.action == 'approved' or ev.action == 'completed' %}is-success
+                {% elif ev.action == 'escalated' %}is-warning{% endif %}"></span>
+              <div class="at-meta">
+                {{ ev.created_at|date:'M j, Y H:i' }} &middot;
+                {{ ev.actor|default:'system' }}
+              </div>
+              <div class="at-title">{{ ev.get_action_display }}{% if ev.task %} — {{ ev.task.name }}{% endif %}</div>
+              {% if ev.comment %}<div class="at-msg">{{ ev.comment }}</div>{% endif %}
+            </li>
+          {% empty %}
+            <li class="text-muted small">No history.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Requisition</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Number</dt>
+          <dd class="col-7"><a href="{% url 'requisitions:requisition_detail' appr.requisition.pk %}">{{ appr.requisition.number }}</a></dd>
+          <dt class="col-5 text-muted">Title</dt><dd class="col-7">{{ appr.requisition.title }}</dd>
+          <dt class="col-5 text-muted">Requester</dt><dd class="col-7">{{ appr.requisition.requested_by }}</dd>
+          <dt class="col-5 text-muted">Category</dt><dd class="col-7">{{ appr.requisition.get_category_display }}</dd>
+          <dt class="col-5 text-muted">Department</dt><dd class="col-7">{{ appr.requisition.department|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Estimated</dt><dd class="col-7"><strong>${{ appr.requisition.estimated_total|floatformat:2|intcomma }}</strong></dd>
+          <dt class="col-5 text-muted">Submitted by</dt><dd class="col-7">{{ appr.submitted_by|default:'—' }}</dd>
+        </dl>
+      </div>
+      <div class="card-footer">
+        <a href="{% url 'requisitions:requisition_detail' appr.requisition.pk %}" class="btn btn-outline-primary w-100">
+          <i class="ri-external-link-line me-1"></i> Open requisition
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
