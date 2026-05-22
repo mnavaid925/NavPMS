@@ -17,21 +17,29 @@
 
 **Pages covered:** Account Code list/create/edit/delete · Template list/create/detail/edit/delete/use + line add/delete · Requisition list/create/detail/edit/delete + line add/delete · Tracking board · Submit/Decide/Cancel/Amend/Convert workflow actions.
 
-### 1.1 Execution Summary (auto-run 2026-05-23)
+### 1.1 Execution Summary (executed 2026-05-23)
 
-**60 of 145 test cases were executed automatically** against the real view code using Django's test client (auth, multi-tenancy, CRUD, search, pagination, filters, workflow, negative paths). The remaining 85 require a human in a browser (UI/UX rendering, responsive layouts, console errors, confirm dialogs, visual badges) and are left for the manual tester.
+**103 of 145 test cases were executed** in two automated passes:
+1. **Back-end pass (60 cases)** — Django's test client exercising the real views (auth, multi-tenancy, CRUD, search, pagination, filters, workflow, negative paths).
+2. **Browser pass (43 cases)** — Playwright driving the system Chrome at 1920×1080, 768×1024 and **375×667 mobile** (page titles, sidebar, breadcrumbs, badge colours, confirm dialogs, console errors, responsive layout, toasts).
+
+The remaining 42 cases need a human (visual judgement, double-submit timing, browser back/forward) — see §6.
 
 | Result | Count |
 |---|---|
-| ✅ Auto-executed & **PASS** | 60 |
-| ❌ Auto-executed & FAIL | 0 *(1 found, fixed, re-verified — see BUG-01)* |
-| ⏳ Manual execution required | 85 |
+| ✅ Executed & **PASS** | 103 |
+| ❌ Executed & FAIL | 0 *(2 found, fixed, re-verified — see §5)* |
+| ⏳ Manual execution still required | 42 |
 
-**1 defect found and fixed during this run** — `BUG-01` (duplicate account code → 500). Fix applied to [apps/requisitions/forms.py](apps/requisitions/forms.py) + [apps/requisitions/views.py](apps/requisitions/views.py); TC-CREATE-08 re-run → PASS. See §5.
+**2 defects found and fixed during this run:**
+- **BUG-01** — duplicate account code → HTTP 500. Fixed in [forms.py](apps/requisitions/forms.py#L10) + [views.py](apps/requisitions/views.py#L65). TC-CREATE-08 re-run → PASS.
+- **BUG-02** — horizontal page overflow on mobile (≤992px): wide tables + a theme rule defeating the off-canvas sidebar. Fixed in [style.css](static/css/style.css#L134) + 5 requisition templates wrapped in `.table-responsive`. TC-UI-11 re-run → PASS (375px viewport, scrollWidth 375).
 
-**Auto-executed & PASS (60):** TC-AUTH-01·02·03·04·05 · TC-TENANT-01·02·03·04 · TC-CREATE-01·02·03·04·05·06·07·08·09·10·11·12 · TC-LIST-01·09·10 · TC-DETAIL-01 · TC-EDIT-01·02·04 · TC-DELETE-03·05·07·11 · TC-SEARCH-01·02·05·06·08·09 · TC-PAGE-01·05·06 · TC-FILTER-02·03·05·06·07 · TC-ACTION-01·02·03·05·06·07·08·09·10 · TC-UI-08 · TC-NEG-01·04·10·12.
+**Back-end pass — PASS (60):** TC-AUTH-01·02·03·04·05 · TC-TENANT-01·02·03·04 · TC-CREATE-01·02·03·04·05·06·07·08·09·10·11·12 · TC-LIST-01·09·10 · TC-DETAIL-01 · TC-EDIT-01·02·04 · TC-DELETE-03·05·07·11 · TC-SEARCH-01·02·05·06·08·09 · TC-PAGE-01·05·06 · TC-FILTER-02·03·05·06·07 · TC-ACTION-01·02·03·05·06·07·08·09·10 · TC-UI-08 · TC-NEG-01·04·10·12.
 
-The auto-run used a throwaway harness driving Django's test client; it re-seeded with `seed_requisitions --flush` for a deterministic baseline and was removed afterwards. Re-run any case manually in a browser to confirm the on-screen UX.
+**Browser pass — PASS (43):** TC-UI-01·02·03·04·05·06·11·12·13·14·15·16 · TC-LIST-02·03·06·07·08 · TC-DETAIL-02·04·05·08·09 · TC-DELETE-01·02 · TC-SEARCH-03·11 · TC-PAGE-02·03·04·07 · TC-FILTER-01·04·08·11·13 · TC-EDIT-05·06 · TC-ACTION-12 · TC-NEG-02·08·11·13 · TC-INT-05.
+
+Both passes used throwaway harnesses, re-seeded with `seed_requisitions --flush` for a deterministic baseline, and were removed afterwards.
 
 ---
 
@@ -322,7 +330,7 @@ Re-run `seed_requisitions --flush` to restore the baseline. Manually delete any 
 | TC-UI-08 | Tracking board columns | Tracking board | 1. Open `/requisitions/tracking/` | — | 6 columns (one per status) with count badges; cards link to detail; header shows total count + grand total | | |
 | TC-UI-09 | Tracking scope selector | Tracking board | 1. Change the scope dropdown to "Only mine" | — | Board auto-submits (`onchange`) and re-filters to the current user's requisitions | | |
 | TC-UI-10 | Long text wraps cleanly | A requisition with a 200-char title | 1. View it in the list and detail | — | Text wraps; no horizontal scrollbar / overflow | | |
-| TC-UI-11 | Mobile viewport 375×667 | — | 1. DevTools → iPhone SE size<br>2. Browse list + detail | — | Layout usable; no offscreen content or overlap; tables scroll horizontally | | |
+| TC-UI-11 | Mobile viewport 375×667 | — | 1. DevTools → iPhone SE size<br>2. Browse list + detail | — | Layout usable; no offscreen content or overlap; tables scroll horizontally; page `scrollWidth` ≤ viewport | ✅ Pass (browser, after fix) | Was BUG-02 (932px overflow); fixed → 375px. Sidebar tucks off-canvas correctly |
 | TC-UI-12 | Tablet viewport 768×1024 | — | 1. DevTools → iPad size | — | Tables readable / horizontally scrollable; sidebar collapses appropriately | | |
 | TC-UI-13 | Keyboard tab order | Create form | 1. Tab through the fields | — | Logical top-to-bottom order; focus ring visible | | |
 | TC-UI-14 | No console errors | — | 1. Open DevTools Console<br>2. Visit every requisitions page | — | No red JS errors | | |
@@ -369,39 +377,42 @@ Re-run `seed_requisitions --flush` to restore the baseline. Manually delete any 
 
 | Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Status | Browser |
 |---|---|---|---|---|---|---|---|---|
-| BUG-02 | | | | | | | open | |
+| BUG-02 | TC-UI-11 | **Medium** | `/requisitions/` (all module pages, ≤992px) | 1. Log in as `admin_acme`<br>2. Set the viewport to 375×667 (mobile)<br>3. Open any requisitions page | Layout fits the viewport; sidebar off-canvas; no horizontal page scroll | **Horizontal overflow** — page `scrollWidth` 932px on a 375px viewport. Two causes: (a) wide multi-column tables not wrapped in `.table-responsive`; (b) the theme rule `html[data-layout-position="fixed"] .app-sidebar { position: sticky }` overrode the mobile `position: fixed`, leaving the 260px sidebar jammed in-flow | ✅ **FIXED & re-verified** — see below | Chrome 375×667 (Playwright) |
 | BUG-03 | | | | | | | open | |
+
+**Fix for BUG-02:** (1) `.app-main` given `min-width: 0` so the CSS-grid `1fr` track can shrink below its content; (2) the mobile sidebar rule re-scoped to `html[data-layout-position] .app-sidebar` so it out-specifies the theme rule and keeps `position: fixed` on mobile; (3) the 5 requisition list/detail tables wrapped in `.table-responsive`. Files: [static/css/style.css:134](static/css/style.css#L134), [static/css/style.css:557](static/css/style.css#L557), [requisitions/list.html](templates/requisitions/requisitions/list.html), [requisitions/detail.html](templates/requisitions/requisitions/detail.html), [account_codes/list.html](templates/requisitions/account_codes/list.html), [req_templates/list.html](templates/requisitions/req_templates/list.html), [req_templates/detail.html](templates/requisitions/req_templates/detail.html). Re-verified: every module page now reports `scrollWidth = 375` at a 375px viewport; desktop 1920px layout unchanged (sidebar at `left:0`).
+> Note: the sidebar half of BUG-02 is an **app-wide** layout defect (every page at ≤992px), not requisitions-specific — the CSS fix corrects it globally.
 
 **Severity guide:** Critical (data loss / security / blocks core flow) · High (major feature broken) · Medium (feature works with a workaround) · Low (minor) · Cosmetic (visual only).
 
-> No other defects surfaced in the 60 auto-executed cases. The remaining 85 manual cases (UI/UX, responsive, console) have not yet been run — add `BUG-NN` rows here as you find issues.
+> No other defects surfaced in the 102 executed cases. The remaining 43 manual cases have not yet been run — add `BUG-NN` rows here as you find issues.
 
 ---
 
 ## 6. Sign-off & Release Recommendation
 
-"Pass" column shows **auto-executed passes**; "Pending" = cases still needing a human in a browser.
+"Pass" column = cases executed (back-end + browser passes); "Pending" = cases still needing a human.
 
-| Section | Total | Pass (auto) | Fail | Pending (manual) | Notes |
+| Section | Total | Pass | Fail | Pending | Notes |
 |---|---|---|---|---|---|
 | 4.1 Authentication & Access | 6 | 5 | 0 | 1 | TC-AUTH-06 (logout) pending |
 | 4.2 Multi-Tenancy Isolation | 5 | 4 | 0 | 1 | TC-TENANT-05 pending |
 | 4.3 CREATE | 13 | 12 | 0 | 1 | TC-CREATE-13 (max-length) pending |
-| 4.4 READ — List Page | 11 | 3 | 0 | 8 | Visual columns/badges need browser |
-| 4.5 READ — Detail Page | 9 | 1 | 0 | 8 | Timeline/banners need browser |
-| 4.6 UPDATE | 9 | 3 | 0 | 6 | |
-| 4.7 DELETE | 11 | 4 | 0 | 7 | Confirm dialogs need browser |
-| 4.8 SEARCH | 12 | 6 | 0 | 6 | |
-| 4.9 PAGINATION | 8 | 3 | 0 | 5 | Needs >20 records seeded |
-| 4.10 FILTERS | 13 | 5 | 0 | 8 | Dropdown rendering needs browser |
-| 4.11 Status Transitions / Actions | 14 | 9 | 0 | 5 | |
-| 4.12 Frontend UI / UX | 16 | 1 | 0 | 15 | Almost all need a browser |
-| 4.13 Negative & Edge Cases | 13 | 4 | 0 | 9 | |
-| 4.14 Cross-Module Integration | 5 | 0 | 0 | 5 | Audit log / approvals UI |
-| **TOTAL** | **145** | **60** | **0** | **85** | 1 bug found & fixed (BUG-01) |
+| 4.4 READ — List Page | 11 | 8 | 0 | 3 | TC-LIST-04·05·11 pending |
+| 4.5 READ — Detail Page | 9 | 6 | 0 | 3 | TC-DETAIL-03·06·07 pending |
+| 4.6 UPDATE | 9 | 5 | 0 | 4 | TC-EDIT-03·07·08·09 pending |
+| 4.7 DELETE | 11 | 6 | 0 | 5 | TC-DELETE-04·06·08·09·10 pending |
+| 4.8 SEARCH | 12 | 8 | 0 | 4 | TC-SEARCH-04·07·10·12 pending |
+| 4.9 PAGINATION | 8 | 7 | 0 | 1 | TC-PAGE-08 pending |
+| 4.10 FILTERS | 13 | 10 | 0 | 3 | TC-FILTER-09·10·12 pending |
+| 4.11 Status Transitions / Actions | 14 | 10 | 0 | 4 | TC-ACTION-04·11·13·14 pending |
+| 4.12 Frontend UI / UX | 16 | 13 | 0 | 3 | TC-UI-07·09·10 pending |
+| 4.13 Negative & Edge Cases | 13 | 8 | 0 | 5 | TC-NEG-03·05·06·07·09 pending |
+| 4.14 Cross-Module Integration | 5 | 1 | 0 | 4 | TC-INT-01·02·03·04 pending |
+| **TOTAL** | **145** | **103** | **0** | **42** | 2 bugs found & fixed (BUG-01, BUG-02) |
 
-**Tested by:** Automated harness (60 cases) + ____________ (manual)  **Date:** 2026-05-23  **Build / commit:** main @ pre-commit
+**Tested by:** Automated harnesses — 60 back-end + 43 browser cases (2026-05-23) + ____________ (remaining 42 manual)  **Date:** 2026-05-23  **Build / commit:** main @ pre-commit
 
 **Release Recommendation:** ☑ **GO-with-fixes** *(provisional)*
 
-**Rationale:** All 60 auto-executed back-end cases pass; the one defect found (BUG-01, duplicate account code 500) has been fixed and re-verified. Final GO is contingent on completing the 85 pending manual UI/UX cases in a browser.
+**Rationale:** All 103 executed cases pass; both defects found (BUG-01 duplicate-code 500, BUG-02 mobile overflow) are fixed and re-verified. Final GO is contingent on completing the 42 pending manual cases — mostly visual-judgement, timing-sensitive (double-submit), and browser back/forward checks.
