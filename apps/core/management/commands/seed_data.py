@@ -23,6 +23,7 @@ class Command(BaseCommand):
             ('seed_users', 'Tenant admin + staff users'),
             ('seed_portal', 'Portal widgets + notifications + requisitions + reports'),
             ('seed_requisitions', 'Account codes + requisition templates + requisitions'),
+            ('seed_approvals', 'Approval rules + steps + delegations + routed requests'),
         ]
 
         for cmd, label in steps:
