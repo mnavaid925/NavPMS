@@ -1,9 +1,11 @@
 """Module 2 views: personalized dashboard, widgets, notifications,
 quick requisitions, self-service reports, activity feed."""
 from django.contrib import messages
+from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import ListView
 
@@ -244,7 +246,13 @@ class NotificationMarkReadView(TenantRequiredMixin, View):
         else:
             note.mark_read()
             messages.success(request, 'Alert marked read.')
-        return redirect(request.POST.get('next') or 'portal:notification_list')
+        # SQA defect D-03: validate the `next` target against an open redirect.
+        nxt = request.POST.get('next', '')
+        if nxt and url_has_allowed_host_and_scheme(
+            nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+        ):
+            return redirect(nxt)
+        return redirect('portal:notification_list')
 
 
 class NotificationMarkAllReadView(TenantRequiredMixin, View):
@@ -301,9 +309,17 @@ class RequisitionCreateView(TenantRequiredMixin, View):
             req = form.save(commit=False)
             req.tenant = request.tenant
             req.user = request.user
-            req.number = next_requisition_number(request.tenant)
             req.status = 'draft'
-            req.save()
+            # SQA defect D-04: count-based numbering can race under concurrent
+            # creates — retry with a fresh number on the duplicate-key error.
+            for attempt in range(5):
+                req.number = next_requisition_number(request.tenant)
+                try:
+                    req.save()
+                    break
+                except IntegrityError:
+                    if attempt == 4:
+                        raise
             record_audit(
                 request.tenant, request.user, 'requisition.created',
                 target_type='QuickRequisition', target_id=req.id,
