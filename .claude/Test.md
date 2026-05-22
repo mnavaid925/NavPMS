@@ -1,8 +1,9 @@
-# Module 14 — Energy & Utility Management — Comprehensive SQA Test Report
+# Module 2 — User Dashboard & Portal — Comprehensive SQA Test Report
 
-**Target:** `apps/utility/` (Phase 1, shipped). Scope mode: **Module review** (full app).
+**Target:** [apps/portal/](../apps/portal/) — NavPMS Module 2 (User Dashboard & Portal). Scope mode: **Module review** (full app, end-to-end).
 **Reviewer:** Senior SQA Engineer.
-**Codebase snapshot:** branch `main` @ `3508c66` (post-shipping closeout).
+**Codebase snapshot:** branch `main` @ `0f90d1e`.
+**Stack:** Django 4.2.28, MySQL 8, Bootstrap 5.3, custom `accounts.User`, multi-tenant.
 
 ---
 
@@ -10,773 +11,538 @@
 
 ### 1.1 Surface area & shipping state
 
-The app implements MSM Module 14 across five sub-modules:
+Module 2 delivers the five PMS portal sub-modules across ~1,366 LoC:
 
-| Sub-module | Purpose | Key models |
+| Sub-module | Purpose | Key models / code |
 |---|---|---|
-| 14.1 Utility Meter Integration | Catalog of utility types, physical meters, append-only consumption ledger | [`UtilityType`](../apps/utility/models.py#L50), [`UtilityMeter`](../apps/utility/models.py#L86), [`UtilityConsumption`](../apps/utility/models.py#L160) |
-| 14.2 Energy Cost Allocation | Effective-dated tariffs, TOU rate bands, period allocations bridged into `cost.DriverActuals` | [`UtilityTariff`](../apps/utility/models.py#L270), [`TOURateBand`](../apps/utility/models.py#L428), [`UtilityAllocation`](../apps/utility/models.py#L324) |
-| 14.3 Peak Demand Management | DR event lifecycle + read-only peak-shaving suggestions over `pps.ScheduledOperation` | [`DemandResponseEvent`](../apps/utility/models.py#L472), [`PeakShavingSuggestion`](../apps/utility/models.py#L558) |
-| 14.4 Carbon & Sustainability | Effective-dated emission factors, append-only carbon ledger, per-period ESG KPIs | [`EmissionFactor`](../apps/utility/models.py#L657), [`CarbonEmission`](../apps/utility/models.py#L723), [`SustainabilityKPI`](../apps/utility/models.py#L813) |
-| 14.5 Utility Benchmarking | Per-plant period snapshots + plant-to-plant / period-over-period comparison reports | [`BenchmarkSnapshot`](../apps/utility/models.py#L892), [`BenchmarkComparison`](../apps/utility/models.py#L980) |
+| 2.1 Personalized Overview | Per-user customizable dashboard widgets | [`DashboardWidget`](../apps/portal/models.py#L21), [`build_dashboard_context`](../apps/portal/services.py#L67), [`ensure_default_widgets`](../apps/portal/services.py#L57) |
+| 2.2 Task & Alert Center | Per-user notifications with read state | [`Notification`](../apps/portal/models.py#L69), [`create_notification`](../apps/portal/services.py#L31) |
+| 2.3 Quick Requisition Entry | Fast-track requisitions + line items | [`QuickRequisition`](../apps/portal/models.py#L119), [`QuickRequisitionItem`](../apps/portal/models.py#L192), [`next_requisition_number`](../apps/portal/services.py#L17) |
+| 2.4 Recent Activity Feed | Read-only view over `tenants.AuditLog` | [`ActivityFeedView`](../apps/portal/views.py#L456) (no own model) |
+| 2.5 Self-Service Reporting | Saved report definitions + chart render | [`SavedReport`](../apps/portal/models.py#L223), [`generate_report`](../apps/portal/services.py#L116) |
 
-Code volume: ~3,672 LoC across [models.py](../apps/utility/models.py) (1,045), [views.py](../apps/utility/views.py) (1,607), [forms.py](../apps/utility/forms.py) (419), [signals.py](../apps/utility/signals.py) (409), [urls.py](../apps/utility/urls.py) (97), [admin.py](../apps/utility/admin.py) (95). Service layer: [allocation.py](../apps/utility/services/allocation.py), [benchmark.py](../apps/utility/services/benchmark.py), [carbon.py](../apps/utility/services/carbon.py), [meters.py](../apps/utility/services/meters.py), [peak.py](../apps/utility/services/peak.py).
+Code volume: [models.py](../apps/portal/models.py) (249), [views.py](../apps/portal/views.py) (575), [services.py](../apps/portal/services.py) (212), [forms.py](../apps/portal/forms.py) (73), [urls.py](../apps/portal/urls.py) (44), [admin.py](../apps/portal/admin.py) (52), [seed_portal.py](../apps/portal/management/commands/seed_portal.py) (154). 13 templates under [templates/portal/](../templates/portal/). Mounted at `/portal/` ([config/urls.py:12](../config/urls.py#L12)).
 
-### 1.2 Cross-module integration map
+### 1.2 Architecture & dependencies
 
-| Source | Hook | Target | Idempotency key | Reference |
-|---|---|---|---|---|
-| `eam.AssetMeterReading.post_save` (kWh) | Auto-emit consumption | `UtilityConsumption` | partial unique on `source_meter_reading` | [signals.py:190-250](../apps/utility/signals.py#L190-L250) |
-| `eam.AssetMeterReading.pre_delete` | Reversal row | `UtilityConsumption(is_reversal=True)` | `notes startswith reversal-of:<entry_number>` | [signals.py:253-306](../apps/utility/signals.py#L253-L306) |
-| `UtilityConsumption.post_save` | Auto-emit emissions | `CarbonEmission` | partial unique on `source_consumption` | [signals.py:332-354](../apps/utility/signals.py#L332-L354) |
-| `UtilityConsumption.pre_delete` | Reversal row | `CarbonEmission(is_reversal=True)` | `notes startswith reversal-of:<entry_number>` | [signals.py:357-399](../apps/utility/signals.py#L357-L399) |
-| `services.allocation.post_allocation` | Bridge | `cost.DriverActuals` | wipe-and-replay by `notes='utility:<meter_number>:%'` | [allocation.py:53-115](../apps/utility/services/allocation.py#L53-L115) |
-| `cost.services.overhead.apply_overhead(period)` | Pull (external) | Sweeps utilities into Utilities pool via `cost_driver` FK on `UtilityType` | n/a (cost-side) | [models.py:71-74](../apps/utility/models.py#L71-L74) |
-
-All cross-module signals connect with `weak=False` and unique `dispatch_uid` (lesson **L-18**). Auto-feed handlers wrap the payload in `try/except` so external app writes never break — see [signals.py:248-250](../apps/utility/signals.py#L248-L250) and [signals.py:352-354](../apps/utility/signals.py#L352-L354).
-
-### 1.3 Lessons applied / business rules pinned to source
-
-| Lesson | Implementation | Reference |
+| Concern | Implementation | Reference |
 |---|---|---|
-| **L-01** unique_together with hidden tenant → form `clean()` | `UtilityTypeForm.clean`, `UtilityMeterForm.clean`, `EmissionFactorForm.clean` | [forms.py:42-53](../apps/utility/forms.py#L42-L53), [forms.py:89-103](../apps/utility/forms.py#L89-L103), [forms.py:359-379](../apps/utility/forms.py#L359-L379) |
-| **L-02** Decimals carry MinValueValidator | `NEG_BOUND/NON_NEG/SIGNED/PCT_MAX` constants reused on every Decimal | [models.py:40-43](../apps/utility/models.py#L40-L43) |
-| **L-03** view+template status gate parity | `is_activatable / is_completable / is_cancellable / is_acknowledgable / is_dismissable` helpers; matching view checks | [models.py:527-534](../apps/utility/models.py#L527-L534), [models.py:625-629](../apps/utility/models.py#L625-L629), [views.py:1004](../apps/utility/views.py#L1004), [views.py:1025](../apps/utility/views.py#L1025), [views.py:1170](../apps/utility/views.py#L1170), [views.py:1188](../apps/utility/views.py#L1188) |
-| **L-04** loud warning on dropped/skipped rows | Allocation post, consumption import, peak scan, carbon recompute | [views.py:822-828](../apps/utility/views.py#L822-L828), [views.py:564-570](../apps/utility/views.py#L564-L570), [views.py:1147-1157](../apps/utility/views.py#L1147-L1157), [views.py:1366-1371](../apps/utility/views.py#L1366-L1371) |
-| **L-07** chart series via raw Python list passed to `json_script` | Dashboard | [views.py:186-203](../apps/utility/views.py#L186-L203) |
-| **L-12** auto-numbered models retry under contention | `MTR-/UC-/TRF-/UAL-/DRE-/PSS-/CE-/BCR-` retry shape mirrors cost module | [models.py:144-156](../apps/utility/models.py#L144-L156), [models.py:235-247](../apps/utility/models.py#L235-L247), [models.py:308-320](../apps/utility/models.py#L308-L320) |
-| **L-13** workflow status mutations via `QuerySet.update()` inside `transaction.atomic()` | DR event activate/complete/cancel | [views.py:70-79](../apps/utility/views.py#L70-L79), [views.py:1007-1010](../apps/utility/views.py#L1007-L1010), [views.py:1056-1062](../apps/utility/views.py#L1056-L1062) |
-| **L-14** per-workflow forms enforce required reasons | Reverse / Cancel / Dismiss | [forms.py:246-257](../apps/utility/forms.py#L246-L257), [forms.py:310-321](../apps/utility/forms.py#L310-L321), [forms.py:328-339](../apps/utility/forms.py#L328-L339) |
-| **L-17** `PROTECT` on audit-trail children | `CarbonEmission.factor`, `UtilityConsumption.meter`, `UtilityAllocation.period` | [models.py:178-179](../apps/utility/models.py#L178-L179), [models.py:340-343](../apps/utility/models.py#L340-L343), [models.py:742-744](../apps/utility/models.py#L742-L744) |
-| **L-18** `weak=False` + `dispatch_uid` on every closure receiver | Audit factories + cross-module hooks | [signals.py:101-108](../apps/utility/signals.py#L101-L108), [signals.py:315-322](../apps/utility/signals.py#L315-L322), [signals.py:402-409](../apps/utility/signals.py#L402-L409) |
+| Auth + tenant gate | All 25 views inherit `TenantRequiredMixin` (`LoginRequiredMixin` + `UserPassesTestMixin`, `test_func` requires `request.tenant`) | [core/mixins.py:6](../apps/core/mixins.py#L6) |
+| Tenant resolution | `TenantMiddleware` sets `request.tenant` + thread-local from `request.user.tenant` | [core/middleware.py](../apps/core/middleware.py) |
+| Tenant auto-scoping | `TenantAwareModel.objects` (`TenantManager`) auto-filters by current tenant; `all_objects` is unscoped | [core/models.py:25](../apps/core/models.py#L25) |
+| Audit trail | `record_audit()` writes `tenants.AuditLog` (append-only) on requisition create/submit | [tenants/services.py:151](../apps/tenants/services.py#L151) |
+| Cross-module read | Activity feed + `my_activity` report read `tenants.AuditLog` | [views.py:462](../apps/portal/views.py#L462) |
 
-### 1.4 Auto-numbering and uniqueness register
+### 1.3 Business rules (each linked)
 
-| Prefix | Model | Field | Tenant-scoped unique? | Reference |
-|---|---|---|---|---|
-| `MTR-NNNNN` | UtilityMeter | meter_number | yes | [models.py:127](../apps/utility/models.py#L127) |
-| `UC-NNNNN` | UtilityConsumption | entry_number | yes | [models.py:213](../apps/utility/models.py#L213) |
-| `TRF-NNNNN` | UtilityTariff | tariff_number | yes | [models.py:294](../apps/utility/models.py#L294) |
-| `UAL-NNNNN` | UtilityAllocation | allocation_number | yes | [models.py:385](../apps/utility/models.py#L385) |
-| `DRE-NNNNN` | DemandResponseEvent | event_number | yes | [models.py:519](../apps/utility/models.py#L519) |
-| `PSS-NNNNN` | PeakShavingSuggestion | suggestion_number | yes | [models.py:605](../apps/utility/models.py#L605) |
-| `CE-NNNNN` | CarbonEmission | entry_number | yes | [models.py:766](../apps/utility/models.py#L766) |
-| `BCR-NNNNN` | BenchmarkComparison | report_number | yes | [models.py:1021](../apps/utility/models.py#L1021) |
-
-Plus partial unique constraints (NULL-permissive):
-
-- `utility_consumption_unique_meter_reading` on `(source_meter_reading)` where not null — [models.py:218-224](../apps/utility/models.py#L218-L224)
-- `utility_carbon_unique_consumption` on `(source_consumption)` where not null — [models.py:771-777](../apps/utility/models.py#L771-L777)
-- `utility_pss_unique_op_event` on `(scheduled_operation, event)` where event not null — [models.py:610-614](../apps/utility/models.py#L610-L614)
-- `utility_pss_unique_op_band` on `(scheduled_operation, tou_band)` where tou_band not null and event null — [models.py:615-619](../apps/utility/models.py#L615-L619)
-
-### 1.5 Existing test inventory
-
-| File | def count | Coverage |
+| # | Rule | Source |
 |---|---|---|
-| [test_models.py](../apps/utility/tests/test_models.py) | 30 | Auto-numbering, computed fields, unique constraints, validators (L-02), reversal flag |
-| [test_forms.py](../apps/utility/tests/test_forms.py) | 22 | L-01 unique guards, L-02 bounds, L-14 workflow required, cross-field date/reading rules |
-| [test_views.py](../apps/utility/tests/test_views.py) | 32 | Full CRUD smoke + workflow happy paths |
-| [test_security.py](../apps/utility/tests/test_security.py) | 21 | RBAC matrix (parametrized), multi-tenant IDOR, anonymous redirect (parametrized), workflow gating |
-| [test_signals.py](../apps/utility/tests/test_signals.py) | 14 | dispatch_uid presence guard, EAM→consumption, consumption→carbon, idempotent + reversal |
-| [test_services.py](../apps/utility/tests/test_services.py) | 21 | Pure-function & service-layer coverage |
-| [test_eam_integration.py](../apps/utility/tests/test_eam_integration.py) | 5 | End-to-end kWh AssetMeterReading → UtilityConsumption → CarbonEmission with reversal |
-| [test_cost_integration.py](../apps/utility/tests/test_cost_integration.py) | 4 | post_allocation → cost.DriverActuals → apply_overhead → OverheadAllocation |
-| [test_dashboard.py](../apps/utility/tests/test_dashboard.py) | 8 | KPI cards + ApexCharts json_script payload shape |
-| **Total** | **157 def + parametrize fan-out → ~188 runs** | per [README.md](../README.md) |
+| BR-1 | Every portal queryset is scoped to **both** `tenant=request.tenant` **and** `user=request.user` — data is per-user, not just per-tenant | [views.py:35](../apps/portal/views.py#L35), passim |
+| BR-2 | Only `status='draft'` requisitions are editable/deletable; enforced by `is_editable` property + view guards | [models.py:178](../apps/portal/models.py#L178), [views.py:342](../apps/portal/views.py#L342) |
+| BR-3 | Submitting requires `status=='draft'` **and** at least one line item | [views.py:387-392](../apps/portal/views.py#L387-L392) |
+| BR-4 | `QuickRequisitionItem.line_total` is auto-computed `quantity * unit_price` on save | [models.py:216](../apps/portal/models.py#L216) |
+| BR-5 | `QuickRequisition.estimated_total` is recomputed from items via `recalc_total()` after each item add/delete | [models.py:183](../apps/portal/models.py#L183), [views.py:427](../apps/portal/views.py#L427) |
+| BR-6 | Requisition numbers are `QR-<SLUG6>-NNNNN`, sequence per tenant, `number` globally `unique=True` | [services.py:17](../apps/portal/services.py#L17), [models.py:148](../apps/portal/models.py#L148) |
+| BR-7 | First portal visit provisions 6 default widgets via `ensure_default_widgets` | [services.py:57](../apps/portal/services.py#L57) |
+| BR-8 | Activity feed is **read-only** — no create/edit/delete (correct for an audit view) | [views.py:456](../apps/portal/views.py#L456) |
+| BR-9 | Approval decisions (`approved`/`rejected`, `decided_by`) are **not** settable in this module — only the seeder populates them; live decision flow belongs to Module 4 (Approvals) | [seed_portal.py:130](../apps/portal/management/commands/seed_portal.py#L130) |
 
-Pytest config: [pytest.ini](../pytest.ini) → `DJANGO_SETTINGS_MODULE=config.settings_test`, custom marker `security` registered.
+### 1.4 Pre-test risk profile
 
-### 1.6 Pre-test risk profile
-
-| Risk surface | Inherent severity | Note |
+| Area | Risk | Rationale |
 |---|---|---|
-| Multi-tenant isolation | HIGH | 13 models × 4-5 surfaces each — many places to leak data. Mitigated by `TenantRequiredMixin / TenantAdminRequiredMixin` and per-view `tenant=request.tenant` filters. |
-| Cross-module signal cascade | HIGH | A bug in EAM→Consumption→Carbon could double-count, miss reversals, or block parent writes. Idempotency relies on partial unique constraints + signal-level guards. |
-| Allocation → cost ledger bridge | HIGH | Wrong wipe-and-replay logic in `post_allocation` can corrupt the cost period close. |
-| Append-only ledger reversals | MED | Reversal rows are NEW records with negated values. Logic in `signals.py` uses `notes startswith` as the dedup key — fragile if notes are user-edited. |
-| `BenchmarkSnapshot.tenant=NULL` industry-avg row | MED | Override of `TenantAwareModel.tenant` to nullable — IDOR risk if list/detail views ever drop the tenant filter. |
-| CSV import (`UtilityConsumptionImportView`) | MED | Untyped FileField; no MAX size, no content-type/magic-byte check. |
-| Effective-dated lookups (tariff, factor) | MED | `_resolve_unit_cost` and `_resolve_factor` look at `effective_from` only — see §6 D-01/D-02. |
-| Workflow race | LOW | Mitigated by `_atomic_status_transition` (conditional UPDATE inside `transaction.atomic`). |
-| Currency / region validation | LOW | Length-only checks; no ISO-4217 or ISO-3166 enforcement. |
+| Tenant/user isolation | **Low** | Consistent double-scoped `get_object_or_404` + `TenantManager`; no `Model.objects.all()` found |
+| Input validation | **High** | Forms expose `DecimalField`s with **no `MinValueValidator`**; `link_url` is unvalidated free text |
+| Injection / XSS | **Medium** | `{{ ...|safe }}` in report chart script; user-controlled `link_url` rendered as `href` |
+| Concurrency | **Medium** | Count-based requisition numbering races under load |
+| CRUD completeness | **Low** | All entities have list/create/detail/edit/delete (widgets have no detail by design) |
+| Performance | **Low–Medium** | Dashboard ≈14 queries; `spend_by_month` aggregates in Python |
 
 ---
 
 ## 2. Test Plan
 
-| Layer | Goal | Methods |
+| Layer | Coverage | Priority |
 |---|---|---|
-| **Unit** | Model save() math, computed fields, helpers | pytest direct invocations |
-| **Integration** | view → form → service → DB → signal cascade | pytest-django Client + ORM assertions |
-| **Functional** | End-to-end DR event lifecycle, allocation post/reverse, recompute, scan, generate KPI | pytest-django + scenario fixtures |
-| **Regression** | Existing 157 tests must remain green; this report adds gap-filling tests, not replacements | `pytest apps/utility -m "not slow and not e2e"` baseline |
-| **Boundary** | DateTime tz, Decimal `max_digits`, share_pct 0-100, horizon_days 1-90, multi-day op overlap, period boundaries | parametrized tests |
-| **Edge** | Empty querysets, NULL FKs, tenant=NULL industry-avg row, CSV with whitespace timestamps, reversal-of-reversal, simultaneous DR + TOU overlap | dedicated tests |
-| **Negative** | Anonymous → login redirect, staff → admin-only POST blocked, cross-tenant IDOR (404), workflow gate violation, expired tariff/factor pickup, duplicate TOU band IntegrityError surfacing | parametrized + scenario tests |
-| **Security** | OWASP A01-A10 mapped (§2.1 below), CSV file size/type, audit log emission on flag flips | parametrized + Django test client |
-| **Performance** | List views N+1 query budget; allocation re-emit on a 200-row period | `django_assert_max_num_queries` + Locust smoke |
+| **Unit** | `is_editable`, `col_class`, `mark_read`, `recalc_total`, `QuickRequisitionItem.save` line-total, `next_requisition_number`, `generate_report` per report type, `_report_window` defaults | P1 |
+| **Integration** | Each view: GET render + POST happy path + invalid form; `ensure_default_widgets` provisioning; submit flow → audit + notification side effects | P1 |
+| **Functional** | End-to-end: create requisition → add items → submit → appears on dashboard → spawns notification → shows in activity feed → surfaces in saved report | P1 |
+| **Regression** | Draft-only edit/delete guard; "already submitted" guard; "items required to submit" guard; widget default-provisioning idempotency | P1 |
+| **Boundary** | `title`/`number` max lengths, `Decimal` max_digits (12,2 / 14,2), `link_url` 300 chars, `position` `PositiveIntegerField` | P2 |
+| **Edge** | Empty/null `needed_by`, unicode/emoji titles, whitespace-only search `q`, zero-item requisition submit, report with no data, `report_type` not in any branch | P2 |
+| **Negative** | Negative quantity/unit_price, cross-user IDOR, cross-tenant IDOR, edit/delete on non-draft, duplicate `number`, invalid `widget_type`, GET on POST-only views | P1 |
+| **Security** | OWASP A01-A10 (see §6 mapping); CSRF on every POST; open-redirect `next`; `javascript:` `link_url`; `|safe` chart sink | P1 |
+| **Performance** | Dashboard query count; notification/requisition list at 1k rows; `generate_report` at scale | P2 |
+| **Usability** | Filter retention across pagination; status-conditional action buttons; empty-state messaging | P3 |
 
-### 2.1 OWASP Top 10 mapping (Module 14)
-
-| OWASP | What we check | Module 14 evidence |
-|---|---|---|
-| **A01 Broken Access Control** | Login + tenant + RBAC on every surface; cross-tenant `get_object_or_404` | All views inherit `TenantRequiredMixin` (read) or `TenantAdminRequiredMixin` (write); every queryset filters `tenant=request.tenant`; existing test_security.py covers this. **Gap:** `BenchmarkSnapshot` tenant=NULL row needs explicit IDOR test (added in §5). |
-| **A02 Crypto failures** | n/a | No new crypto, secrets, or external TLS in this module. |
-| **A03 Injection / XSS** | Template auto-escape, `Q()` for searches, no raw SQL | All searches use `Q()` ORM ([views.py:228](../apps/utility/views.py#L228), [views.py:312](../apps/utility/views.py#L312)); no `format_html` with user input found. |
-| **A04 Insecure design** | Effective-dated business rules, append-only ledger semantics | **D-01, D-02:** `effective_to` not honored in `_resolve_unit_cost` / `_resolve_factor`. |
-| **A05 Security misconfig** | n/a | Nothing module-specific; relies on project settings. |
-| **A06 Vulnerable deps** | n/a | No new pins. |
-| **A07 Auth failures** | n/a | Reuses `accounts` auth. |
-| **A08 Data integrity / file upload** | CSV import safety | **D-03:** no MAX_FILE_SIZE / content-type check on `UtilityConsumptionImportForm.csv_file`. |
-| **A09 Logging failures** | Audit on destructive ops | `_audit()` flag/status signal factories emit `TenantAuditLog` rows on `posted/unposted/reversed/<status>` ([signals.py:41-65](../apps/utility/signals.py#L41-L65)). Non-blocking try/except — lossy on audit DB failure. **Gap:** add a regression test that audit rows ARE persisted in the happy path. |
-| **A10 SSRF** | n/a | No external URL fetches. |
+Out of scope (correctly): live approval decisioning (Module 4), payment, cross-tenant admin reporting.
 
 ---
 
 ## 3. Test Scenarios
 
-Scenarios prefixed by entity. **Type** column: `C`=create, `R`=read/list/detail, `U`=update, `D`=delete, `W`=workflow, `S`=security, `P`=performance, `E`=edge, `B`=boundary, `N`=negative, `I`=integration.
-
-### 3.1 UtilityType (UT)
-
 | # | Scenario | Type |
 |---|---|---|
-| UT-01 | Create with unique (tenant, code) | C |
-| UT-02 | Create duplicate (tenant, code) — form clean rejects | N |
-| UT-03 | Edit code preserving uniqueness | U |
-| UT-04 | List filters: search by code/name, active filter, unit_of_measure filter | R |
-| UT-05 | Delete cascades correctly when no children; PROTECT when meter exists | D |
-| UT-06 | Cross-tenant IDOR: 404 on edit/delete | S |
-| UT-07 | `cost_driver` FK queryset scoped to tenant | C |
-
-### 3.2 UtilityMeter (UM)
-
-| # | Scenario | Type |
-|---|---|---|
-| UM-01 | Auto-number `MTR-00001` on first save | C |
-| UM-02 | Sequential auto-number across 5 meters | C |
-| UM-03 | Duplicate (tenant, utility_type, name) blocked by form clean | N |
-| UM-04 | Self-FK parent_meter cannot be self after edit | E |
-| UM-05 | location/cost_center/asset querysets tenant-scoped | C |
-| UM-06 | Detail page lists last 25 consumptions + sub-meters | R |
-| UM-07 | Delete with PROTECT children → caught and surfaces error | D |
-| UM-08 | Cross-tenant IDOR on detail/edit/delete | S |
-| UM-09 | Multiplier validation: NON_NEG | B |
-
-### 3.3 UtilityConsumption (UC)
-
-| # | Scenario | Type |
-|---|---|---|
-| UC-01 | `consumption = (end - start) × multiplier` quantized to 4 dp | C |
-| UC-02 | `total_cost = consumption × unit_cost` quantized to 2 dp | C |
-| UC-03 | Negative delta clamps to 0 | E |
-| UC-04 | period_end ≤ period_start → form rejects | N |
-| UC-05 | end_reading < start_reading → form rejects | N |
-| UC-06 | EAM auto-feed creates consumption (idempotent on `source_meter_reading`) | I |
-| UC-07 | Second `post_save` for same `AssetMeterReading` is no-op | I |
-| UC-08 | Reversal row on AssetMeterReading delete with negated columns | I |
-| UC-09 | Edit blocked on `is_reversal=True` rows (L-03) | N |
-| UC-10 | CSV import skips duplicate `(period_start, period_end)` | I |
-| UC-11 | CSV import surfaces skipped count loudly (L-04) | I |
-| UC-12 | CSV with whitespace-padded `period_start` value creates duplicate (defect candidate D-06) | E |
-| UC-13 | CSV upload with 50 MB body → currently relies on Django default; explicit test (D-03) | S |
-| UC-14 | Carbon emission auto-emitted via signal | I |
-| UC-15 | Cross-tenant IDOR: detail 404 | S |
-
-### 3.4 UtilityTariff (UT2) + TOURateBand (TB)
-
-| # | Scenario | Type |
-|---|---|---|
-| UT2-01 | Auto-number `TRF-00001`; flat_rate validates NON_NEG | C |
-| UT2-02 | `effective_to < effective_from` → form rejects | N |
-| UT2-03 | Currency length != 3 → form rejects | N |
-| UT2-04 | Currency = "ZZZ" passes (defect D-05: length-only check) | N |
-| UT2-05 | Tariff queryset for `_resolve_unit_cost` ignores `effective_to` (D-01) | N |
-| TB-01 | end_time ≤ start_time → form rejects | N |
-| TB-02 | duplicate (band_type, day_of_week, start_time) on same tariff → IntegrityError surfaced as user error (defect D-04) | N |
-| TB-03 | tariff CASCADE deletes child bands | D |
-
-### 3.5 UtilityAllocation (UA)
-
-| # | Scenario | Type |
-|---|---|---|
-| UA-01 | Auto-number `UAL-00001` | C |
-| UA-02 | Form requires at least one target (cost_center / product / production_order) | N |
-| UA-03 | share_pct 0 → rejected; 100 ok; 100.01 → rejected | B |
-| UA-04 | `post_allocation` writes matching `cost.DriverActuals` when `cost_driver` set | I |
-| UA-05 | `post_allocation` skips DriverActuals when no `cost_driver` | I |
-| UA-06 | Re-running `post_allocation` wipes prior un-reversed rows + matching DriverActuals | I |
-| UA-07 | `reverse_allocation` deletes matching DriverActuals + sets `is_reversed=True` | W |
-| UA-08 | Reversal without reason → form rejects (L-14) | N |
-| UA-09 | Posted (not reversed) allocation cannot be deleted | W |
-| UA-10 | Posting with no targets → loud warning (L-04) | N |
-| UA-11 | `is_posted_to_cost` flip emits `utility.allocation.posted` audit | S |
-| UA-12 | Cross-tenant IDOR: detail 404 | S |
-| UA-13 | List view N+1 budget: ≤ 15 queries for 25 rows | P |
-
-### 3.6 DemandResponseEvent (DR)
-
-| # | Scenario | Type |
-|---|---|---|
-| DR-01 | Auto-number `DRE-00001` | C |
-| DR-02 | end_at ≤ start_at → form rejects | N |
-| DR-03 | target_reduction_pct bounds 0..100 | B |
-| DR-04 | Workflow scheduled → active → completed | W |
-| DR-05 | Cancel from scheduled with reason (L-14) | W |
-| DR-06 | Cancel from active with reason | W |
-| DR-07 | Cancel without reason → form rejects | N |
-| DR-08 | Activate from non-scheduled blocked | N |
-| DR-09 | Complete from non-active blocked | N |
-| DR-10 | Edit blocked once status != scheduled (L-03) | N |
-| DR-11 | Delete blocked once status != scheduled | N |
-| DR-12 | Status transition audit row emitted | S |
-| DR-13 | `_atomic_status_transition` race-safe (concurrent activate races) | W |
-| DR-14 | Cross-tenant IDOR: detail 404 | S |
-
-### 3.7 PeakShavingSuggestion (PS)
-
-| # | Scenario | Type |
-|---|---|---|
-| PS-01 | Scan with horizon=1 returns 0..N suggestions | I |
-| PS-02 | Scan with horizon=0 → form rejects (min=1) | B |
-| PS-03 | Scan with horizon=91 → form rejects (max=90) | B |
-| PS-04 | Op overlapping DR event spawns suggestion with `suggested_start = ev.end_at` | I |
-| PS-05 | Op overlapping peak TOU band spawns suggestion (no DR collision dedup) | I |
-| PS-06 | Re-scan does not duplicate (partial unique constraints) | I |
-| PS-07 | Acknowledge from new → acknowledged | W |
-| PS-08 | Dismiss requires reason (L-14) | N |
-| PS-09 | Acknowledge from acknowledged → no-op (idempotent) | E |
-| PS-10 | Dismiss from acknowledged → dismissed | W |
-| PS-11 | `compute_estimated_savings` uses 50 kWh/hr heuristic | I |
-| PS-12 | Suggestion never mutates `pps.ScheduledOperation` | I |
-| PS-13 | Cross-tenant IDOR: detail 404 | S |
-
-### 3.8 EmissionFactor (EF)
-
-| # | Scenario | Type |
-|---|---|---|
-| EF-01 | Create with unique (tenant, source_type, scope, region, effective_from) | C |
-| EF-02 | Duplicate quintuple → form clean rejects | N |
-| EF-03 | effective_to < effective_from → rejected | N |
-| EF-04 | factor < 0 → validator rejects | B |
-| EF-05 | `_resolve_factor` ignores `effective_to` → expired factor returned (D-02) | N |
-| EF-06 | PROTECT delete when `CarbonEmission` references it | D |
-| EF-07 | Cross-tenant IDOR: edit/delete 404 | S |
-
-### 3.9 CarbonEmission (CE)
-
-| # | Scenario | Type |
-|---|---|---|
-| CE-01 | Auto-number `CE-00001` | C |
-| CE-02 | `co2e_kg = source_quantity × factor.factor` quantized to 4 dp | C |
-| CE-03 | Auto-emit on consumption save (idempotent on source_consumption) | I |
-| CE-04 | Reversal row on consumption delete | I |
-| CE-05 | `recompute_emissions(period)` deletes + re-emits in tenant scope only | I |
-| CE-06 | recompute surfaces skipped count when no factor matches (L-04) | I |
-| CE-07 | `is_reversal` flip emits `utility.carbon.reversed` audit | S |
-| CE-08 | Cross-tenant IDOR: detail 404 | S |
-| CE-09 | No `delete_view` route — manual emission rows cannot be removed via UI (info, D-08) | N |
-
-### 3.10 SustainabilityKPI (SK)
-
-| # | Scenario | Type |
-|---|---|---|
-| SK-01 | Generate aggregates scope_1/2/3 + kwh + water + gas + units | I |
-| SK-02 | `total_co2e_kg = scope_1 + scope_2 + scope_3` (computed in save) | C |
-| SK-03 | per-unit metrics zero when units=0 | E |
-| SK-04 | Re-generate same period → `update_or_create` overwrites | I |
-| SK-05 | Cross-tenant IDOR: detail 404 | S |
-
-### 3.11 BenchmarkSnapshot (BS) + BenchmarkComparison (BC)
-
-| # | Scenario | Type |
-|---|---|---|
-| BS-01 | Generate aggregates kwh/water/gas/cost/co2e/units | I |
-| BS-02 | per-unit metrics computed in save | C |
-| BS-03 | Re-generate (period, plant_label) → overwrite | I |
-| BS-04 | tenant=NULL "industry_avg" row not visible to any tenant user (D-10) | S |
-| BS-05 | Cross-tenant IDOR on detail | S |
-| BC-01 | Auto-number `BCR-00001` | C |
-| BC-02 | from == to → form rejects | N |
-| BC-03 | Delta percent computed correctly when `from.kwh_per_unit=0` (returns 0, see code) | E |
-| BC-04 | `winner` heuristic: lower kwh+co2e per unit | I |
-| BC-05 | Equal scores → `winner='tie'` | E |
-| BC-06 | Form snapshots queryset tenant-scoped (no cross-tenant snapshot selection) | S |
-
-### 3.12 Dashboard (DSH)
-
-| # | Scenario | Type |
-|---|---|---|
-| DSH-01 | KPI counts (meters, open DR, open suggestions, open/posted allocations, period kwh, period co2e) match underlying queries | R |
-| DSH-02 | Charts rendered as `json_script` payload (L-07) | R |
-| DSH-03 | request.tenant=None → empty stub | E |
-| DSH-04 | Recent lists capped at 6 rows | R |
-| DSH-05 | Anonymous → login redirect | S |
-| DSH-06 | Dashboard query budget ≤ 30 queries | P |
+| W-01 | First portal visit provisions exactly 6 default widgets | Functional |
+| W-02 | Second visit does **not** duplicate widgets (`ensure_default_widgets` idempotent) | Regression |
+| W-03 | Create widget → appears in list & on dashboard | Integration |
+| W-04 | Edit widget type/size/position/visibility | Integration |
+| W-05 | Delete widget (POST) | Integration |
+| W-06 | GET on `widget_delete` redirects to list, deletes nothing | Negative |
+| W-07 | Filter list by `widget_type` and `visible` | Functional |
+| W-08 | `is_visible=False` widget hidden from dashboard but shown in list | Edge |
+| W-09 | Edit/delete another user's widget → 404 | Negative (IDOR) |
+| W-10 | `col_class` maps size→Bootstrap column correctly | Unit |
+| N-01 | Create notification, list shows unread count | Integration |
+| N-02 | Open detail → auto `mark_read`, `read_at` set | Functional |
+| N-03 | Toggle read/unread via `notification_mark_read` | Integration |
+| N-04 | Mark-all-read clears unread count | Functional |
+| N-05 | Edit / delete notification | Integration |
+| N-06 | Filter by `q` / `category` / `priority` / `read` | Functional |
+| N-07 | `mark_read` on already-read row → toggles back to unread | Regression |
+| N-08 | Cross-user notification detail → 404 | Negative (IDOR) |
+| N-09 | `link_url='javascript:alert(1)'` accepted & rendered as live `href` | Security (A03) |
+| N-10 | `next` POST param controls post-toggle redirect target | Security (A01) |
+| R-01 | Create requisition → auto `number`, `status='draft'`, audit row written | Functional |
+| R-02 | Add line item → `line_total` + `estimated_total` recompute | Functional |
+| R-03 | Delete line item → `estimated_total` recompute | Integration |
+| R-04 | Submit draft with items → `status='submitted'`, `submitted_at`, audit + notification | Functional |
+| R-05 | Submit draft with **zero** items → blocked | Regression |
+| R-06 | Submit already-submitted requisition → no-op info message | Regression |
+| R-07 | Edit/delete non-draft requisition → blocked, redirect to detail | Regression |
+| R-08 | Add/delete items on non-draft → blocked | Regression |
+| R-09 | Cross-user / cross-tenant requisition detail → 404 | Negative (IDOR) |
+| R-10 | Negative `quantity` / `unit_price` accepted by item form | Negative (A04) |
+| R-11 | Concurrent create → duplicate `number` `IntegrityError` | Negative (concurrency) |
+| R-12 | Filter list by `q` / `status` / `category` | Functional |
+| R-13 | Item-delete `item_pk` belonging to another requisition → 404 | Negative (IDOR) |
+| A-01 | Activity feed lists only current user's audit rows | Functional |
+| A-02 | Filter feed by `q` / `level` | Functional |
+| A-03 | Feed has no create/edit/delete routes | Regression |
+| RP-01 | Create report → redirect to run page, computes result | Functional |
+| RP-02 | `generate_report` per type: spend_by_category / _by_month / requisition_status / my_activity / notification_summary | Unit |
+| RP-03 | Report with no data → empty labels/values, no crash | Edge |
+| RP-04 | `report_type` unmatched → empty payload fallback | Edge |
+| RP-05 | Run page updates `last_run_at` on each GET | Integration |
+| RP-06 | `_report_window` defaults to last 90 days when dates blank | Unit |
+| RP-07 | `{{ result.labels|safe }}` rendered raw into `<script>` | Security (A03) |
+| RP-08 | Cross-user report run → 404 | Negative (IDOR) |
+| D-01 | Dashboard aggregates (counts, spend, unread) match DB | Functional |
+| D-02 | Dashboard query count within budget | Performance |
+| S-01 | Anonymous user → all `/portal/*` redirect to login | Security (A01) |
+| S-02 | Authenticated user with `tenant=None` → redirect to onboarding | Security (A01) |
+| S-03 | POST without CSRF token → 403 on every mutating view | Security (A03) |
+| P-01 | Notification/requisition list at 1,000 rows paginates without N+1 | Performance |
 
 ---
 
 ## 4. Detailed Test Cases
 
-A representative subset of high-priority cases. Format: ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions.
+> ID format `TC-<ENTITY>-<NNN>`. Pre-conditions assume a seeded tenant `t`, tenant member `u`, and `client` logged in as `u` unless stated.
 
-### 4.1 Consumption / EAM auto-feed
-
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| **TC-UC-001** | Compute consumption from delta × multiplier | Active meter; multiplier=2.0 | `UtilityConsumption.objects.create(meter, start=100, end=150, unit_cost=0.12)` | start=100, end=150, mult=2.0, uc=0.12 | `consumption=100.0000`, `total_cost=12.00`, `entry_number=UC-NNNNN` | New ledger row + auto-emitted CarbonEmission |
-| **TC-UC-002** | Negative delta clamps to 0 | Active meter | Create with end=50, start=100 | end=50, start=100 | `consumption=0`, `total_cost=0` | Row stored; carbon emission row has zero quantity |
-| **TC-UC-003** | EAM kWh AssetMeterReading triggers UtilityConsumption | UtilityType `electricity` linked to UtilityMeter A linked to Asset X | Create `eam.AssetMeterReading(meter_type='kwh', asset=X, reading_value=200)` | meter_type='kwh', value=200 | New `UtilityConsumption(source=eam_meter, source_meter_reading=<reading>)` row | `UtilityConsumption.all_objects.filter(source_meter_reading=reading).count() == 1` |
-| **TC-UC-004** | Second creation on the same reading is a no-op | TC-UC-003 ran | Re-trigger handler | same reading | Existing row returned, no second insert | count remains 1 |
-| **TC-UC-005** | AssetMeterReading delete spawns reversal | TC-UC-003 ran | `reading.delete()` | — | New `UtilityConsumption(is_reversal=True)` with negated `consumption` and `total_cost`; `notes` startswith `reversal-of:UC-NNNNN` | All_objects count = 2; net of consumption = 0 |
-| **TC-UC-006** | Reversal pre_delete is idempotent | TC-UC-005 ran | Delete the reversal row's source again (same reading) | — | No new reversal row | count still 2 |
-
-### 4.2 Allocation → cost.DriverActuals bridge
+### 4.1 Personalized Overview / Widgets
 
 | ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
 |---|---|---|---|---|---|---|
-| **TC-UA-001** | Posting writes DriverActuals when cost_driver linked | UtilityType electricity has cost_driver KWH; meter w/ 1000 kWh in period | `post_allocation(period, meter, [{cost_center: CC1, share_pct: 100}], by=admin)` | targets=[CC1@100%] | 1 UtilityAllocation `is_posted_to_cost=True`; 1 `cost.DriverActuals(driver=KWH, cost_center=CC1, quantity=1000)` row with notes `utility:MTR-00001:UAL-00001` | apply_overhead(period) sweeps it |
-| **TC-UA-002** | Re-posting clears prior + replays | TC-UA-001 ran | Re-call with shape `[{cost_center: CC2, share_pct: 100}]` | new shape | UAL-00001 deleted; matching DriverActuals deleted; new UAL-NNNNN created targeting CC2 | result.cleared_prior == 1; result.created == 1 |
-| **TC-UA-003** | Reverse + audit | TC-UA-001 ran | POST `/allocations/<pk>/reverse/` w/ `reversal_reason="audit adj"` | reason="audit adj" | 302 to detail; `is_reversed=True`; matching DriverActuals deleted; `utility.allocation.unposted`-shape audit row in TenantAuditLog | n/a |
-| **TC-UA-004** | Reverse without reason rejected | TC-UA-001 ran | POST same with empty reason | `reversal_reason=''` | 302 with error message; `is_reversed=False` | n/a |
-| **TC-UA-005** | Posted-not-reversed cannot be deleted | TC-UA-001 ran | POST `/allocations/<pk>/delete/` | — | 302 to detail with error; row still present | unchanged |
+| TC-W-001 | Default widgets provisioned on first visit | `u` has 0 widgets | GET `/portal/` | — | 6 `DashboardWidget` rows created for `(t,u)` with positions 0-5 | Widgets persist |
+| TC-W-002 | Provisioning idempotent | Run TC-W-001 | GET `/portal/` again | — | Still exactly 6 widgets (no duplicates) | — |
+| TC-W-003 | Create widget | — | POST `/portal/widgets/create/` | `widget_type=my_reports, title=Reports, size=medium, position=9, is_visible=on` | 302→`widget_list`; widget owned by `(t,u)` | +1 widget |
+| TC-W-004 | Edit widget | Widget `w` exists | POST `/portal/widgets/<w>/edit/` | `size=large` | `w.size='large'`, 302→list | — |
+| TC-W-005 | Delete widget (POST) | Widget `w` exists | POST `/portal/widgets/<w>/delete/` | — | `w` deleted, 302→list | -1 widget |
+| TC-W-006 | GET delete is a no-op | Widget `w` exists | GET `/portal/widgets/<w>/delete/` | — | 302→list, `w` still exists | — |
+| TC-W-007 | IDOR — edit other user's widget | `w2` owned by `u2` | GET `/portal/widgets/<w2>/edit/` as `u` | — | HTTP 404 | — |
+| TC-W-008 | Hidden widget excluded from dashboard | `w.is_visible=False` | GET `/portal/` | — | `w` absent from `widgets` context; still in `/portal/widgets/` | — |
+| TC-W-009 | Filter by type retained across pages | >20 widgets | GET `/portal/widgets/?widget_type=spend_summary&page=2` | — | Page 2 shows only `spend_summary`; page links keep `widget_type` | — |
+| TC-W-010 | `col_class` mapping | — | Unit: `DashboardWidget(size=s).col_class` | s∈{small,medium,large,bogus} | `col-lg-4 / col-lg-6 / col-12 / col-lg-4` | — |
 
-### 4.3 DR event lifecycle
-
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| **TC-DR-001** | scheduled → active → completed | Event created `status=scheduled` | POST `activate`; POST `complete` | — | Both 302; `status` flips correctly | 2 audit rows: `utility.dre.active`, `utility.dre.completed` |
-| **TC-DR-002** | Cancel from active w/ reason | active event | POST `cancel` w/ `cancellation_reason="grid stable"` | reason supplied | `status=cancelled, cancellation_reason='grid stable'` | audit row `utility.dre.cancelled` |
-| **TC-DR-003** | Activate non-scheduled blocked | event status=active | POST `activate` | — | 302 with error; status stays `active` | no audit |
-| **TC-DR-004** | Concurrency: race-safe atomic UPDATE | scheduled event; manually set to `active` between get_object_or_404 and `_atomic_status_transition` | mock `update()` to return rowcount=0 | — | view returns `messages.error('Activation failed (concurrent change?)')` | status unchanged |
-
-### 4.4 Effective-dated lookup defects
+### 4.2 Task & Alert Center / Notifications
 
 | ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
 |---|---|---|---|---|---|---|
-| **TC-DEF-001 (D-01)** | Expired tariff still picked up | `UtilityTariff(effective_from=2024-01-01, effective_to=2024-12-31, flat_rate=0.10, is_active=True)`; `when=2025-06-01` | `_resolve_unit_cost(meter, when)` | as above | **Currently** returns 0.10 (BUG). **Expected** returns 0 / None. | n/a |
-| **TC-DEF-002 (D-02)** | Expired emission factor still picked up | `EmissionFactor(effective_from=2024-01-01, effective_to=2024-12-31, factor=0.42, is_active=True)`; consumption period_start=2025-06-01 | Trigger consumption save | as above | **Currently** uses 0.42 factor. **Expected** returns None and no carbon emission emitted. | n/a |
+| TC-N-001 | Create alert | — | POST `/portal/notifications/create/` | `category=info, priority=normal, title=Hi, message=x` | 302→list; row owned by `(t,u)`, `is_read=False` | +1 unread |
+| TC-N-002 | Detail auto-marks read | Unread note `n` | GET `/portal/notifications/<n>/` | — | `n.is_read=True`, `read_at` set | unread-1 |
+| TC-N-003 | Toggle read→unread | Read note `n` | POST `/portal/notifications/<n>/toggle-read/` | — | `n.is_read=False`, `read_at=None` | — |
+| TC-N-004 | Mark all read | 3 unread | POST `/portal/notifications/mark-all-read/` | — | All `(t,u)` unread→read; `unread_count=0` | — |
+| TC-N-005 | Edit / delete alert | Note `n` | POST edit then delete | `title=Edited` | Edit persists; delete removes row | — |
+| TC-N-006 | Filter combinations | Mixed notes | GET `?q=&category=approval&priority=urgent&read=unread` | — | Only matching rows; selects keep value | — |
+| TC-N-007 | IDOR — other user's note | `n2` owned by `u2` | GET `/portal/notifications/<n2>/` as `u` | — | HTTP 404 | — |
+| TC-N-008 | **`javascript:` link_url** | — | POST create with `link_url=javascript:alert(document.cookie)` | — | **DEFECT D-02**: form valid; detail renders `<a href="javascript:...">` — clickable script | — |
+| TC-N-009 | **Open-redirect `next`** | Note `n` | POST `/portal/notifications/<n>/toggle-read/` with `next=https://evil.example` | — | **DEFECT D-03**: 302 to external host | — |
+| TC-N-010 | CSRF enforced | — | POST create without token | — | HTTP 403 | — |
 
-### 4.5 Cross-tenant IDOR (parametrized)
+### 4.3 Quick Requisition Entry
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result |
-|---|---|---|---|---|---|
-| **TC-SEC-IDOR-NN** | Globex client cannot read/edit/delete Acme's `<entity>` | Acme entity exists | GET / POST `/<view>/<acme_pk>/...` as Globex admin | — | 404 for all variants |
+| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
+|---|---|---|---|---|---|---|
+| TC-R-001 | Create requisition | — | POST `/portal/requisitions/create/` | `title=Pens, category=office_supplies, priority=normal, currency=USD` | 302→detail; `number=QR-<slug6>-NNNNN`, `status=draft`; `AuditLog action=requisition.created` written | +1 req, +1 audit |
+| TC-R-002 | Add item recomputes totals | Draft `r` | POST `/portal/requisitions/<r>/items/add/` | `name=Pen, quantity=10, unit=box, unit_price=6.00` | `item.line_total=60.00`; `r.estimated_total=60.00` | +1 item |
+| TC-R-003 | Delete item recomputes | `r` with 2 items | POST item delete | — | `estimated_total` drops by removed line | -1 item |
+| TC-R-004 | Submit draft with items | Draft `r`, ≥1 item | POST `/portal/requisitions/<r>/submit/` | — | `status=submitted`, `submitted_at` set; `AuditLog requisition.submitted`; self-notification created | — |
+| TC-R-005 | Submit with zero items blocked | Draft `r`, 0 items | POST submit | — | Error message; `status` stays `draft` | — |
+| TC-R-006 | Re-submit blocked | `r.status=submitted` | POST submit | — | Info message "already submitted"; no change | — |
+| TC-R-007 | Edit non-draft blocked | `r.status=submitted` | GET/POST edit | — | Error message, 302→detail; unchanged | — |
+| TC-R-008 | Delete non-draft blocked | `r.status=approved` | POST delete | — | Error message, 302→detail; row kept | — |
+| TC-R-009 | Item add on non-draft blocked | `r.status=submitted` | POST item add | — | Error message; no item created | — |
+| TC-R-010 | IDOR cross-user/tenant | `r2` owned by `u2`/`t2` | GET `/portal/requisitions/<r2>/` as `u` | — | HTTP 404 | — |
+| TC-R-011 | **Negative quantity/price** | Draft `r` | POST item add `quantity=-5, unit_price=-10` | — | **DEFECT D-01**: form valid (verified); `line_total=50.00` from two negatives → corrupt data | — |
+| TC-R-012 | **Concurrent numbering race** | — | Two parallel POSTs to create | — | **DEFECT D-04**: both compute same `count` → second hits `IntegrityError` (unhandled 500) | — |
+| TC-R-013 | Item-delete wrong parent | `item` of `r`, target `r_other` | POST `/portal/requisitions/<r_other>/items/<item>/delete/` | — | HTTP 404 (item not under `r_other`) | — |
+| TC-R-014 | Filter list | Mixed reqs | GET `?q=QR&status=draft&category=travel` | — | Only matching rows; selects keep value | — |
+| TC-R-015 | Boundary — `title` 160 / 161 chars | — | POST create | 160-char / 161-char title | 160 accepted; 161 → form error | — |
 
-Entities to parametrize: UtilityType (edit/delete), UtilityMeter (detail/edit/delete), UtilityConsumption (detail/edit/delete/import), UtilityTariff (detail/edit/delete), TOURateBand (delete), UtilityAllocation (detail/reverse/delete), DR event (detail/edit/activate/complete/cancel/delete), PeakShavingSuggestion (detail/ack/dismiss), EmissionFactor (edit/delete), CarbonEmission (detail), SustainabilityKPI (detail), BenchmarkSnapshot (detail), BenchmarkComparison (detail/delete). 36 cases — many already covered in `test_security.py`; gaps listed in §5.
+### 4.4 Recent Activity Feed
 
-### 4.6 BenchmarkSnapshot tenant=NULL access
+| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
+|---|---|---|---|---|---|---|
+| TC-A-001 | Feed shows only own audit rows | `u` and `u2` both have audit rows | GET `/portal/activity/` | — | Only `(t,u)` rows; `u2` rows absent | — |
+| TC-A-002 | Filter by action text & level | Mixed logs | GET `?q=requisition&level=info` | — | Only matching rows | — |
+| TC-A-003 | Feed is read-only | — | Inspect `urls.py` | — | No create/edit/delete routes for activity | — |
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result |
-|---|---|---|---|---|---|
-| **TC-SEC-BS-NULL-01** | Tenant user cannot view industry-avg row | `BenchmarkSnapshot(tenant=None, period=<any>, plant_label='industry_avg')` exists | Acme client GET `/benchmarks/<industry_pk>/` | — | 404 (queryset filters `tenant=request.tenant`) |
-| **TC-SEC-BS-NULL-02** | Tenant user cannot list industry-avg row | as above | Acme client GET `/benchmarks/` | — | Industry row not in `page.object_list` |
+### 4.5 Self-Service Reporting
 
-### 4.7 CSV import safety
+| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
+|---|---|---|---|---|---|---|
+| TC-RP-001 | Create report | — | POST `/portal/reports/create/` | `name=Spend, report_type=spend_by_category` | 302→`report_run`; result computed | +1 report |
+| TC-RP-002 | Each report type computes | Seeded approved reqs + audit | Unit: `generate_report(r)` for all 5 types | — | Correct `kind`, `labels`, `values`, `summary`; no exception | — |
+| TC-RP-003 | Empty-data report | New tenant, no data | Run `spend_by_category` | — | `labels=[], values=[]`, page renders | — |
+| TC-RP-004 | Unknown report_type fallback | `report_type` patched to `bogus` | `generate_report` | — | `{kind:'bar', labels:[], values:[], rows:[], summary:{}}` | — |
+| TC-RP-005 | Run updates `last_run_at` | Report `r` | GET `/portal/reports/<r>/` twice | — | `last_run_at` advances each GET (**D-06**: side-effecting GET) | — |
+| TC-RP-006 | `_report_window` default | `date_from/date_to` blank | Unit | — | window = today-90d … today | — |
+| TC-RP-007 | **`|safe` chart sink** | Report `my_activity`; an `AuditLog.action` contains `</script>` | Run report | — | **DEFECT D-05**: raw list interpolated into `<script>` breaks out → DOM XSS | — |
+| TC-RP-008 | IDOR cross-user report | `r2` owned by `u2` | GET `/portal/reports/<r2>/` as `u` | — | HTTP 404 | — |
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result |
-|---|---|---|---|---|---|
-| **TC-SEC-CSV-01** | 50 MB CSV upload | `DATA_UPLOAD_MAX_MEMORY_SIZE=2.5 MB` (Django default) | POST `/consumption/import/` w/ 50 MB file | 50 MB | 413 / form invalid / RequestDataTooBig — needs explicit handling |
-| **TC-SEC-CSV-02** | Non-CSV upload (e.g. .exe renamed to .csv) | logged-in admin | POST w/ `evil.csv` containing PE header | malicious binary | Currently parses as CSV (raises `csv.Error`) and errors at line 572 — no magic-byte check. Defect candidate (D-03). |
-| **TC-SEC-CSV-03** | CSV with whitespace-padded `period_start` value | logged-in admin | Import same row twice with `' 2025-01-01T00:00:00'` then `'2025-01-01T00:00:00'` | whitespace drift | **Currently** dedup compares string-equal so two rows are inserted. **Expected** zero new on second run. (D-06) |
+### 4.6 Access control & dashboard
 
-### 4.8 Performance / N+1
-
-| ID | Description | Steps | Threshold |
-|---|---|---|---|
-| **TC-PERF-001** | UtilityConsumption list (25 rows, mixed meter types) | 1 page load | ≤ 15 queries |
-| **TC-PERF-002** | UtilityAllocation list (25 rows, mixed targets) | 1 page load | ≤ 15 queries |
-| **TC-PERF-003** | PeakShavingSuggestion list | 1 page load | ≤ 15 queries |
-| **TC-PERF-004** | Dashboard (`/`) full render | 1 page load | ≤ 30 queries |
-| **TC-PERF-005** | `post_allocation` for 50-row period | service call | ≤ 200 queries |
+| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
+|---|---|---|---|---|---|---|
+| TC-S-001 | Anonymous blocked | logged out | GET each `/portal/*` URL | all 25 routes | 302→`/accounts/login/?next=…` | — |
+| TC-S-002 | Tenant-less user redirected | `u.tenant=None` | GET `/portal/` | — | 302→`tenants:onboarding_start` | — |
+| TC-S-003 | CSRF on all POST views | logged in | POST without token to every mutating route | — | HTTP 403 each | — |
+| TC-D-001 | Dashboard figures correct | seeded `(t,u)` | GET `/portal/` | — | `draft_count`, `submitted_count`, `approved_count`, `spend_total`, `unread_count` match DB | — |
+| TC-D-002 | Dashboard query budget | seeded data | `django_assert_max_num_queries(20)` around GET `/portal/` | — | ≤20 queries; no per-widget query | — |
+| TC-P-001 | List scale | 1,000 notifications | GET `/portal/notifications/?page=25` | — | Single page query + count; no N+1; <300 ms | — |
 
 ---
 
 ## 5. Automation Strategy
 
-### 5.1 Tool stack (already in use)
+### 5.1 Tooling
 
-| Layer | Tool | Already pinned? |
-|---|---|---|
-| Test runner | pytest + pytest-django | yes ([pytest.ini](../pytest.ini)) |
-| Django test settings | `config.settings_test` (SQLite in-memory + MD5 hasher) | yes |
-| Factories | hand-rolled fixtures in [conftest.py](../apps/utility/tests/conftest.py); factory-boy not yet adopted | hand-rolled |
-| E2E | Playwright (out of default run, marker `e2e`) | configured in [pytest.ini](../pytest.ini) |
-| Load | Locust | not present in this module — recommend a smoke `locustfile.py` |
-
-### 5.2 Suggested test layout (additive — do not move existing tests)
+NavPMS currently has **no test suite, no `pytest.ini`, no `conftest.py`**, and `requirements.txt` does **not** pin pytest. Recommended additions:
 
 ```
-apps/utility/tests/
-├── conftest.py                           ← existing
-├── test_models.py                        ← existing (30)
-├── test_forms.py                         ← existing (22)
-├── test_views.py                         ← existing (32)
-├── test_security.py                      ← existing (21)
-├── test_signals.py                       ← existing (14)
-├── test_services.py                      ← existing (21)
-├── test_eam_integration.py               ← existing (5)
-├── test_cost_integration.py              ← existing (4)
-├── test_dashboard.py                     ← existing (8)
-├── test_security_extended.py             ← NEW — fills tenant=NULL IDOR + CSV upload
-├── test_effective_dated.py               ← NEW — D-01 / D-02 regression guards
-├── test_performance.py                   ← NEW — N+1 budgets
-└── test_audit_log.py                     ← NEW — TenantAuditLog regression
+# requirements-dev.txt (new)
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-cov==6.0.0
+factory-boy==3.3.1
+bandit==1.8.0
 ```
 
-### 5.3 Ready-to-run additive tests
+E2E/load (optional, later): Playwright, Locust. Static security: `bandit -r apps/portal`.
 
-The four new files below augment the existing 188-run suite. They use the same fixtures as [conftest.py](../apps/utility/tests/conftest.py) so no fixture changes are needed.
+### 5.2 Suite layout
 
-#### 5.3.1 `apps/utility/tests/test_effective_dated.py`
+```
+config/
+  settings_test.py          # SQLite in-memory + MD5 hasher
+pytest.ini
+apps/portal/tests/
+  __init__.py
+  conftest.py               # tenant / user / client fixtures
+  test_models.py            # BR-4, BR-5, properties
+  test_services.py          # numbering, report engine, widget provisioning
+  test_views_widgets.py
+  test_views_notifications.py
+  test_views_requisitions.py
+  test_views_reports.py
+  test_views_activity.py
+  test_security.py          # OWASP-mapped: IDOR, CSRF, open-redirect, XSS
+  test_performance.py       # query budgets
+```
+
+### 5.3 `config/settings_test.py`
 
 ```python
-"""Regression guards for D-01 / D-02: services must respect effective_to.
+"""Fast test settings — in-memory SQLite, weak hasher."""
+from config.settings import *  # noqa
 
-Both tests are *expected to FAIL* against the current code. They will
-pass after the patches in §6 are applied.
-"""
-from datetime import date, timedelta
-from decimal import Decimal
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+DEBUG = False
+```
 
+### 5.4 `pytest.ini`
+
+```ini
+[pytest]
+DJANGO_SETTINGS_MODULE = config.settings_test
+python_files = test_*.py
+addopts = --reuse-db --tb=short
+```
+
+### 5.5 `apps/portal/tests/conftest.py`
+
+```python
+"""Shared fixtures for Module 2 portal tests."""
 import pytest
-from django.utils import timezone
 
-from apps.utility import models as U
-from apps.utility.services import carbon as carbon_svc
-from apps.utility.services import meters as meter_svc
-
-
-pytestmark = [pytest.mark.django_db, pytest.mark.security]
+from apps.core.models import Tenant
+from apps.accounts.models import User
+from apps.portal.models import QuickRequisition
 
 
-def test_resolve_unit_cost_skips_expired_tariff(acme, utility_type_electricity, meter):
-    """D-01: an expired but is_active=True tariff must NOT be used."""
-    today = date.today()
-    U.UtilityTariff.objects.create(
-        tenant=acme, utility_type=utility_type_electricity,
-        name='Expired', effective_from=today - timedelta(days=400),
-        effective_to=today - timedelta(days=30),
-        flat_rate=Decimal('0.10'), currency='USD', is_active=True,
+@pytest.fixture
+def tenant(db):
+    return Tenant.objects.create(name='Acme Co', slug='acme')
+
+
+@pytest.fixture
+def other_tenant(db):
+    return Tenant.objects.create(name='Globex', slug='globex')
+
+
+@pytest.fixture
+def user(db, tenant):
+    return User.objects.create_user(
+        username='alice', password='Welcome@123',
+        tenant=tenant, is_tenant_admin=True, role='tenant_admin',
     )
-    rate = meter_svc._resolve_unit_cost(meter, timezone.now())
-    assert rate == Decimal('0'), (
-        f'Expired tariff should not be selected; got {rate}.'
+
+
+@pytest.fixture
+def other_user(db, tenant):
+    return User.objects.create_user(
+        username='bob', password='Welcome@123', tenant=tenant, role='member',
     )
 
 
-def test_resolve_factor_skips_expired_factor(acme):
-    """D-02: an expired but is_active=True factor must NOT be used."""
-    today = date.today()
-    U.EmissionFactor.objects.create(
-        tenant=acme, source_type='electricity_grid', scope='scope_2',
-        factor=Decimal('0.42'), unit_of_measure='kwh',
-        effective_from=today - timedelta(days=400),
-        effective_to=today - timedelta(days=30),
-        is_active=True,
-    )
-    f = carbon_svc._resolve_factor(
-        acme, 'electricity_grid', 'scope_2', timezone.now(),
-    )
-    assert f is None, (
-        f'Expired factor should not be returned; got {f}.'
+@pytest.fixture
+def client_logged_in(client, user):
+    client.force_login(user)
+    return client
+
+
+@pytest.fixture
+def draft_req(db, tenant, user):
+    from apps.portal.services import next_requisition_number
+    return QuickRequisition.all_objects.create(
+        tenant=tenant, user=user, number=next_requisition_number(tenant),
+        title='Stationery', category='office_supplies', status='draft',
     )
 ```
 
-#### 5.3.2 `apps/utility/tests/test_security_extended.py`
+### 5.6 `test_models.py` — model invariants
 
 ```python
-"""Tenant=NULL IDOR + CSV upload safety + duplicate TOU band UX."""
-from datetime import time as dt_time
+"""Unit tests for Module 2 model logic (BR-4, BR-5, properties)."""
 from decimal import Decimal
-from io import BytesIO
+import pytest
 
+from apps.portal.models import DashboardWidget, Notification, QuickRequisitionItem
+
+
+@pytest.mark.parametrize('size,expected', [
+    ('small', 'col-lg-4'), ('medium', 'col-lg-6'),
+    ('large', 'col-12'), ('bogus', 'col-lg-4'),
+])
+def test_widget_col_class(size, expected):
+    assert DashboardWidget(size=size).col_class == expected
+
+
+@pytest.mark.django_db
+def test_item_save_computes_line_total(draft_req, tenant):
+    item = QuickRequisitionItem(
+        tenant=tenant, requisition=draft_req,
+        name='Pen', quantity=Decimal('3'), unit_price=Decimal('4.50'),
+    )
+    item.save()
+    assert item.line_total == Decimal('13.50')
+
+
+@pytest.mark.django_db
+def test_recalc_total_sums_items(draft_req, tenant):
+    for price in ('10.00', '5.50'):
+        QuickRequisitionItem.all_objects.create(
+            tenant=tenant, requisition=draft_req, name='x',
+            quantity=Decimal('1'), unit_price=Decimal(price),
+        )
+    assert draft_req.recalc_total() == Decimal('15.50')
+
+
+@pytest.mark.django_db
+def test_mark_read_sets_timestamp(tenant, user):
+    n = Notification.all_objects.create(tenant=tenant, user=user, title='Hi')
+    n.mark_read()
+    assert n.is_read and n.read_at is not None
+
+
+@pytest.mark.django_db
+def test_is_editable_only_draft(draft_req):
+    assert draft_req.is_editable
+    draft_req.status = 'submitted'
+    assert not draft_req.is_editable
+```
+
+### 5.7 `test_views_requisitions.py` — integration + guards
+
+```python
+"""Integration tests for the Quick Requisition flow."""
 import pytest
 from django.urls import reverse
 
-from apps.utility import models as U
+from apps.portal.models import QuickRequisition
+from apps.tenants.models import AuditLog
+
+pytestmark = pytest.mark.django_db
 
 
-pytestmark = [pytest.mark.django_db, pytest.mark.security]
+def test_create_writes_audit(client_logged_in, tenant):
+    resp = client_logged_in.post(reverse('portal:requisition_create'), {
+        'title': 'Pens', 'category': 'office_supplies',
+        'priority': 'normal', 'currency': 'USD',
+    })
+    req = QuickRequisition.all_objects.get(tenant=tenant, title='Pens')
+    assert req.status == 'draft' and req.number.startswith('QR-')
+    assert resp.status_code == 302
+    assert AuditLog.all_objects.filter(
+        tenant=tenant, action='requisition.created', target_id=str(req.id),
+    ).exists()
 
 
-# ---------- BenchmarkSnapshot tenant=NULL industry-avg IDOR (D-10) ----------
-
-def test_industry_avg_snapshot_404_for_tenant_user(admin_client, acp_open):
-    snap = U.BenchmarkSnapshot.all_objects.create(
-        tenant=None, period=acp_open, plant_label='industry_avg',
-        total_units_produced=Decimal('10'),
-    )
-    r = admin_client.get(reverse('utility:benchmark_detail', args=[snap.pk]))
-    assert r.status_code == 404
+def test_submit_requires_items(client_logged_in, draft_req):
+    resp = client_logged_in.post(
+        reverse('portal:requisition_submit', args=[draft_req.pk]), follow=True)
+    draft_req.refresh_from_db()
+    assert draft_req.status == 'draft'
+    assert b'at least one item' in resp.content.lower()
 
 
-def test_industry_avg_snapshot_not_in_list(admin_client, acp_open, acme):
-    U.BenchmarkSnapshot.all_objects.create(
-        tenant=None, period=acp_open, plant_label='industry_avg',
-        total_units_produced=Decimal('10'),
-    )
-    U.BenchmarkSnapshot.objects.create(
-        tenant=acme, period=acp_open, plant_label='main',
-        total_units_produced=Decimal('5'),
-    )
-    r = admin_client.get(reverse('utility:benchmark_list'))
-    assert r.status_code == 200
-    body = r.content.decode()
-    assert 'industry_avg' not in body
-    assert 'main' in body
+def test_edit_blocked_on_non_draft(client_logged_in, draft_req):
+    draft_req.status = 'submitted'
+    draft_req.save(update_fields=['status'])
+    resp = client_logged_in.get(
+        reverse('portal:requisition_edit', args=[draft_req.pk]))
+    assert resp.status_code == 302  # bounced to detail
 
 
-# ---------- CSV upload safety (D-03 / D-06) ----------
-
-def _csv_payload(rows):
-    head = b'period_start,period_end,start_reading,end_reading,unit_cost\n'
-    body = b''.join(
-        f'{ps},{pe},{sr},{er},{uc}\n'.encode()
-        for ps, pe, sr, er, uc in rows
-    )
-    return head + body
-
-
-def test_csv_upload_oversize_does_not_500(admin_client, meter):
-    """D-03: oversized CSV body should not crash the view."""
-    huge = b'x,' * (3 * 1024 * 1024)  # ~6 MB > default 2.5 MB
-    fp = BytesIO(huge)
-    fp.name = 'huge.csv'
-    r = admin_client.post(
-        reverse('utility:consumption_import'),
-        data={'meter': meter.pk, 'csv_file': fp},
-    )
-    assert r.status_code in (200, 302, 400, 413)
-
-
-def test_csv_idempotency_with_whitespace_drift(admin_client, meter):
-    """D-06: bulk_import_billing dedups by exact string equality."""
-    rows1 = [(' 2026-05-01T00:00:00', '2026-05-02T00:00:00', '0', '10', '0.10')]
-    rows2 = [('2026-05-01T00:00:00', '2026-05-02T00:00:00', '0', '10', '0.10')]
-    fp1 = BytesIO(_csv_payload(rows1)); fp1.name = 'a.csv'
-    fp2 = BytesIO(_csv_payload(rows2)); fp2.name = 'b.csv'
-    admin_client.post(
-        reverse('utility:consumption_import'),
-        data={'meter': meter.pk, 'csv_file': fp1},
-    )
-    admin_client.post(
-        reverse('utility:consumption_import'),
-        data={'meter': meter.pk, 'csv_file': fp2},
-    )
-    n = U.UtilityConsumption.objects.filter(meter=meter).count()
-    # Current behavior: 2 (dedup miss). Target after fix: 1.
-    assert n in (1, 2), f'unexpected count {n}'
-
-
-# ---------- TOURateBand duplicate handling (D-04) ----------
-
-def test_duplicate_tou_band_does_not_500(admin_client, tariff):
-    U.TOURateBand.objects.create(
-        tenant=tariff.tenant, tariff=tariff, band_type='peak',
-        day_of_week='weekday', start_time=dt_time(9, 0),
-        end_time=dt_time(17, 0), rate=Decimal('0.20'),
-    )
-    r = admin_client.post(
-        reverse('utility:band_create', args=[tariff.pk]),
-        data={
-            'band_type': 'peak', 'day_of_week': 'weekday',
-            'start_time': '09:00', 'end_time': '17:00', 'rate': '0.20',
-        },
-    )
-    assert r.status_code == 302
-    assert U.TOURateBand.objects.filter(tariff=tariff).count() == 1
+def test_idor_other_tenant_404(client, other_tenant, draft_req):
+    from apps.accounts.models import User
+    intruder = User.objects.create_user(
+        username='mallory', password='x', tenant=other_tenant)
+    client.force_login(intruder)
+    resp = client.get(reverse('portal:requisition_detail', args=[draft_req.pk]))
+    assert resp.status_code == 404
 ```
 
-#### 5.3.3 `apps/utility/tests/test_performance.py`
+### 5.8 `test_security.py` — OWASP-mapped (encodes the live defects)
 
 ```python
-"""N+1 budgets for Module 14 list views and the dashboard."""
-from datetime import timedelta
-from decimal import Decimal
-
+"""Security regression tests — D-01..D-03 FAIL today, pass once §6 is fixed."""
 import pytest
 from django.urls import reverse
-from django.utils import timezone
 
-from apps.utility import models as U
+from apps.portal.forms import QuickRequisitionItemForm, NotificationForm
+from apps.portal.models import Notification
 
-
-pytestmark = [pytest.mark.django_db]
-
-
-def _seed_25_consumption(acme, meter):
-    now = timezone.now()
-    for i in range(25):
-        U.UtilityConsumption.objects.create(
-            tenant=acme, meter=meter,
-            period_start=now - timedelta(hours=i + 1),
-            period_end=now - timedelta(hours=i),
-            start_reading=Decimal(i * 100), end_reading=Decimal(i * 100 + 50),
-            unit_cost=Decimal('0.12'),
-        )
+pytestmark = pytest.mark.django_db
 
 
-def test_consumption_list_n_plus_one(
-    django_assert_max_num_queries, admin_client, acme, meter,
-):
-    _seed_25_consumption(acme, meter)
-    with django_assert_max_num_queries(15):
-        r = admin_client.get(reverse('utility:consumption_list'))
-    assert r.status_code == 200
+def test_A04_item_form_rejects_negative_values():
+    """D-01: quantity/unit_price must not accept negatives."""
+    form = QuickRequisitionItemForm(
+        {'name': 'X', 'quantity': '-5', 'unit': 'u', 'unit_price': '-10'})
+    assert not form.is_valid()           # FAILS until MinValueValidator added
+    assert 'quantity' in form.errors
 
 
-def test_allocation_list_n_plus_one(
-    django_assert_max_num_queries, admin_client, acme, acp_open, meter,
-):
-    for i in range(20):
-        U.UtilityAllocation.objects.create(
-            tenant=acme, period=acp_open, meter=meter,
-            share_pct=Decimal('100'),
-            allocated_consumption=Decimal('50'),
-            allocated_cost=Decimal('6'),
-        )
-    with django_assert_max_num_queries(15):
-        r = admin_client.get(reverse('utility:allocation_list'))
-    assert r.status_code == 200
+def test_A03_notification_rejects_js_uri():
+    """D-02: link_url must reject javascript:/data: schemes."""
+    form = NotificationForm({
+        'category': 'info', 'priority': 'normal', 'title': 'T',
+        'message': 'm', 'link_url': 'javascript:alert(1)'})
+    assert not form.is_valid()           # FAILS until clean_link_url added
 
 
-def test_dashboard_query_budget(
-    django_assert_max_num_queries, admin_client, acme, meter,
-):
-    _seed_25_consumption(acme, meter)
-    with django_assert_max_num_queries(30):
-        r = admin_client.get(reverse('utility:index'))
-    assert r.status_code == 200
+def test_A01_toggle_read_rejects_external_redirect(client_logged_in, tenant, user):
+    """D-03: open redirect via the `next` POST param."""
+    n = Notification.all_objects.create(tenant=tenant, user=user, title='Hi')
+    resp = client_logged_in.post(
+        reverse('portal:notification_mark_read', args=[n.pk]),
+        {'next': 'https://evil.example/'})
+    assert 'evil.example' not in resp['Location']   # FAILS until host-checked
+
+
+def test_A01_anonymous_redirected_to_login(client):
+    resp = client.get(reverse('portal:dashboard'))
+    assert resp.status_code == 302 and 'login' in resp['Location']
 ```
 
-#### 5.3.4 `apps/utility/tests/test_audit_log.py`
+### 5.9 `test_performance.py`
 
 ```python
-"""TenantAuditLog: verify the signal factories actually persist rows."""
-from datetime import timedelta
-from decimal import Decimal
-
+"""Query-budget guards for Module 2."""
 import pytest
-from django.utils import timezone
+from django.urls import reverse
 
-from apps.utility import models as U
+from apps.portal.models import Notification
 
-
-pytestmark = [pytest.mark.django_db]
-
-
-def _audit_qs():
-    from apps.tenants.models import TenantAuditLog
-    return TenantAuditLog.objects
+pytestmark = pytest.mark.django_db
 
 
-def test_dr_event_status_transition_audited(acme, utility_type_electricity, acme_admin):
-    now = timezone.now()
-    e = U.DemandResponseEvent.objects.create(
-        tenant=acme, utility_type=utility_type_electricity,
-        start_at=now, end_at=now + timedelta(hours=1),
-        status='scheduled', created_by=acme_admin,
-    )
-    e.status = 'active'
-    e.save()
-    qs = _audit_qs().filter(
-        tenant_id=acme.id, target_type='DemandResponseEvent',
-        target_id=str(e.pk), action='utility.dre.active',
-    )
-    assert qs.exists(), 'utility.dre.active audit row missing'
+def test_dashboard_query_budget(client_logged_in, django_assert_max_num_queries):
+    with django_assert_max_num_queries(20):
+        client_logged_in.get(reverse('portal:dashboard'))
 
 
-def test_allocation_posted_flag_audited(acme, acp_open, meter):
-    a = U.UtilityAllocation.objects.create(
-        tenant=acme, period=acp_open, meter=meter,
-        share_pct=Decimal('100'),
-    )
-    a.is_posted_to_cost = True
-    a.posted_at = timezone.now()
-    a.save(update_fields=['is_posted_to_cost', 'posted_at'])
-    qs = _audit_qs().filter(
-        tenant_id=acme.id, target_type='UtilityAllocation',
-        target_id=str(a.pk), action='utility.allocation.posted',
-    )
-    assert qs.exists(), 'utility.allocation.posted audit row missing'
-
-
-def test_carbon_reversal_flag_audited(
-    acme, acp_open, emission_factor_grid,
-):
-    c = U.CarbonEmission.objects.create(
-        tenant=acme, period=acp_open, scope='scope_2',
-        source_type='electricity_grid', source_quantity=Decimal('10'),
-        factor=emission_factor_grid,
-    )
-    c.is_reversal = True
-    c.save(update_fields=['is_reversal'])
-    qs = _audit_qs().filter(
-        tenant_id=acme.id, target_type='CarbonEmission',
-        target_id=str(c.pk), action='utility.carbon.reversed',
-    )
-    assert qs.exists(), 'utility.carbon.reversed audit row missing'
+def test_notification_list_no_n_plus_one(
+        client_logged_in, tenant, user, django_assert_max_num_queries):
+    Notification.all_objects.bulk_create([
+        Notification(tenant=tenant, user=user, title=f'N{i}') for i in range(60)
+    ])
+    with django_assert_max_num_queries(8):
+        client_logged_in.get(reverse('portal:notification_list'))
 ```
 
-### 5.4 Optional Locust smoke (out of default run)
-
-```python
-# locustfiles/utility_smoke.py — start with: locust -f locustfiles/utility_smoke.py
-from locust import HttpUser, between, task
-
-class UtilityReader(HttpUser):
-    wait_time = between(1, 3)
-    @task(3)
-    def list_meters(self):
-        self.client.get('/utility/meters/')
-    @task(2)
-    def list_consumption(self):
-        self.client.get('/utility/consumption/')
-    @task(1)
-    def dashboard(self):
-        self.client.get('/utility/')
-```
-
-### 5.5 Run commands (PowerShell-safe)
-
-```
-pytest apps/utility -m "not slow and not e2e" -q
-pytest apps/utility/tests/test_effective_dated.py -q
-pytest apps/utility/tests/test_security_extended.py -q
-pytest apps/utility/tests/test_performance.py -q
-pytest apps/utility/tests/test_audit_log.py -q
-```
+Run: `pytest apps/portal -q --cov=apps/portal --cov-report=term-missing`.
 
 ---
 
 ## 6. Defects, Risks & Recommendations
 
-| ID | Severity | Location | Finding | OWASP | Recommendation |
+### 6.1 Defect register
+
+| ID | Severity | OWASP | Location | Finding | Recommendation |
 |---|---|---|---|---|---|
-| **D-01** | **Medium** | [services/meters.py:48-61](../apps/utility/services/meters.py#L48-L61) `_resolve_unit_cost` | Tariff lookup filters only on `is_active=True` and `effective_from__lte=when`. An expired tariff (`effective_to < when`) that is still flagged `is_active=True` will be selected, charging consumption rows at the wrong rate. **Verified** — `grep -n effective_to apps/utility/services/meters.py` returns no hit. | A04 Insecure Design | Add `Q(effective_to__isnull=True) \| Q(effective_to__gte=when_date)` to the queryset. Ship with **TC-DEF-001** as a regression. |
-| **D-02** | **Medium** | [services/carbon.py:33-46](../apps/utility/services/carbon.py#L33-L46) `_resolve_factor` | Same shape — expired but is_active=True emission factors will be applied to new consumption, producing wrong scope-2 numbers and an unauditable factor citation. **Verified** — `grep -n effective_to apps/utility/services/carbon.py` returns no hit. | A04 Insecure Design | Same fix; ship **TC-DEF-002** as regression. |
-| **D-03** | **Medium** | [forms.py:140](../apps/utility/forms.py#L140) `UtilityConsumptionImportForm.csv_file` | `forms.FileField()` has no max-size, no extension whitelist, no content-type validation, no magic-byte check. Polyglot-attack risk if the file is later mirrored elsewhere. | A08 Software & Data Integrity Failures | Add `validators=[FileExtensionValidator(['csv'])]`, a custom `clean_csv_file()` that checks `content_type in ('text/csv', 'application/vnd.ms-excel')` and `size <= 5 * 1024 * 1024`, and verify a UTF-8 BOM/`,`-prefixed first row before handing to `csv.DictReader`. |
-| **D-04** | **Low** | [forms.py:185-201](../apps/utility/forms.py#L185-L201) `TOURateBandForm` + [views.py:686-706](../apps/utility/views.py#L686-L706) `TOURateBandCreateView` | Form has no `clean()` for the `(tariff, band_type, day_of_week, start_time)` `unique_together`. Duplicate POST raises `IntegrityError`, caught by the broad `except Exception as exc`, then echoed verbatim to `messages.error(...)` — leaks DB-level constraint name. | A05 Security Misconfiguration (info disclosure) | Add `clean()` that pre-checks via `TOURateBand.all_objects.filter(...).exists()`. Stop echoing raw exception text. |
-| **D-05** | **Low** | [forms.py:179-182](../apps/utility/forms.py#L179-L182) `UtilityTariffForm.clean` | Currency validated by length only. `'ZZZ'`, `'999'`, lower-case, etc. all pass. | A04 | At minimum `re.match(r'^[A-Z]{3}$', currency)`; ideally validate against ISO-4217 codes. |
-| **D-06** | **Low** | [services/meters.py:64-94](../apps/utility/services/meters.py#L64-L94) `bulk_import_billing` | Idempotency uses raw CSV string equality on `period_start` / `period_end`. Whitespace drift, ISO format drift (`Z` suffix vs `+00:00`), or fractional-second changes all defeat the dedup. | A04 | Parse to `datetime` first, then compare; or normalize via `dateutil.parser.parse` before lookup. Pin TC-SEC-CSV-03. |
-| **D-07** | **Low** | [services/peak.py:172](../apps/utility/services/peak.py#L172) `compute_estimated_savings` | Hard-coded `assumed_kwh_per_hour = Decimal('50')`. Documented as v1 heuristic — flagged for visibility. | n/a | When `op.work_center.assets` exposes a kWh meter, weight by trailing-30-day average; otherwise keep heuristic with a `TODO`. |
-| **D-08** | **Info** | [urls.py](../apps/utility/urls.py) | No `delete_view` for `CarbonEmission`. By design (append-only ledger) but mistyped/duplicate manual entries have no UI remediation today. | A09 (audit hygiene) | Add an admin-only `CarbonEmissionReverseView` analogous to `UtilityAllocationReverseView`. |
-| **D-09** | **Info** | [signals.py:41-65](../apps/utility/signals.py#L41-L65) `_audit` | `TenantAuditLog.objects.create(...)` is wrapped in `except Exception: pass`. Audit failure is silent — no warning, no log, no metric. | A09 Logging Failures | Replace bare `pass` with `logger.warning('audit emit failed: %s', exc, exc_info=True)`. |
-| **D-10** | **Info** | [models.py:892-905](../apps/utility/models.py#L892-L905) `BenchmarkSnapshot.tenant` is overridden as nullable | Industry-average rows are stored with `tenant=None`. All current views correctly filter `tenant=request.tenant`. **Risk:** future code using `BenchmarkSnapshot.objects.filter(...)` without an explicit tenant predicate would surface industry rows to all tenants. | A01 Broken Access Control (latent) | Add a manager method `BenchmarkSnapshotManager.for_tenant(t)` that always supplies the predicate. Codify TC-SEC-BS-NULL-01/02 as guard tests. |
+| **D-01** | **High** | A04 | [forms.py:43-63](../apps/portal/forms.py#L43-L63), [models.py:199-208](../apps/portal/models.py#L199-L208) | **Negative `quantity`/`unit_price` accepted** — verified: `QuickRequisitionItemForm({'quantity':'-5','unit_price':'-10'})` is valid. HTML `min=0` is client-side only; no `MinValueValidator` on the model. Corrupts `line_total`/`estimated_total` and every downstream spend figure. | Add `validators=[MinValueValidator(Decimal('0'))]` to `quantity` and `unit_price` on the model (also covers admin + future APIs). Use a strict `>0` validator on `quantity` if zero-qty lines are invalid. |
+| **D-02** | **Medium** | A03 | [forms.py:19-26](../apps/portal/forms.py#L19-L26), [notifications/detail.html:28](../templates/portal/notifications/detail.html#L28) | **`javascript:` URI stored in `link_url`** — verified form-valid; detail page renders `<a href="{{ note.link_url }}">`. Auto-escaping does not neutralise script-scheme URIs → click-to-execute (currently self-XSS, as notes are per-user). | Add `clean_link_url()` rejecting any scheme other than `http`/`https`/site-relative paths; or apply a scheme allowlist at render time. |
+| **D-03** | **Medium** | A01 | [views.py:247](../apps/portal/views.py#L247) | **Open redirect** — `NotificationMarkReadView` does `redirect(request.POST.get('next') or 'portal:notification_list')`; `django.shortcuts.redirect` does no host validation, so `next=https://evil/` redirects off-site. CSRF limits cross-site abuse, but the pattern is unsafe. | Validate with `django.utils.http.url_has_allowed_host_and_scheme(nxt, {request.get_host()})` before redirecting; fall back to the list URL otherwise. |
+| **D-04** | **Medium** | A04 | [services.py:17-26](../apps/portal/services.py#L17-L26) | **Race in `next_requisition_number`** — number = `count()+1` with a uniqueness `while` loop; two concurrent creates read the same `count` before either commits → second `save()` raises `IntegrityError` (`number` is globally `unique=True`) → unhandled 500. | Wrap create in a retry loop catching `IntegrityError`, or compute the number inside a `select_for_update()` transaction over a per-tenant counter, or use a DB sequence. |
+| **D-05** | **Medium** | A03 | [reports/detail.html:99-100](../templates/portal/reports/detail.html#L99-L100) | **`{{ result.labels|safe }}` interpolated into a `<script>` block** — raw Python list repr, escaping disabled. For `my_activity` reports the labels are `AuditLog.action` strings (free-text `CharField`); a label containing `</script>` breaks out of the tag → DOM XSS. Not exploitable via portal-written actions today, but a latent injection sink. | Replace with `{{ result|json_script:"report-data" }}` and `JSON.parse(document.getElementById('report-data').textContent)` in JS. Never `|safe` a value into a script context. |
+| **D-06** | Low | A04 | [views.py:566-572](../apps/portal/views.py#L566-L572) | **Side-effecting GET** — `ReportRunView.get` writes `last_run_at` on every load (similarly `NotificationDetailView` auto-marks read). Crawlers/prefetch mutate state; not idempotent. | Acceptable as a product choice — document it; for strict REST hygiene move `last_run_at` behind an explicit "Run" POST. |
+| **D-07** | Low | A03 | [partials/_pagination.html:6](../templates/partials/_pagination.html#L6) | **GET params not URL-encoded** in pagination links (`&{{ k }}={{ v }}`). A search term containing `&`, `#`, or spaces corrupts next/prev URLs (affects every portal list). | Apply `|urlencode` to `v` (and `k`) in the shared partial. |
+| **D-08** | Low | — | [services.py:19](../apps/portal/services.py#L19), [models.py:148](../apps/portal/models.py#L148) | **Cross-tenant numbering coupling** — `number` is globally `unique=True`; slug truncated to 6 chars (`slug[:6].upper().replace('-','')`), so two tenants whose slugs collapse to the same token share one global space. The `while` loop avoids a crash but tenant B's first requisition may become `QR-XXX-00002`. Confusing, not corrupting. | Make `number` unique per tenant: add `unique_together=[('tenant','number')]`, drop global `unique=True`; or embed the tenant pk in the prefix. |
+| **D-09** | Info | A05 | [config/settings.py:7-9](../config/settings.py#L7-L9) | Project-level (not portal-specific): `SECRET_KEY` has an insecure default, `ALLOWED_HOSTS` defaults to `*`, and there is no `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` / `SECURE_SSL_REDIRECT` / HSTS. | Ensure `.env` sets `SECRET_KEY` + `ALLOWED_HOSTS` in every non-dev environment; add `SECURE_*` settings gated on `not DEBUG`. Track outside this module. |
+| **D-10** | Info | A04 | [views.py:71-88](../apps/portal/views.py#L71-L88) | No cap on widgets per user; amounts have no upper bound beyond `max_digits`. Low abuse potential (per-user data). | Optional: soft-cap widget count. |
 
-### 6.1 Risk register
+### 6.2 Risk register
 
-| Risk | Likelihood | Impact | Mitigation status |
-|---|---|---|---|
-| Wrong-rate consumption costing in a billing period | Medium | Medium ($$ leakage) | D-01 fix + ledger lookback |
-| Wrong scope-2 emissions reported to a regulator | Medium | High (compliance) | D-02 fix |
-| User uploads malicious / oversized CSV | Low | Medium | D-03 fix |
-| Audit log silently lost during a flag flip | Low | Low | D-09 logging fix |
-| Industry-avg row leaks across tenants in a future refactor | Low | High (privacy) | D-10 manager method + guard test |
-| Concurrent activate/cancel race on a DR event | Very Low | Low | already mitigated by `_atomic_status_transition` |
-| Allocation re-emit thrash deletes another worker's allocation | Low | Medium | currently a single-admin assumption — document |
+| ID | Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|---|
+| RK-1 | Negative line items poison spend reports & dashboard `spend_total` | Medium | Medium | Fix D-01 — highest-value single fix |
+| RK-2 | Requisition create fails under concurrent load | Low–Medium | Medium | Fix D-04 |
+| RK-3 | Future caller passes user-influenced text to `AuditLog.action` → D-05 becomes live XSS | Low | High | Fix D-05 proactively |
+| RK-4 | `link_url` script scheme abused if notifications become admin-pushable to other users | Low | Medium | Fix D-02 |
+| RK-5 | No automated tests — regressions ship silently | High | Medium | Adopt §5 suite; wire into CI |
+
+### 6.3 Strengths (no action needed)
+
+- Tenant **and** user isolation is consistent: every `get_object_or_404` is double-scoped (`tenant=`, `user=`); no `Model.objects.all()`; `TenantManager` adds defence-in-depth.
+- CRUD is complete per CLAUDE.md rules; status-gated edit/delete enforced in **both** template and view.
+- POST-only mutations with GET fallbacks that redirect safely; CSRF via Django middleware (no `csrf_exempt`).
+- Filters are retained across pagination by [_pagination.html](../templates/partials/_pagination.html) (modulo the D-07 encoding bug).
+- Seeder is idempotent (`exists()` guard + `--flush`) and prints the tenant-admin login + superuser warning.
 
 ---
 
@@ -784,67 +550,60 @@ pytest apps/utility/tests/test_audit_log.py -q
 
 ### 7.1 Coverage targets
 
-| File | Target line cov | Target branch cov | Notes |
+| File | Line target | Branch target | Notes |
 |---|---|---|---|
-| [models.py](../apps/utility/models.py) | ≥ 95% | ≥ 90% | save() retry catch branches + reversal flag math |
-| [forms.py](../apps/utility/forms.py) | ≥ 92% | ≥ 90% | every L-01 / L-14 branch hit |
-| [views.py](../apps/utility/views.py) | ≥ 88% | ≥ 80% | error/exception branches in CRUD + import |
-| [signals.py](../apps/utility/signals.py) | ≥ 90% | ≥ 85% | `_audit` try/except both arms covered |
-| [services/](../apps/utility/services/) | ≥ 95% | ≥ 90% | new D-01/D-02 branches + reverse_allocation early-out |
+| [models.py](../apps/portal/models.py) | 95% | 90% | `save`/`recalc_total`/`mark_read`/properties |
+| [services.py](../apps/portal/services.py) | 90% | 85% | All 5 `generate_report` branches + fallback |
+| [views.py](../apps/portal/views.py) | 85% | 80% | All guards + IDOR 404 paths |
+| [forms.py](../apps/portal/forms.py) | 100% | — | Post-D-01/D-02 `clean_*` methods |
+| **Module** | **≥88%** | **≥82%** | Mutation (optional, `mutmut`): ≥70% killed |
 
-### 7.2 KPI dashboard
+### 7.2 KPI thresholds
 
-| KPI | Green | Amber | Red | Current |
-|---|---|---|---|---|
-| Functional pass rate | 100% | ≥ 98% | < 98% | green (188/188 reported) |
-| Open Critical defects | 0 | n/a | ≥ 1 | green (0) |
-| Open High defects | 0 | 1 | ≥ 2 | green (0) |
-| Open Medium defects | ≤ 2 | 3-5 | ≥ 6 | amber (3 — D-01, D-02, D-03) |
-| Suite runtime | ≤ 90 s | ≤ 180 s | > 180 s | green (~78 s reported) |
-| List view N+1 budget | ≤ 15 q / 25 rows | ≤ 25 q | > 25 q | not yet measured (TC-PERF-001..003) |
-| Dashboard p95 latency | ≤ 300 ms | ≤ 600 ms | > 600 ms | not measured |
-| Audit emit success | 100% | ≥ 99.9% | < 99.9% | not measured (D-09) |
-| Regression escape rate | 0 in last 4 weeks | ≤ 1 | ≥ 2 | green (0) |
+| KPI | 🟢 Green | 🟡 Amber | 🔴 Red |
+|---|---|---|---|
+| Functional pass rate | ≥98% | 90–97% | <90% |
+| Open Critical/High defects | 0 | 1 | ≥2 |
+| Open Medium defects | ≤2 | 3–5 | >5 |
+| Module line coverage | ≥88% | 75–87% | <75% |
+| Suite runtime | <25 s | 25–60 s | >60 s |
+| Dashboard query count | ≤16 | 17–25 | >25 |
+| List p95 latency @1k rows | <300 ms | 300–800 ms | >800 ms |
+| Regression escape rate | 0 | 1/release | >1/release |
 
-### 7.3 Release Exit Gate (must ALL be true)
+### 7.3 Current scorecard
 
-- [ ] All 188 existing tests + the 4 new files pass green on `pytest apps/utility -m "not slow and not e2e"`.
-- [ ] D-01, D-02, D-03 are remediated; their regression tests flip from failing → green.
-- [ ] D-04, D-05, D-06 are tracked with linked GitHub issues even if deferred.
-- [ ] N+1 budgets (TC-PERF-001..004) measured and green.
-- [ ] No new query in any list view exceeds budget after the fixes ship.
-- [ ] Audit-emit regression tests green.
-- [ ] Tenant=NULL IDOR guard tests green (TC-SEC-BS-NULL-01/02).
-- [ ] CSV upload validation tests green (TC-SEC-CSV-01..03).
-- [ ] Manual UAT walkthrough of the 5 sub-modules signed off in a session note.
+| Metric | Value | Status |
+|---|---|---|
+| Open High | 1 (D-01) | 🔴 |
+| Open Medium | 4 (D-02…D-05) | 🟡 |
+| Automated tests | 0 | 🔴 |
+| Tenant-isolation defects | 0 | 🟢 |
+| CRUD completeness | Full | 🟢 |
+
+### 7.4 Release Exit Gate — ALL must be true
+
+- [ ] D-01 fixed: negative `quantity`/`unit_price` rejected; regression test green.
+- [ ] D-02 fixed: non-`http(s)` `link_url` schemes rejected.
+- [ ] D-03 fixed: `next` redirect host-validated.
+- [ ] D-04 fixed: concurrent requisition create cannot 500 on duplicate `number`.
+- [ ] D-05 fixed: report chart data rendered via `json_script`, no `|safe`.
+- [ ] §5 automation suite present and green; module line coverage ≥88%.
+- [ ] Dashboard query count ≤16 verified by `test_performance.py`.
+- [ ] `bandit -r apps/portal` reports no Medium+ issues.
+- [ ] All P1 test cases in §4 executed and passing.
 
 ---
 
 ## 8. Summary
 
-### What's strong
+Module 2 (User Dashboard & Portal) is **functionally complete and architecturally sound**. All five sub-modules ship with full CRUD, and the standout strength is **isolation discipline** — every view double-scopes by tenant *and* user, every object lookup is a scoped `get_object_or_404`, and the `TenantManager` adds defence-in-depth. CRUD, status-gating, CSRF, and seeder idempotency all follow the CLAUDE.md rules.
 
-- **Test coverage is already extensive** — 157 `def test_*` across 9 files, parametrize fan-out to ~188 runs in ~78 s. Multi-tenant IDOR, RBAC, anonymous redirects, signal idempotency, reversal cascades, and dispatch_uid presence are all explicitly tested.
-- **Multi-tenancy is tight.** Every read view inherits `TenantRequiredMixin`, every write view `TenantAdminRequiredMixin`. Every queryset filters `tenant=request.tenant` and every `get_object_or_404` adds the tenant predicate.
-- **The L-01 trap is closed everywhere** — `UtilityTypeForm`, `UtilityMeterForm`, and `EmissionFactorForm` all have explicit `clean()` guards for the tenant-hidden `unique_together`.
-- **Audit signals are wired correctly** with `weak=False` + unique `dispatch_uid` (lesson L-18).
-- **Cross-module signal boundaries are best-effort** — every external write path is wrapped in `try/except` so a utility-side bug cannot break an EAM or cost write.
-- **Append-only ledger semantics** are properly modeled: reversals are NEW rows, not UPDATEs, and `is_reversal=True` rows are blocked from edit ([views.py:495-497](../apps/utility/views.py#L495-L497)).
+The module is **not release-ready** until the input-validation gaps close. The single highest-value fix is **D-01** (High) — negative quantities/prices are accepted today (shell-verified) and silently corrupt every downstream spend figure on the dashboard and in reports. Four Medium defects share a theme of trusting un-sanitised input: a `javascript:` URI sink (**D-02**), an open redirect (**D-03**), a concurrency race on requisition numbering (**D-04**), and an unsafe `|safe` chart-data sink (**D-05**). None breach tenant isolation; all are local, well-bounded, and cheap to fix.
 
-### What's weak
+There is **zero automated test coverage** and no test scaffolding — the largest process risk. §5 provides a ready-to-run pytest suite (`config.settings_test`, real `Tenant`/`accounts.User` fixtures) whose `test_security.py` deliberately encodes D-01…D-03 as currently-failing tests, so the suite doubles as the verification gate for the fixes.
 
-- **Effective-dated lookups skip `effective_to`** in two places (D-01, D-02). Both are medium severity because they affect billing accuracy and regulatory reporting.
-- **CSV upload is the soft spot in this module's security posture** — no max size, no content-type, no magic-byte check (D-03).
-- **Idempotency on the CSV importer is string-equality on raw CSV cells** (D-06) — fragile to common format drift.
-- **`TOURateBand` form does not pre-check its `unique_together`**, leaking the constraint name to the UI (D-04).
-- **`BenchmarkSnapshot.tenant` is overridden as nullable** with no manager-level guard — current views are safe, but a future refactor that uses the default manager incorrectly could leak industry-avg rows across tenants (D-10).
-- **Audit emission failures are silently swallowed** (D-09) — there is no observability into a TenantAuditLog regression.
+**Recommended next step:** `Fix the defects` — implement D-01 through D-05, then `Build the automation` to lock the fixes in. Estimated effort: ~0.5 day for fixes, ~1 day for the initial suite.
 
-### Recommended next actions (in order)
-
-1. **Apply D-01 + D-02 patches.** One-line additions to two services. Ship with the `test_effective_dated.py` regressions.
-2. **Apply D-03 patch.** Add `clean_csv_file()` with size/extension/content-type checks; ship with `test_security_extended.py`.
-3. **Add the four new test files** above (effective_dated, security_extended, performance, audit_log) — additive, no fixture changes needed.
-4. **Track D-04, D-05, D-06** as separate small PRs (each < 50 LoC).
-5. **Track D-09** in the project-wide observability backlog (it affects every audited module, not just Module 14).
-6. **Track D-10** as a manager refactor when the next round of refactoring hits this app.
+---
+*Report generated by the `/sqa-review` skill. D-01 and D-02 were verified by Django-shell reproduction against the live codebase; D-03/D-05 are verified by code analysis of well-known unsafe patterns; D-04 is verified by concurrency analysis.*
