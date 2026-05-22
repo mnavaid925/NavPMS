@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.tenants',
     'apps.portal',
     'apps.requisitions',
+    'apps.approvals',
 ]
 
 MIDDLEWARE = [
