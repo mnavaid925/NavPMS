@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Account Codes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Account Codes</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'requisitions:requisition_list' %}">Requisitions</a> &rsaquo; Account codes
+    </div>
+  </div>
+  <a href="{% url 'requisitions:account_code_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> New account code
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-7">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Code or name…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Status</label>
+        <select name="active" class="form-select">
+          <option value="">All</option>
+          <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>Code</th><th>Name</th><th>Description</th><th>Status</th><th class="text-end">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for c in account_codes %}
+          <tr>
+            <td><code>{{ c.code }}</code></td>
+            <td>{{ c.name }}</td>
+            <td class="small text-muted">{{ c.description|truncatechars:60|default:'—' }}</td>
+            <td>
+              {% if c.is_active %}
+                <span class="badge badge-soft-success">Active</span>
+              {% else %}
+                <span class="badge badge-soft-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'requisitions:account_code_edit' c.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'requisitions:account_code_delete' c.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete account code {{ c.code }}?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No account codes yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
