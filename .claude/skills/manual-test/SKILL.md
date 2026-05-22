@@ -25,13 +25,29 @@ The deliverable is a **runnable click-through script**, not an automation strate
 
 ---
 
+## Project at a glance — NavPMS
+
+NavPMS is a multi-tenant Django Procurement Management System (Bootstrap 5, blue/white dashboard). The apps that ship today live under [apps/](apps/):
+
+| App | URL prefix | What it does | Main testable surface |
+|---|---|---|---|
+| [apps/accounts/](apps/accounts/) | `/accounts/` | Auth, user management, profile, invites | Login, user CRUD, invites |
+| [apps/tenants/](apps/tenants/) | `/tenants/` | Tenant onboarding, plans, subscriptions, branding | Onboarding flow, tenant admin pages |
+| [apps/portal/](apps/portal/) | `/portal/` | Tenant portal — widgets, notifications, reports | Dashboard widgets |
+| [apps/requisitions/](apps/requisitions/) | `/requisitions/` | **Module 3 — Requisition Management** | Account codes, templates, requisitions, tracking board, workflow actions |
+| [apps/core/](apps/core/) | `/` | Dashboard, base models, tenant + permission mixins | Dashboard landing |
+
+The richest CRUD + workflow surface — and the default target when the user just says "manually test the module" — is **requisitions** ([apps/requisitions/urls.py](apps/requisitions/urls.py)).
+
+---
+
 ## Scope modes (infer from user request)
 
 | Mode | Trigger phrases | Scope |
 |---|---|---|
-| **Module test** (default) | "manually test the catalog module", "manual QA on procurement" | Every list/create/detail/edit/delete page in one Django app |
-| **Page test** | "test the PR list page", "manually test /procurement/prs/" | One specific URL and all its widgets |
-| **Feature flow test** | "test the dispatch flow end-to-end", "manual test of PO approval" | A multi-page user journey |
+| **Module test** (default) | "manually test the requisitions module", "manual QA on requisitions" | Every list/create/detail/edit/delete page in one Django app |
+| **Page test** | "test the requisition list page", "manually test /requisitions/" | One specific URL and all its widgets |
+| **Feature flow test** | "test the requisition approval flow end-to-end", "manual test of submit → approve → convert" | A multi-page user journey |
 | **Smoke test** | "smoke test the app", "happy-path manual test" | One golden-path flow per module, no edge cases |
 | **Regression test** | "manual regression for module X" | Re-run prior critical scenarios + recent change areas |
 
@@ -43,26 +59,27 @@ If scope is ambiguous, ask ONE clarifying question then proceed. Do not interrog
 
 ### Phase 1 — Discover (no writing yet)
 
-1. Read the module's `urls.py` to enumerate every route (list, create, detail, edit, delete, custom actions).
-2. Read `models.py` to identify: required fields, optional fields, unique constraints, status field choices, FK choices.
-3. Read `forms.py` to identify: validators, cross-field rules, custom `clean_*` methods.
-4. Read `views.py` to identify: filter params, search fields, pagination size, login/permission gates, status-gated actions.
-5. Skim the list template + detail template + form template to identify: visible columns, action buttons, filter widgets, badge colors, empty states.
-6. For large modules, delegate the sweep to the `Explore` agent with: "list all CRUD URLs, status-gated buttons, filter params, search fields, and pagination size in apps/<module>/".
+1. Read the module's `urls.py` to enumerate every route (list, create, detail, edit, delete, custom actions). For requisitions that is [apps/requisitions/urls.py](apps/requisitions/urls.py).
+2. Read `models.py` to identify: required fields, optional fields, unique constraints, status field choices, FK choices, computed properties (e.g. `is_editable`, `can_amend`, `can_cancel`).
+3. Read `forms.py` to identify: validators, cross-field rules, custom `clean_*` methods, which fields are excluded (tenant/owner/number are set in the view, not the form).
+4. Read `views.py` to identify: filter params, search fields, pagination size (`paginate_by`), login/permission mixin (`TenantRequiredMixin` vs `TenantAdminRequiredMixin`), status-gated actions.
+5. Read `services.py` if present — workflow transitions, numbering, duplicate detection often live there rather than in the view.
+6. Skim the list template + detail template + form template under [templates/](templates/) to identify: visible columns, action buttons, filter widgets, badge colors, empty states, inline line-item forms.
+7. For large modules, delegate the sweep to the `Explore` agent with: "list all CRUD URLs, status-gated buttons, filter params, search fields, and pagination size in apps/<module>/".
 
 ### Phase 2 — Identify test surface
 
 Build an inventory:
 
-- **Pages:** list URL, create URL, detail URL, edit URL, delete URL, plus any custom action URLs (approve, submit, reject, ramp, etc.)
-- **CRUD entry points:** every place the user can Create / Read / Update / Delete an entity
+- **Pages:** list URL, create URL, detail URL, edit URL, delete URL, plus any custom action URLs (submit, decide, cancel, amend, convert, template "use", etc.)
+- **CRUD entry points:** every place the user can Create / Read / Update / Delete an entity — including inline line-item add/delete forms on detail pages
 - **Search inputs:** the `q=` field — note which model fields it queries
-- **Filters:** every dropdown / date picker / chip on the list page (status, category, vendor, date range, etc.)
-- **Pagination:** page size, page nav, "Showing X of Y" text
+- **Filters:** every dropdown / chip on the list page (status, category, active/inactive, scope=mine, etc.)
+- **Pagination:** page size (`paginate_by`), page nav, "Showing X of Y" text
 - **Action buttons:** every button in the list Actions column AND in the detail sidebar (note status-gating)
 - **Frontend UI elements:** breadcrumbs, sidebar active state, page title, toasts/messages, modals, empty states, badges
-- **Permission boundaries:** anonymous redirect, cross-tenant access, status-based action visibility
-- **Form validations:** required fields, field length, decimal precision, date order, file upload rules, unique constraints
+- **Permission boundaries:** anonymous redirect, no-tenant redirect, cross-tenant access, tenant-admin-only pages, status-based action visibility
+- **Form validations:** required fields, field length, decimal precision, date order, unique constraints
 
 ### Phase 3 — Pre-test setup script
 
@@ -73,10 +90,13 @@ Every report MUST begin with a Pre-Test Setup section the tester runs once. Incl
    python manage.py runserver
    ```
 2. **Open browser** to `http://127.0.0.1:8000/`
-3. **Login as a tenant admin** (NOT superuser — superuser has `tenant=None` and sees nothing). Provide the exact credentials from the seed command output. Default seeded tenant admins follow the pattern `admin_<tenant-slug>`.
-4. **Verify seed data exists** — list the expected entities (e.g., "you should see at least 5 vendors, 10 catalog items").
+3. **Login as a tenant admin** (NOT superuser — superuser `admin` has `tenant=None` and sees nothing). The login page is `http://127.0.0.1:8000/accounts/login/`. Seeded tenant admins (password `Welcome@123`):
+   - `admin_acme` — Acme Corp
+   - `admin_globex` — Globex
+   - `admin_stark` — Stark Industries
+4. **Verify seed data exists** — list the expected entities for the module under test (e.g., for requisitions: 5 account codes, 2 templates, 6 requisitions spanning every status, per tenant).
 5. **Browser/viewport matrix** — Chrome desktop (1920×1080) is primary. Note Edge + mobile viewport (375×667) as secondary.
-6. **Reset between test runs** — note when the tester needs `--flush` or to manually delete created records.
+6. **Reset between test runs** — note when the tester needs `python manage.py seed_data --flush` or to manually delete created records.
 
 ### Phase 4 — Test cases (the bulk of the report)
 
@@ -103,11 +123,11 @@ Every test case row has these EXACT columns:
 
 The tester fills Pass/Fail and Notes. Steps must be granular enough that ambiguity is impossible:
 
-- ✅ "Click the **+ Add Vendor** button in the top-right of the list page"
-- ❌ "Add a vendor"
-- ✅ "Type `Acme Corp` into the **Name** field"
-- ❌ "Enter a name"
-- ✅ "Verify a green toast appears reading `Vendor created successfully.`"
+- ✅ "Click the **+ New Requisition** button in the top-right of the list page"
+- ❌ "Add a requisition"
+- ✅ "Type `Reception area supplies` into the **Title** field"
+- ❌ "Enter a title"
+- ✅ "Verify a green toast appears reading `Requisition REQ-ACME-00007 created. Add line items below.`"
 - ❌ "Verify success"
 
 ### Phase 5 — Mandatory coverage checklists
@@ -136,8 +156,8 @@ Every manual test report MUST cover these by default. If the module legitimately
 
 - [ ] Empty search returns all records (no filter applied)
 - [ ] Single-character search works
-- [ ] Search match in name field returns expected record(s)
-- [ ] Search match in code/number/sku field works
+- [ ] Search match in name/title field returns expected record(s)
+- [ ] Search match in code/number field works
 - [ ] Search is case-insensitive
 - [ ] Search trims leading/trailing whitespace
 - [ ] No-match search shows empty state with helpful message
@@ -147,7 +167,7 @@ Every manual test report MUST cover these by default. If the module legitimately
 
 #### Pagination checklist
 
-- [ ] Default page size matches view setting
+- [ ] Default page size matches view setting (`paginate_by` — 20 for requisitions list views)
 - [ ] Page nav shows correct page count
 - [ ] "Showing X to Y of Z" text is accurate
 - [ ] Click page 2 → correct records shown
@@ -161,7 +181,7 @@ Every manual test report MUST cover these by default. If the module legitimately
 
 - [ ] Each filter dropdown populated with the right choices
 - [ ] Each filter applied individually narrows the list correctly
-- [ ] Combined filters (status + category + vendor) AND-correctly
+- [ ] Combined filters (status + category + scope) AND-correctly
 - [ ] Filter selection retained after Apply (dropdown shows current value)
 - [ ] Clear / Reset filters returns full list
 - [ ] Filter + search combine correctly
@@ -188,24 +208,25 @@ Every manual test report MUST cover these by default. If the module legitimately
 
 #### Permissions / Multi-tenancy checklist
 
-- [ ] Anonymous user hitting list URL → redirected to `/login/`
+- [ ] Anonymous user hitting a protected URL → redirected to `/accounts/login/`
+- [ ] Authenticated user with NO tenant (e.g. fresh registrant) hitting a module URL → redirected to tenant onboarding (`/tenants/onboarding/...`), NOT login
 - [ ] Tenant A admin cannot see Tenant B records (visit by URL with Tenant B pk → 404)
-- [ ] Superuser logged in (no tenant) sees empty list (BY DESIGN — note in expected result)
-- [ ] Status-gated buttons (Edit/Delete on Approved records) are hidden in list and detail
-- [ ] Direct POST to delete URL on a status-locked record is rejected
+- [ ] Superuser `admin` logged in (no tenant) → redirected to onboarding / sees no module data (BY DESIGN — note in expected result)
+- [ ] Tenant-admin-only pages (account codes, approve/reject decide, convert-to-PO) → a non-admin tenant user is blocked
+- [ ] Status-gated buttons (Edit/Delete on non-draft records) are hidden in list and detail
+- [ ] Direct POST to an edit/delete URL on a status-locked record is rejected with an error message
 - [ ] CSRF token present on every form
 
 #### Negative / edge checklist
 
 - [ ] Submit form with all required fields blank → all errors shown at once
 - [ ] Submit decimal field with letters → graceful error
-- [ ] Submit date field with past/future limits violated (if any) → graceful error
+- [ ] Submit date field with an invalid value → graceful error
 - [ ] Submit numeric field with negative value (where positive expected) → graceful error
-- [ ] Upload non-allowed file type (if uploads exist) → rejected with clear message
-- [ ] Upload oversized file (if uploads exist) → rejected with clear message
 - [ ] Double-submit form (rapid double-click) → only one record created (or graceful duplicate error)
 - [ ] Browser back after create/edit → does not resubmit silently
 - [ ] Refresh on POST → no duplicate submission
+- [ ] Attempt a workflow action out of order (e.g. convert a draft) → graceful error, no state corruption
 
 ### Phase 6 — Bug log template
 
@@ -258,23 +279,28 @@ The report MUST follow this exact structure:
 
 Skip §4.11 / §4.14 only if the module legitimately has no such surface — and say so explicitly.
 
-Use clickable markdown links for every file/code reference: `[apps/plm/views.py:42](apps/plm/views.py#L42)`. The user runs the IDE extension, so links open in-place.
+Use clickable markdown links for every file/code reference: `[apps/requisitions/views.py:42](apps/requisitions/views.py#L42)`. The user runs the IDE extension, so links open in-place.
 
 Prefer **tables over prose** everywhere. Numbered steps inside the Steps cell are written as `1. … 2. … 3. …` on separate lines (markdown table cells support `<br>` for line breaks inside a cell).
 
 ---
 
-## NavMSM-specific patterns to bake into every report
+## NavPMS-specific patterns to bake into every report
 
 Every manual test plan MUST account for these project realities:
 
-- **Login matters.** Always direct the tester to log in as a tenant admin (e.g. `admin_<tenant-slug>`), not as `admin` (superuser, no tenant). Spell this out in §2 Pre-Test Setup.
-- **Multi-tenant IDOR test is mandatory.** Always include a TC-TENANT case: log in as Tenant A admin → grab a Tenant B record's pk from the DB → manually visit `/<module>/<entity>/<other-tenant-pk>/` → expect 404.
+- **Login matters.** Always direct the tester to log in at `/accounts/login/` as a tenant admin (`admin_acme`, `admin_globex`, or `admin_stark`, password `Welcome@123`), NOT as `admin` (superuser, no tenant). Spell this out in §2 Pre-Test Setup.
+- **Two redirect paths, not one.** Per [apps/core/mixins.py](apps/core/mixins.py): an *anonymous* user is sent to `/accounts/login/`; an *authenticated user with no tenant* is sent to tenant onboarding (`tenants:onboarding_start`). Test both — they are distinct expected results.
+- **Tenant-admin vs tenant-user split.** `TenantRequiredMixin` allows any tenant user; `TenantAdminRequiredMixin` is admin-only. In requisitions, account-code CRUD, the approve/reject decision, and convert-to-PO are admin-only — most other pages are open to any tenant user. Test that a non-admin tenant user is blocked from the admin-only pages.
+- **Multi-tenant IDOR test is mandatory.** Always include a TC-TENANT case: log in as Tenant A admin → grab a Tenant B record's pk from the DB or admin → manually visit `/requisitions/<other-tenant-pk>/` → expect 404.
 - **CRUD completeness.** Per CLAUDE.md "CRUD Completeness Rules", every list page must have View / Edit / Delete in the Actions column. Test that all three are present and that Edit + Delete are status-gated where applicable.
 - **Filter retention.** Per CLAUDE.md "Filter Implementation Rules", filters must be retained across pagination and search. Always include explicit TC-PAGE and TC-FILTER cases that verify the URL `?status=...&q=...&page=2` shape works.
-- **Status-gated buttons.** For workflow models (PR, PO, dispatch, etc.), Edit/Delete are typically only shown when `status == 'draft'`. Test both: (a) draft record shows buttons, (b) approved/submitted record hides them.
-- **Unique-together + tenant trap.** When a model has `unique_together = ('tenant', 'name')` but `tenant` is excluded from the form, Django's `validate_unique()` skips the check and a duplicate submit may surface as a 500. Test creating a duplicate name within the same tenant and expect a clean form-level error, NOT a 500. Reference [.claude/tasks/lessons.md](.claude/tasks/lessons.md) lesson #6.
-- **Seed assumptions.** If the module has a `seed_<module>` command, mention how to run it in §2 and warn that bare `seed` may need `--flush` per CLAUDE.md "Seed Command Rules".
+- **Status-gated buttons.** Requisitions move through `draft → submitted → approved → rejected → cancelled → converted`. Edit/Delete and line-item add/delete are allowed ONLY while `status == 'draft'` (`Requisition.is_editable`). Amend is allowed on `submitted`/`approved` (`can_amend`); Cancel on `draft`/`submitted`/`approved` (`can_cancel`). Test both: (a) a draft record shows the editing buttons, (b) an approved/converted record hides them.
+- **Workflow actions are POST-only and gated.** Submit, decide (approve/reject), cancel, amend, convert each live at their own URL ([apps/requisitions/urls.py](apps/requisitions/urls.py)) and call into [apps/requisitions/services.py](apps/requisitions/services.py). Submit also requires at least one line item. Test the happy path AND the out-of-order rejection (e.g. POST convert on a draft → error toast).
+- **Inline line items.** Requisition and template line items are added/removed via inline forms on the *detail* page, not separate list pages. Cover line add/delete as part of the detail-page test cases.
+- **Auto-generated numbers.** `Requisition.number` is generated as `REQ-<SLUG>-NNNNN` by [apps/requisitions/services.py](apps/requisitions/services.py) `next_requisition_number()` and is globally `unique=True`. The tester never types it — verify it appears, is unique, and increments.
+- **Unique-together + tenant trap.** `AccountCode` has `unique_together = ('tenant', 'code')` but `tenant` is excluded from `AccountCodeForm` (it is set in the view). Django's `validate_unique()` may skip the cross-tenant-scoped check, so a duplicate `code` within the same tenant can surface as a 500 instead of a clean form error. Test creating a duplicate account-code `code` within one tenant and expect a clean form-level error, NOT a 500. Log it as a bug if it 500s.
+- **Seed assumptions.** The orchestrator `python manage.py seed_data` runs `seed_plans → seed_tenants → seed_users → seed_portal → seed_requisitions`. The requisitions slice alone is `python manage.py seed_requisitions`. Mention the relevant command in §2 and warn that re-seeding may need `--flush` per CLAUDE.md "Seed Command Rules".
 
 ---
 
@@ -325,7 +351,7 @@ The delivered manual test plan should be:
 
 - **Executable by a non-developer.** A junior tester (or the user) can follow every step without asking questions.
 - **Concrete.** Every step names a specific button, field, URL, or expected text — no hand-waving.
-- **Project-aware.** Uses real NavMSM URLs, real seeded usernames, real model field names, real status values — not generic placeholders.
+- **Project-aware.** Uses real NavPMS URLs (`/requisitions/...`, `/accounts/login/`), real seeded usernames (`admin_acme`), real model field names, real status values (`draft`, `submitted`, `approved`, `rejected`, `cancelled`, `converted`) — not generic placeholders.
 - **Comprehensive within scope.** Covers every mandatory checklist from §Phase 5; explicitly marks any category as N/A with a reason rather than silently omitting.
 - **Verifiable.** Every claim about a UI element points at the template/model/view file:line where it lives.
 - **Tester-friendly.** Pass/Fail/Notes columns are empty for the tester to fill. Bug log template ready to use.
