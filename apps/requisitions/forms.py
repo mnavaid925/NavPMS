@@ -15,6 +15,27 @@ class AccountCodeForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 2}),
         }
 
+    def __init__(self, *args, tenant=None, **kwargs):
+        # `tenant` is excluded from the form (the view sets it), so the
+        # unique_together('tenant', 'code') constraint is not checked by
+        # ModelForm.validate_unique(). Pass the tenant in so clean_code can
+        # surface a duplicate as a form error instead of a DB IntegrityError.
+        self.tenant = tenant
+        super().__init__(*args, **kwargs)
+
+    def clean_code(self):
+        code = (self.cleaned_data.get('code') or '').strip()
+        tenant = self.tenant or getattr(self.instance, 'tenant', None)
+        if code and tenant is not None:
+            clash = AccountCode.all_objects.filter(tenant=tenant, code=code)
+            if self.instance.pk:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise forms.ValidationError(
+                    'An account code with this code already exists.'
+                )
+        return code
+
 
 class RequisitionTemplateForm(forms.ModelForm):
     class Meta:
