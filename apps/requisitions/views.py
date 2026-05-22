@@ -62,7 +62,7 @@ class AccountCodeCreateView(TenantAdminRequiredMixin, View):
         })
 
     def post(self, request):
-        form = AccountCodeForm(request.POST)
+        form = AccountCodeForm(request.POST, tenant=request.tenant)
         if form.is_valid():
             code = form.save(commit=False)
             code.tenant = request.tenant
@@ -87,7 +87,7 @@ class AccountCodeEditView(TenantAdminRequiredMixin, View):
 
     def post(self, request, pk):
         code = self._get(request, pk)
-        form = AccountCodeForm(request.POST, instance=code)
+        form = AccountCodeForm(request.POST, instance=code, tenant=request.tenant)
         if form.is_valid():
             form.save()
             messages.success(request, 'Account code updated.')
