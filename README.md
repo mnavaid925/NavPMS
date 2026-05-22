@@ -3,10 +3,12 @@
 A multi-tenant, Bootstrap 5 + Django Procurement Management System with a unique blue/white
 dashboard, light/dark mode, multiple layout variants, and a pluggable payment gateway.
 
-This first release ships the **Foundation** (project scaffolding, multi-tenancy, authentication,
-user management, themed dashboard) plus **Module 1 — Tenant & Subscription Management** (all
+This release ships the **Foundation** (project scaffolding, multi-tenancy, authentication,
+user management, themed dashboard), **Module 1 — Tenant & Subscription Management** (all
 five sub-modules: Onboarding, Subscription & Billing, Isolation & Security, Custom Branding,
-Health Monitoring).
+Health Monitoring), and **Module 2 — User Dashboard & Portal** (all five sub-modules:
+Personalized Overview, Task & Alert Center, Quick Requisition Entry, Recent Activity Feed,
+Self-Service Reporting).
 
 ---
 
@@ -19,11 +21,12 @@ Health Monitoring).
 6. [Seeded Demo Data](#seeded-demo-data)
 7. [Dashboard Features](#dashboard-features)
 8. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
-9. [Routes / UI Tour](#routes--ui-tour)
-10. [Multi-tenancy Model](#multi-tenancy-model)
-11. [Payment Gateway](#payment-gateway)
-12. [Browser Compatibility](#browser-compatibility)
-13. [Roadmap](#roadmap)
+9. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
+10. [Routes / UI Tour](#routes--ui-tour)
+11. [Multi-tenancy Model](#multi-tenancy-model)
+12. [Payment Gateway](#payment-gateway)
+13. [Browser Compatibility](#browser-compatibility)
+14. [Roadmap](#roadmap)
 
 ---
 
@@ -50,8 +53,10 @@ NavPMS/
 ├── apps/
 │   ├── core/                 # Tenant model, middleware, mixins, dashboard view
 │   ├── accounts/             # Custom User, UserProfile, UserInvite, auth flow
-│   └── tenants/              # Module 1: Plans, Subscriptions, Invoices, Branding,
-│                             # Security, Audit, Health Monitoring + onboarding wizard
+│   ├── tenants/              # Module 1: Plans, Subscriptions, Invoices, Branding,
+│   │                         # Security, Audit, Health Monitoring + onboarding wizard
+│   └── portal/               # Module 2: DashboardWidget, Notification,
+│                             # QuickRequisition(+Item), SavedReport, activity feed
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -64,7 +69,8 @@ NavPMS/
 │   ├── auth/                 # login, register, forgot, reset, accept invite
 │   ├── dashboard/index.html
 │   ├── accounts/{users,invites,profile}/
-│   └── tenants/{onboarding,plans,subscriptions,invoices,branding,security,monitoring}/
+│   ├── tenants/{onboarding,plans,subscriptions,invoices,branding,security,monitoring}/
+│   └── portal/{widgets,notifications,requisitions,reports,activity}/ + dashboard.html
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -145,10 +151,11 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
+| `python manage.py seed_portal` | Creates dashboard widgets, notifications, quick requisitions and saved reports for every tenant user. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -179,6 +186,11 @@ with Faker-generated names, e.g. `john.doe.acme`.
 Each tenant gets 25 audit-log entries and ~120 health metrics (active users, API calls,
 storage MB, active sessions) spread across the last 30 days — enough to populate the
 monitoring dashboard chart.
+
+### Portal data
+Every tenant user receives the 6-widget starter dashboard, 5 notifications (mixed
+categories/priorities, 2 unread), 5 quick requisitions (draft / submitted / approved with
+line items), and 3 saved reports — enough to populate every Module 2 page on first login.
 
 ---
 
@@ -221,6 +233,24 @@ The `AuditLog` model is append-only (admin has add/delete disabled) and indexed 
 
 ---
 
+## Module 2 — User Dashboard & Portal
+
+A per-user workspace ([`apps/portal/`](apps/portal/)) — every authenticated tenant member
+gets their own portal, scoped by both `tenant` and `user`. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Personalized Overview** | `DashboardWidget` — per-user, customizable widget rows (type, title, size, position, visibility). The portal dashboard at `/portal/` renders enabled widgets; first visit auto-provisions a 6-widget starter set. Widgets are managed with full CRUD at `/portal/widgets/`. |
+| **Task & Alert Center** | `Notification` — categorized (deadline / approval / delivery / system / info), prioritized (low → urgent), read/unread with mark-read, mark-all-read, and full CRUD. |
+| **Quick Requisition Entry** | `QuickRequisition` + `QuickRequisitionItem` — auto-numbered `QR-<SLUG>-NNNNN`, fast-track form for low-value/catalog purchases, inline line-item CRUD, `draft → submitted → approved/rejected` workflow. Submitting raises an audit entry and an approval notification. |
+| **Recent Activity Feed** | Reuses [`apps/tenants/`](apps/tenants/) `AuditLog`, filtered to `user=request.user`. Portal actions are written via `record_audit()` — no duplicate audit infrastructure. |
+| **Self-Service Reporting** | `SavedReport` — reusable report definitions (spend by category / by month, requisitions by status, my activity, notifications summary). The run view computes a Chart.js doughnut/bar chart plus a breakdown table over a date window. |
+
+Drafts are the only editable/deletable requisition state; submitted+ requisitions are locked.
+Every list page has search + filters; every model has full CRUD per the project conventions.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -240,6 +270,12 @@ The `AuditLog` model is append-only (admin has add/delete disabled) and indexed 
 | `/tenants/security/` | Password policy, MFA, IP allowlist |
 | `/tenants/monitoring/` | 4-chart health dashboard |
 | `/tenants/monitoring/audit-logs/` | Searchable audit log |
+| `/portal/` | Personalized dashboard (customizable widgets) |
+| `/portal/widgets/` | Widget CRUD — customize the dashboard |
+| `/portal/notifications/` | Task & Alert Center — list, detail, CRUD, mark-read |
+| `/portal/requisitions/` | Quick requisition list + fast-track entry + inline items |
+| `/portal/activity/` | Recent activity feed (the user's own actions) |
+| `/portal/reports/` | Self-service reports — save, run, chart |
 | `/admin/` | Django admin |
 
 ---
@@ -278,12 +314,12 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Module 1 ships. Modules 2–20 from the PMS spec are not yet implemented:
+Modules 1–2 ship. Modules 3–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
 | 1 | Tenant & Subscription Management | Shipped |
-| 2 | User Dashboard & Portal | Planned |
+| 2 | User Dashboard & Portal | Shipped |
 | 3 | Requisition Management | Planned |
 | 4 | Approval Workflow Engine | Planned |
 | 5 | Vendor Management | Planned |
