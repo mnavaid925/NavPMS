@@ -16,6 +16,30 @@
       </li>
     </ul>
 
+    <div class="sidebar-section">User Portal</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:dashboard' %}">
+          <i class="ri-layout-grid-line"></i> <span>My Dashboard</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbPortal" role="button" aria-expanded="false">
+          <i class="ri-apps-2-line"></i> <span class="flex-grow-1">Module 2</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbPortal">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'portal:notification_list' %}">Task &amp; Alert Center</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'portal:requisition_list' %}">Quick Requisitions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'portal:activity_feed' %}">Activity Feed</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'portal:report_list' %}">My Reports</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'portal:widget_list' %}">Customize Widgets</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
     <div class="sidebar-section">Tenant Management</div>
     <ul class="nav">
       <li class="nav-item">
