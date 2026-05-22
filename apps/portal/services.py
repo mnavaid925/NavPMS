@@ -15,12 +15,17 @@ from .models import (
 # ---------- Quick requisitions ----------
 
 def next_requisition_number(tenant) -> str:
-    """Generate the next QR-<SLUG>-NNNNN number for a tenant."""
+    """Generate the next QR-<SLUG>-NNNNN number for a tenant.
+
+    The number is unique *per tenant* (SQA defect D-08); the caller is still
+    expected to retry on IntegrityError to cover the concurrent-create race
+    (SQA defect D-04), since this check is not transactionally locked.
+    """
     slug = (getattr(tenant, 'slug', '') or 'x')[:6].upper().replace('-', '')
     count = QuickRequisition.all_objects.filter(tenant=tenant).count() + 1
     number = f'QR-{slug}-{count:05d}'
-    # Guard against gaps/races: bump until unique.
-    while QuickRequisition.all_objects.filter(number=number).exists():
+    # Guard against gaps left by deletes: bump until unique within the tenant.
+    while QuickRequisition.all_objects.filter(tenant=tenant, number=number).exists():
         count += 1
         number = f'QR-{slug}-{count:05d}'
     return number
