@@ -91,13 +91,16 @@
 {% endblock %}
 
 {% block extra_js %}
+{# SQA defect D-05: pass chart data via json_script, never |safe into a <script>. #}
+{{ result.labels|json_script:"reportChartLabels" }}
+{{ result.values|json_script:"reportChartValues" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   (function() {
     var el = document.getElementById('reportChart');
     if (!el) return;
-    var labels = {{ result.labels|safe }};
-    var values = {{ result.values|safe }};
+    var labels = JSON.parse(document.getElementById('reportChartLabels').textContent);
+    var values = JSON.parse(document.getElementById('reportChartValues').textContent);
     var palette = ['#3b5de7', '#22c55e', '#f59e0b', '#ef4444',
                    '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
     var colors = labels.map(function(_, i) { return palette[i % palette.length]; });
