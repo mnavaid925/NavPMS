@@ -10,6 +10,7 @@ urlpatterns = [
     path('accounts/', include('apps.accounts.urls')),
     path('tenants/', include('apps.tenants.urls')),
     path('portal/', include('apps.portal.urls')),
+    path('requisitions/', include('apps.requisitions.urls')),
 ]
 
 if settings.DEBUG:
