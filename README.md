@@ -22,17 +22,18 @@ Escalation Management, Mobile Approval Interface).
 3. [Quick Start (Windows + XAMPP)](#quick-start-windows--xampp)
 4. [Environment Variables](#environment-variables)
 5. [Management Commands](#management-commands)
-6. [Seeded Demo Data](#seeded-demo-data)
-7. [Dashboard Features](#dashboard-features)
-8. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
-9. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
-10. [Module 3 — Requisition Management](#module-3--requisition-management)
-11. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
-12. [Routes / UI Tour](#routes--ui-tour)
-13. [Multi-tenancy Model](#multi-tenancy-model)
-14. [Payment Gateway](#payment-gateway)
-15. [Browser Compatibility](#browser-compatibility)
-16. [Roadmap](#roadmap)
+6. [Testing](#testing)
+7. [Seeded Demo Data](#seeded-demo-data)
+8. [Dashboard Features](#dashboard-features)
+9. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
+10. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
+11. [Module 3 — Requisition Management](#module-3--requisition-management)
+12. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
+13. [Routes / UI Tour](#routes--ui-tour)
+14. [Multi-tenancy Model](#multi-tenancy-model)
+15. [Payment Gateway](#payment-gateway)
+16. [Browser Compatibility](#browser-compatibility)
+17. [Roadmap](#roadmap)
 
 ---
 
@@ -173,6 +174,27 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
+
+---
+
+## Testing
+
+Automated tests use **pytest + pytest-django** against an in-memory SQLite database
+(see [`config/settings_test.py`](config/settings_test.py)).
+
+```bash
+pip install -r requirements-dev.txt
+pytest                                   # run the whole suite
+pytest apps/portal --cov=apps/portal      # one module, with coverage
+```
+
+| Item | Detail |
+|------|--------|
+| Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
+| Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
+| Coverage | [apps/portal/tests/](apps/portal/tests/) — Module 2 suite, 94 tests, ~91% line coverage |
+
+QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
 
 ---
 
