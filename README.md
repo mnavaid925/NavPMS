@@ -8,9 +8,11 @@ user management, themed dashboard), **Module 1 — Tenant & Subscription Managem
 five sub-modules: Onboarding, Subscription & Billing, Isolation & Security, Custom Branding,
 Health Monitoring), **Module 2 — User Dashboard & Portal** (all five sub-modules:
 Personalized Overview, Task & Alert Center, Quick Requisition Entry, Recent Activity Feed,
-Self-Service Reporting), and **Module 3 — Requisition Management** (all five sub-modules:
+Self-Service Reporting), **Module 3 — Requisition Management** (all five sub-modules:
 Requisition Creation, Requisition Tracking, Duplicate Requisition Check, Requisition
-Templates, Cancellation/Amendment).
+Templates, Cancellation/Amendment), and **Module 4 — Approval Workflow Engine** (all five
+sub-modules: Dynamic Routing Rules, Delegation of Authority, Approval History & Audit Trail,
+Escalation Management, Mobile Approval Interface).
 
 ---
 
@@ -25,11 +27,12 @@ Templates, Cancellation/Amendment).
 8. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
 9. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
 10. [Module 3 — Requisition Management](#module-3--requisition-management)
-11. [Routes / UI Tour](#routes--ui-tour)
-12. [Multi-tenancy Model](#multi-tenancy-model)
-13. [Payment Gateway](#payment-gateway)
-14. [Browser Compatibility](#browser-compatibility)
-15. [Roadmap](#roadmap)
+11. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
+12. [Routes / UI Tour](#routes--ui-tour)
+13. [Multi-tenancy Model](#multi-tenancy-model)
+14. [Payment Gateway](#payment-gateway)
+15. [Browser Compatibility](#browser-compatibility)
+16. [Roadmap](#roadmap)
 
 ---
 
@@ -60,8 +63,10 @@ NavPMS/
 │   │                         # Security, Audit, Health Monitoring + onboarding wizard
 │   ├── portal/               # Module 2: DashboardWidget, Notification,
 │   │                         # QuickRequisition(+Item), SavedReport, activity feed
-│   └── requisitions/         # Module 3: AccountCode, RequisitionTemplate(+Line),
-│                             # Requisition(+Line), RequisitionStatusEvent
+│   ├── requisitions/         # Module 3: AccountCode, RequisitionTemplate(+Line),
+│   │                         # Requisition(+Line), RequisitionStatusEvent
+│   └── approvals/            # Module 4: ApprovalRule(+Step), ApprovalDelegation,
+│                             # ApprovalRequest, ApprovalTask, ApprovalAction
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -76,7 +81,8 @@ NavPMS/
 │   ├── accounts/{users,invites,profile}/
 │   ├── tenants/{onboarding,plans,subscriptions,invoices,branding,security,monitoring}/
 │   ├── portal/{widgets,notifications,requisitions,reports,activity}/ + dashboard.html
-│   └── requisitions/{account_codes,req_templates,requisitions}/ + tracking.html
+│   ├── requisitions/{account_codes,req_templates,requisitions}/ + tracking.html
+│   └── approvals/{rules,delegations,requests}/ + inbox, task_detail, history
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -157,12 +163,14 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
 | `python manage.py seed_portal` | Creates dashboard widgets, notifications, quick requisitions and saved reports for every tenant user. |
 | `python manage.py seed_requisitions` | Creates account codes, requisition templates and requisitions across every status for each tenant. |
+| `python manage.py seed_approvals` | Creates approval rules, steps and a delegation, and routes submitted requisitions through the engine. |
+| `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -203,6 +211,11 @@ line items), and 3 saved reports — enough to populate every Module 2 page on f
 Each tenant gets 5 account codes, 2 shared requisition templates (with pre-defined lines),
 and 6 requisitions — one in every status (draft, submitted, approved, rejected, cancelled,
 converted) — each with line items and a status-event timeline.
+
+### Approval data
+Each tenant gets 2 approval rules (a single-step "Standard approval" and a two-step
+"High-value approval (over $1,000)"), one active delegation, and an `ApprovalRequest` with
+step tasks for every already-submitted requisition.
 
 ---
 
@@ -283,6 +296,31 @@ charged against requisition and template lines. Approve / reject / convert-to-PO
 Every workflow transition also writes an `AuditLog` entry, so Module 2's Activity Feed shows
 requisition activity.
 
+> Once Module 4 approval rules exist, submitting a requisition routes it through the
+> workflow engine instead of the simple admin approve/reject — see below.
+
+---
+
+## Module 4 — Approval Workflow Engine
+
+A pluggable, multi-step approval engine ([`apps/approvals/`](apps/approvals/)) that drives
+requisition sign-off. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Dynamic Routing Rules** | `ApprovalRule` matches a requisition on amount range / department / category (lowest `priority` wins); `ApprovalStep` defines the ordered approver chain. |
+| **Delegation of Authority** | `ApprovalDelegation` — date-bounded reassignment of one user's approval authority to a delegate; the engine resolves delegations when routing each task. |
+| **Approval History & Audit Trail** | `ApprovalAction` — an append-only log of every submit / approve / reject / delegate / escalate / comment, shown on the request detail and a global history page. |
+| **Escalation Management** | Each step has an SLA (`sla_hours`) and an `escalate_to` user. Overdue tasks escalate via the `run_escalations` command **and** a lazy sweep when the approver inbox is opened. |
+| **Mobile Approval Interface** | A responsive, card-based "My Approvals" inbox and a mobile-friendly task review/decide page with one-tap approve/reject. |
+
+**How it integrates with Module 3:** submitting a requisition calls the engine, which finds
+the first matching `ApprovalRule` and creates an `ApprovalRequest` with one `ApprovalTask`
+per step (resolving delegations). Approving a task advances the chain; the final approval
+calls Module 3's `decide_requisition()` to mark the requisition approved (a rejection ends
+it immediately). **If no rule matches, the requisition falls back** to the simple admin
+approve/reject. Amending or cancelling a requisition withdraws any in-flight approval.
+
 ---
 
 ## Routes / UI Tour
@@ -315,6 +353,11 @@ requisition activity.
 | `/requisitions/tracking/` | Status board grouping requisitions by workflow state |
 | `/requisitions/templates/` | Requisition templates — pre-defined recurring forms |
 | `/requisitions/account-codes/` | Account-code master CRUD (tenant admin) |
+| `/approvals/` | My Approvals — mobile-friendly approver inbox |
+| `/approvals/requests/` | All approval requests with progress |
+| `/approvals/rules/` | Approval rule + step CRUD (tenant admin) |
+| `/approvals/delegations/` | Delegation of authority CRUD |
+| `/approvals/history/` | Append-only approval audit trail |
 | `/admin/` | Django admin |
 
 ---
@@ -353,14 +396,14 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–3 ship. Modules 4–21 from the PMS spec are not yet implemented:
+Modules 1–4 ship. Modules 5–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
 | 1 | Tenant & Subscription Management | Shipped |
 | 2 | User Dashboard & Portal | Shipped |
 | 3 | Requisition Management | Shipped |
-| 4 | Approval Workflow Engine | Planned |
+| 4 | Approval Workflow Engine | Shipped |
 | 5 | Vendor Management | Planned |
 | 6 | Sourcing & Tendering | Planned |
 | 7 | RFx Management | Planned |
