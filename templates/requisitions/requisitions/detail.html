@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ req.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>
+      {{ req.number }}
+      {% if req.revision > 1 %}<span class="badge badge-soft-secondary">revision {{ req.revision }}</span>{% endif %}
+    </h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'requisitions:requisition_list' %}">Requisitions</a> &rsaquo; {{ req.title }}
+    </div>
+  </div>
+  <span class="badge badge-soft-{% if req.status == 'approved' %}success{% elif req.status == 'rejected' or req.status == 'cancelled' %}danger{% elif req.status == 'submitted' %}warning{% elif req.status == 'converted' %}primary{% else %}secondary{% endif %} fs-6">
+    {{ req.get_status_display }}
+  </span>
+</div>
+
+{% if req.possible_duplicate %}
+  <div class="alert alert-warning d-flex align-items-start gap-2">
+    <i class="ri-error-warning-line fs-5"></i>
+    <div>
+      <strong>Possible duplicate.</strong>
+      This requisition resembles other recent requests by the same requester.
+      {% if duplicates %}
+        <ul class="mb-0 mt-1">
+          {% for d in duplicates %}
+            <li><a href="{% url 'requisitions:requisition_detail' d.pk %}">{{ d.number }}</a> — {{ d.title }} <span class="text-muted small">({{ d.get_status_display }})</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Requisition details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3 text-muted">Title</dt><dd class="col-sm-9">{{ req.title }}</dd>
+          <dt class="col-sm-3 text-muted">Requester</dt><dd class="col-sm-9">{{ req.requested_by.get_full_name|default:req.requested_by.username }}</dd>
+          <dt class="col-sm-3 text-muted">Category</dt><dd class="col-sm-9">{{ req.get_category_display }}</dd>
+          <dt class="col-sm-3 text-muted">Department</dt><dd class="col-sm-9">{{ req.department|default:'—' }}</dd>
+          <dt class="col-sm-3 text-muted">Priority</dt><dd class="col-sm-9">{{ req.get_priority_display }}</dd>
+          <dt class="col-sm-3 text-muted">Required date</dt><dd class="col-sm-9">{{ req.required_date|date:'M d, Y'|default:'—' }}</dd>
+          <dt class="col-sm-3 text-muted">Justification</dt><dd class="col-sm-9">{{ req.justification|default:'—'|linebreaksbr }}</dd>
+          <dt class="col-sm-3 text-muted">Notes</dt><dd class="col-sm-9">{{ req.notes|default:'—'|linebreaksbr }}</dd>
+          {% if req.created_from_template %}
+            <dt class="col-sm-3 text-muted">From template</dt>
+            <dd class="col-sm-9"><a href="{% url 'requisitions:template_detail' req.created_from_template.pk %}">{{ req.created_from_template.name }}</a></dd>
+          {% endif %}
+          {% if req.decided_at %}
+            <dt class="col-sm-3 text-muted">Decision</dt>
+            <dd class="col-sm-9">
+              {{ req.get_status_display }} by {{ req.decided_by }}
+              <span class="text-muted small">({{ req.decided_at|date:'M d, Y' }})</span>
+              {% if req.decision_note %}<div class="small">{{ req.decision_note }}</div>{% endif %}
+            </dd>
+          {% endif %}
+          {% if req.po_reference %}
+            <dt class="col-sm-3 text-muted">PO reference</dt><dd class="col-sm-9"><code>{{ req.po_reference }}</code></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span>Line items</span>
+        <strong>Total: ${{ req.estimated_total|floatformat:2|intcomma }}</strong>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Description</th><th class="text-end">Qty</th><th>Unit</th>
+              <th class="text-end">Unit price</th><th>Account code</th>
+              <th>Required</th><th class="text-end">Line total</th>
+              {% if req.is_editable and can_modify %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+              <tr>
+                <td>{{ line.description }}</td>
+                <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+                <td class="small text-muted">{{ line.unit }}</td>
+                <td class="text-end">${{ line.unit_price|floatformat:2|intcomma }}</td>
+                <td class="small">{% if line.account_code %}<code>{{ line.account_code.code }}</code>{% else %}—{% endif %}</td>
+                <td class="small text-muted">{{ line.required_date|date:'M d, Y'|default:'—' }}</td>
+                <td class="text-end"><strong>${{ line.line_total|floatformat:2|intcomma }}</strong></td>
+                {% if req.is_editable and can_modify %}
+                  <td class="text-end">
+                    <form method="post" action="{% url 'requisitions:requisition_line_delete' req.pk line.pk %}"
+                          onsubmit="return confirm('Remove this line?');">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-close-line"></i></button>
+                    </form>
+                  </td>
+                {% endif %}
+              </tr>
+            {% empty %}
+              <tr><td colspan="{% if req.is_editable and can_modify %}8{% else %}7{% endif %}" class="text-center text-muted py-3 small">No line items yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if req.is_editable and can_modify %}
+        <div class="card-footer">
+          <form method="post" action="{% url 'requisitions:requisition_line_add' req.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-3">
+              <label class="form-label small">Description</label>{{ line_form.description }}
+            </div>
+            <div class="col-md-1">
+              <label class="form-label small">Qty</label>{{ line_form.quantity }}
+            </div>
+            <div class="col-md-1">
+              <label class="form-label small">Unit</label>{{ line_form.unit }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Unit price</label>{{ line_form.unit_price }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Account code</label>{{ line_form.account_code }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Required date</label>{{ line_form.required_date }}
+            </div>
+            <div class="col-md-1">
+              <button class="btn btn-primary w-100"><i class="ri-add-line"></i></button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header">Status timeline</div>
+      <div class="card-body">
+        <ul class="activity-timeline mb-0">
+          {% for ev in status_events %}
+            <li>
+              <span class="at-dot
+                {% if ev.to_status == 'rejected' or ev.to_status == 'cancelled' %}is-danger
+                {% elif ev.to_status == 'approved' or ev.to_status == 'converted' %}is-success
+                {% elif ev.to_status == 'submitted' %}is-warning{% endif %}"></span>
+              <div class="at-meta">
+                {{ ev.created_at|date:'M j, Y H:i' }}
+                &middot; {{ ev.changed_by|default:'system' }}
+              </div>
+              <div class="at-title">
+                {% if ev.from_status %}{{ ev.from_status|title }} &rarr; {% endif %}{{ ev.to_status|title }}
+              </div>
+              {% if ev.note %}<div class="at-msg">{{ ev.note }}</div>{% endif %}
+            </li>
+          {% empty %}
+            <li class="text-muted small">No status changes recorded.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if req.status == 'draft' and can_modify %}
+          <form method="post" action="{% url 'requisitions:requisition_submit' req.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100"><i class="ri-send-plane-line me-1"></i> Submit for approval</button>
+          </form>
+          <a href="{% url 'requisitions:requisition_edit' req.pk %}" class="btn btn-outline-primary">
+            <i class="ri-pencil-line me-1"></i> Edit requisition
+          </a>
+          <form method="post" action="{% url 'requisitions:requisition_delete' req.pk %}"
+                onsubmit="return confirm('Delete requisition {{ req.number }}?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button>
+          </form>
+        {% endif %}
+
+        {% if req.status == 'submitted' and request.user.is_tenant_admin %}
+          <form method="post" action="{% url 'requisitions:requisition_decide' req.pk %}">
+            {% csrf_token %}
+            <label class="form-label small">Decision note (optional)</label>
+            <textarea name="note" class="form-control mb-2" rows="2"></textarea>
+            <div class="d-flex gap-2">
+              <button name="decision" value="approve" class="btn btn-success flex-grow-1">
+                <i class="ri-check-line me-1"></i> Approve
+              </button>
+              <button name="decision" value="reject" class="btn btn-danger flex-grow-1">
+                <i class="ri-close-line me-1"></i> Reject
+              </button>
+            </div>
+          </form>
+          <hr class="my-1">
+        {% endif %}
+
+        {% if req.status == 'approved' and request.user.is_tenant_admin %}
+          <form method="post" action="{% url 'requisitions:requisition_convert' req.pk %}">
+            {% csrf_token %}
+            <label class="form-label small">PO reference (optional)</label>
+            <input type="text" name="po_reference" class="form-control mb-2" placeholder="auto-generated if blank">
+            <button class="btn btn-primary w-100"><i class="ri-exchange-line me-1"></i> Convert to PO</button>
+          </form>
+        {% endif %}
+
+        {% if req.can_amend and can_modify %}
+          <form method="post" action="{% url 'requisitions:requisition_amend' req.pk %}"
+                onsubmit="return confirm('Reopen {{ req.number }} as a draft for amendment?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-warning w-100"><i class="ri-edit-2-line me-1"></i> Amend (reopen as draft)</button>
+          </form>
+        {% endif %}
+
+        {% if req.can_cancel and can_modify %}
+          <form method="post" action="{% url 'requisitions:requisition_cancel' req.pk %}"
+                onsubmit="return confirm('Cancel requisition {{ req.number }}?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger w-100"><i class="ri-forbid-line me-1"></i> Cancel requisition</button>
+          </form>
+        {% endif %}
+
+        {% if req.status == 'rejected' or req.status == 'cancelled' or req.status == 'converted' %}
+          {% if not req.can_amend and not req.can_cancel %}
+            <p class="text-muted small mb-0">
+              <i class="ri-lock-line me-1"></i>
+              This requisition is {{ req.get_status_display|lower }} — no further actions.
+            </p>
+          {% endif %}
+        {% endif %}
+
+        <a href="{% url 'requisitions:requisition_list' %}" class="btn btn-link">&larr; Back to list</a>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-6 text-muted">Created</dt><dd class="col-6">{{ req.created_at|date:'M d, Y' }}</dd>
+          <dt class="col-6 text-muted">Revision</dt><dd class="col-6">{{ req.revision }}</dd>
+          <dt class="col-6 text-muted">Line items</dt><dd class="col-6">{{ lines|length }}</dd>
+          <dt class="col-6 text-muted">Estimated total</dt><dd class="col-6"><strong>${{ req.estimated_total|floatformat:2|intcomma }}</strong></dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
