@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Approval History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Approval History &amp; Audit Trail</h1>
+    <div class="breadcrumb-trail">Append-only log of every approval action across the tenant</div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-8">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Requisition number or comment…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Action</label>
+        <select name="action" class="form-select">
+          <option value="">All</option>
+          {% for v, l in action_choices %}
+            <option value="{{ v }}" {% if request.GET.action == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>When</th><th>Requisition</th><th>Action</th><th>Actor</th><th>Comment</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in actions %}
+          <tr>
+            <td class="small text-muted">{{ ev.created_at|date:'M d, Y H:i' }}</td>
+            <td>
+              <a href="{% url 'approvals:request_detail' ev.request.pk %}">{{ ev.request.requisition.number }}</a>
+            </td>
+            <td>
+              <span class="badge badge-soft-{% if ev.action == 'rejected' or ev.action == 'cancelled' %}danger{% elif ev.action == 'approved' or ev.action == 'completed' %}success{% elif ev.action == 'escalated' %}warning{% else %}info{% endif %}">
+                {{ ev.get_action_display }}
+              </span>
+              {% if ev.task %}<small class="text-muted">{{ ev.task.name }}</small>{% endif %}
+            </td>
+            <td class="small">{{ ev.actor|default:'system' }}</td>
+            <td class="small">{{ ev.comment|default:'—' }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No approval history yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
