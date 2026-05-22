@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}My Portal{% endblock %}
+
+{% block content %}
+{# -------------------- Hero banner -------------------- #}
+<div class="hero-banner">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div>
+      <div class="hb-eyebrow">{% now "l, F j" %}</div>
+      <h1>My Portal <span style="opacity:.7;">&#x1F44B;</span></h1>
+      <p>Your personalized workspace in <strong>{{ current_tenant.name }}</strong>.</p>
+      <div class="hb-actions">
+        <a href="{% url 'portal:requisition_create' %}" class="btn btn-light">
+          <i class="ri-flashlight-line me-1"></i> Quick requisition
+        </a>
+        <a href="{% url 'portal:widget_list' %}" class="btn btn-ghost">
+          <i class="ri-layout-grid-line me-1"></i> Customize widgets
+        </a>
+      </div>
+    </div>
+    <div class="text-end d-none d-md-block">
+      <div class="hb-eyebrow">Unread alerts</div>
+      <div style="font-size:22px;font-weight:700;">{{ unread_count }}</div>
+      <small style="opacity:.85;">{{ requisition_count }} requisition{{ requisition_count|pluralize }} total</small>
+    </div>
+  </div>
+</div>
+
+{# -------------------- Customizable widget grid -------------------- #}
+{% if widgets %}
+<div class="row g-3">
+  {% for w in widgets %}
+  <div class="{{ w.col_class }}">
+    <div class="card h-100">
+      <div class="section-head">
+        <h6>
+          {% if w.widget_type == 'pending_tasks' %}<i class="ri-task-line"></i>
+          {% elif w.widget_type == 'pending_approvals' %}<i class="ri-checkbox-circle-line"></i>
+          {% elif w.widget_type == 'spend_summary' %}<i class="ri-wallet-3-line"></i>
+          {% elif w.widget_type == 'recent_activity' %}<i class="ri-history-line"></i>
+          {% elif w.widget_type == 'notifications' %}<i class="ri-notification-3-line"></i>
+          {% elif w.widget_type == 'quick_requisition' %}<i class="ri-flashlight-line"></i>
+          {% elif w.widget_type == 'my_reports' %}<i class="ri-bar-chart-box-line"></i>
+          {% else %}<i class="ri-links-line"></i>{% endif %}
+          {{ w.title }}
+        </h6>
+      </div>
+      <div class="card-body">
+
+        {% if w.widget_type == 'pending_tasks' %}
+          <p class="display-6 mb-1">{{ draft_count }}</p>
+          <p class="text-muted small mb-3">Draft requisitions awaiting your action</p>
+          <ul class="list-unstyled mb-0">
+            {% for r in draft_requisitions %}
+              <li class="py-1 border-bottom">
+                <a href="{% url 'portal:requisition_detail' r.pk %}" class="text-decoration-none">{{ r.number }}</a>
+                <small class="text-muted d-block">{{ r.title }}</small>
+              </li>
+            {% empty %}
+              <li class="text-muted small">No pending tasks.</li>
+            {% endfor %}
+          </ul>
+
+        {% elif w.widget_type == 'pending_approvals' %}
+          <p class="display-6 mb-1">{{ submitted_count }}</p>
+          <p class="text-muted small mb-3">Requisitions submitted for approval</p>
+          <ul class="list-unstyled mb-0">
+            {% for r in submitted_requisitions %}
+              <li class="py-1 border-bottom">
+                <a href="{% url 'portal:requisition_detail' r.pk %}" class="text-decoration-none">{{ r.number }}</a>
+                <span class="badge badge-soft-warning ms-1">Submitted</span>
+              </li>
+            {% empty %}
+              <li class="text-muted small">Nothing awaiting approval.</li>
+            {% endfor %}
+          </ul>
+
+        {% elif w.widget_type == 'spend_summary' %}
+          <p class="display-6 mb-1">${{ spend_total|floatformat:2|intcomma }}</p>
+          <p class="text-muted small mb-3">Approved spend ({{ approved_count }} requisition{{ approved_count|pluralize }})</p>
+          <ul class="list-unstyled mb-0">
+            {% for row in spend_by_category %}
+              <li class="d-flex justify-content-between py-1 border-bottom">
+                <span class="small">{{ row.label }}</span>
+                <strong class="small">${{ row.value|floatformat:2|intcomma }}</strong>
+              </li>
+            {% empty %}
+              <li class="text-muted small">No approved spend yet.</li>
+            {% endfor %}
+          </ul>
+
+        {% elif w.widget_type == 'notifications' %}
+          {% for n in unread_notifications %}
+            <a href="{% url 'portal:notification_detail' n.pk %}" class="d-block py-2 border-bottom text-decoration-none">
+              <span class="badge badge-soft-{% if n.priority == 'urgent' or n.priority == 'high' %}danger{% elif n.priority == 'normal' %}info{% else %}secondary{% endif %}">{{ n.get_priority_display }}</span>
+              <span class="ms-1">{{ n.title }}</span>
+              <small class="text-muted d-block">{{ n.get_category_display }} &middot; {{ n.created_at|naturaltime }}</small>
+            </a>
+          {% empty %}
+            <div class="text-center text-muted py-3">
+              <i class="ri-check-double-line" style="font-size:28px;opacity:.4;"></i>
+              <p class="mt-2 mb-0 small">You're all caught up.</p>
+            </div>
+          {% endfor %}
+          {% if unread_notifications %}
+            <a href="{% url 'portal:notification_list' %}" class="small d-inline-block mt-2">View all alerts &rsaquo;</a>
+          {% endif %}
+
+        {% elif w.widget_type == 'recent_activity' %}
+          {% if recent_activity %}
+            <ul class="activity-timeline mb-0">
+              {% for log in recent_activity %}
+                <li>
+                  <span class="at-dot {% if log.level == 'critical' or log.level == 'error' %}is-danger{% elif log.level == 'warning' %}is-warning{% endif %}"></span>
+                  <div class="at-meta">{{ log.created_at|date:'M j, H:i' }} &middot; <code>{{ log.action }}</code></div>
+                  <div class="at-title">{{ log.message|default:log.action }}</div>
+                </li>
+              {% endfor %}
+            </ul>
+            <a href="{% url 'portal:activity_feed' %}" class="small d-inline-block mt-2">View full activity feed &rsaquo;</a>
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <i class="ri-inbox-line" style="font-size:28px;opacity:.4;"></i>
+              <p class="mt-2 mb-0 small">No activity recorded yet.</p>
+            </div>
+          {% endif %}
+
+        {% elif w.widget_type == 'quick_requisition' %}
+          <p class="text-muted small">Fast-track a frequent or low-value purchase.</p>
+          <a href="{% url 'portal:requisition_create' %}" class="btn btn-primary btn-sm">
+            <i class="ri-add-line me-1"></i> New requisition
+          </a>
+
+        {% elif w.widget_type == 'my_reports' %}
+          <ul class="list-unstyled mb-0">
+            {% for rep in saved_reports %}
+              <li class="py-1 border-bottom">
+                <a href="{% url 'portal:report_run' rep.pk %}" class="text-decoration-none">{{ rep.name }}</a>
+                <small class="text-muted d-block">{{ rep.get_report_type_display }}</small>
+              </li>
+            {% empty %}
+              <li class="text-muted small">No saved reports.</li>
+            {% endfor %}
+          </ul>
+          <a href="{% url 'portal:report_list' %}" class="small d-inline-block mt-2">Manage reports &rsaquo;</a>
+
+        {% elif w.widget_type == 'quick_links' %}
+          <div class="row g-2">
+            <div class="col-sm-6 col-xl-3">
+              <a href="{% url 'portal:requisition_create' %}" class="quick-tile">
+                <span class="qt-icon"><i class="ri-flashlight-line"></i></span>
+                <span class="qt-text"><strong>Quick Requisition</strong><small>Fast-track a purchase</small></span>
+              </a>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <a href="{% url 'portal:notification_list' %}" class="quick-tile">
+                <span class="qt-icon"><i class="ri-notification-3-line"></i></span>
+                <span class="qt-text"><strong>Alerts</strong><small>{{ unread_count }} unread</small></span>
+              </a>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <a href="{% url 'portal:report_list' %}" class="quick-tile">
+                <span class="qt-icon"><i class="ri-bar-chart-box-line"></i></span>
+                <span class="qt-text"><strong>My Reports</strong><small>Spend &amp; usage</small></span>
+              </a>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <a href="{% url 'portal:activity_feed' %}" class="quick-tile">
+                <span class="qt-icon"><i class="ri-history-line"></i></span>
+                <span class="qt-text"><strong>Activity Feed</strong><small>Your recent actions</small></span>
+              </a>
+            </div>
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center text-muted py-5">
+    <i class="ri-layout-grid-line" style="font-size:36px;opacity:.4;"></i>
+    <p class="mt-2 mb-3">No widgets on your dashboard yet.</p>
+    <a href="{% url 'portal:widget_list' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add widgets</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
