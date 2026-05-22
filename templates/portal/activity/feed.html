@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}My Activity{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Recent Activity</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo;
+      Chronological log of your actions
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-7">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Action or message…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Level</label>
+        <select name="level" class="form-select">
+          <option value="">All levels</option>
+          {% for v, l in level_choices %}
+            <option value="{{ v }}" {% if request.GET.level == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if logs %}
+      <ul class="activity-timeline">
+        {% for log in logs %}
+          <li>
+            <span class="at-dot
+              {% if log.level == 'critical' or log.level == 'error' %}is-danger
+              {% elif log.level == 'warning' %}is-warning
+              {% elif 'submitted' in log.action or 'created' in log.action %}is-success
+              {% endif %}"></span>
+            <div class="at-meta">
+              {{ log.created_at|date:'M j, Y H:i' }}
+              &middot; <code>{{ log.action }}</code>
+              &middot; <span class="badge badge-soft-{% if log.level == 'critical' or log.level == 'error' %}danger{% elif log.level == 'warning' %}warning{% else %}info{% endif %}">{{ log.get_level_display }}</span>
+            </div>
+            <div class="at-title">{{ log.message|default:log.action }}</div>
+            {% if log.target_type %}
+              <div class="at-msg">Target: {{ log.target_type }}#{{ log.target_id }}</div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-center text-muted py-5">
+        <i class="ri-inbox-line" style="font-size:32px;opacity:.4;"></i>
+        <p class="mt-2 mb-0 small">No activity recorded yet. Your portal actions will appear here.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
