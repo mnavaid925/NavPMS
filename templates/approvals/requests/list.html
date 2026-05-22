@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Approval Requests{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Approval Requests</h1>
+    <div class="breadcrumb-trail">Requisitions currently routed through the workflow engine</div>
+  </div>
+  <a href="{% url 'approvals:inbox' %}" class="btn btn-outline-primary">
+    <i class="ri-inbox-line me-1"></i> My approvals
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-8">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Requisition number or title…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for v, l in status_choices %}
+            <option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Requisition</th><th>Rule</th><th>Progress</th>
+          <th>Status</th><th>Submitted</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in requests %}
+          <tr>
+            <td>
+              <a href="{% url 'approvals:request_detail' a.pk %}">{{ a.requisition.number }}</a>
+              <small class="text-muted d-block">{{ a.requisition.title }}</small>
+            </td>
+            <td class="small text-muted">{{ a.rule.name|default:'—' }}</td>
+            <td style="min-width:120px;">
+              {% with p=a.progress %}
+                <div class="progress" style="height:6px;">
+                  <div class="progress-bar" style="width:{{ p.percent }}%;"></div>
+                </div>
+                <small class="text-muted">{{ p.done }}/{{ p.total }} steps</small>
+              {% endwith %}
+            </td>
+            <td>
+              <span class="badge badge-soft-{% if a.status == 'approved' %}success{% elif a.status == 'rejected' or a.status == 'cancelled' %}danger{% else %}warning{% endif %}">
+                {{ a.get_status_display }}
+              </span>
+            </td>
+            <td class="small text-muted">{{ a.created_at|naturaltime }}</td>
+            <td class="text-end">
+              <a href="{% url 'approvals:request_detail' a.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No approval requests yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
