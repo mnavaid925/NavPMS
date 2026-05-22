@@ -131,7 +131,10 @@ a:hover { color: var(--brand-primary-hover); }
 
 .app-sidebar { grid-area: sidebar; }
 .app-topbar  { grid-area: topbar; }
-.app-main    { grid-area: main; padding: 24px; }
+/* min-width:0 lets the `1fr` grid track shrink below its content's intrinsic
+   width — without it a wide table forces .app-shell wider than the viewport
+   (horizontal page overflow on mobile). Pair with .table-responsive wrappers. */
+.app-main    { grid-area: main; padding: 24px; min-width: 0; }
 .app-footer  { grid-area: footer; padding: 16px 24px; }
 
 /* ---------- Sidebar size variants ---------- */
@@ -551,7 +554,11 @@ html[dir="rtl"] .app-sidebar { border-left: 1px solid var(--color-border); borde
 /* ---------- Responsive ---------- */
 @media (max-width: 992px) {
   .app-shell { grid-template-columns: 1fr; grid-template-areas: "topbar" "main" "footer"; }
-  .app-sidebar {
+  /* Selector is scoped through html[data-layout-position] so it out-specifies
+     the theme rule `html[data-layout-position="fixed"] .app-sidebar` — which
+     would otherwise force the sidebar back to `position: sticky` on mobile and
+     leave it jammed in-flow (≈260px of horizontal page overflow). */
+  html[data-layout-position] .app-sidebar {
     position: fixed; top: var(--topbar-height); left: -280px;
     height: calc(100vh - var(--topbar-height));
     width: var(--sidebar-width); z-index: 1050;
