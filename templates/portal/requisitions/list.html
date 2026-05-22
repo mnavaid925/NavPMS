@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Quick Requisitions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Quick Requisitions</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo; Quick requisition entry
+    </div>
+  </div>
+  <a href="{% url 'portal:requisition_create' %}" class="btn btn-primary">
+    <i class="ri-flashlight-line me-1"></i> New requisition
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Number, title or vendor…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for v, l in status_choices %}
+            <option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for v, l in category_choices %}
+            <option value="{{ v }}" {% if request.GET.category == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Number</th><th>Title</th><th>Category</th><th>Priority</th>
+          <th>Needed by</th><th>Status</th>
+          <th class="text-end">Estimated</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requisitions %}
+          <tr>
+            <td><a href="{% url 'portal:requisition_detail' r.pk %}">{{ r.number }}</a></td>
+            <td>{{ r.title }}</td>
+            <td class="small text-muted">{{ r.get_category_display }}</td>
+            <td>
+              <span class="badge badge-soft-{% if r.priority == 'urgent' or r.priority == 'high' %}danger{% elif r.priority == 'normal' %}info{% else %}secondary{% endif %}">
+                {{ r.get_priority_display }}
+              </span>
+            </td>
+            <td class="small text-muted">{{ r.needed_by|date:'M d, Y'|default:'—' }}</td>
+            <td>
+              <span class="badge badge-soft-{% if r.status == 'approved' %}success{% elif r.status == 'rejected' or r.status == 'cancelled' %}danger{% elif r.status == 'submitted' %}warning{% else %}secondary{% endif %}">
+                {{ r.get_status_display }}
+              </span>
+            </td>
+            <td class="text-end"><strong>${{ r.estimated_total|floatformat:2|intcomma }}</strong></td>
+            <td class="text-end">
+              <a href="{% url 'portal:requisition_detail' r.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              {% if r.is_editable %}
+                <a href="{% url 'portal:requisition_edit' r.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'portal:requisition_delete' r.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete requisition {{ r.number }}?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No requisitions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
