@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo;
+      <a href="{% url 'portal:report_list' %}">My Reports</a> &rsaquo; {{ title }}
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+      <p class="text-muted small mb-0">
+        <i class="ri-information-line me-1"></i>
+        Leave the dates blank to report on the last 90 days.
+      </p>
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% if report %}{% url 'portal:report_run' report.pk %}{% else %}{% url 'portal:report_list' %}{% endif %}"
+         class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="ri-bar-chart-box-line me-1"></i> Save &amp; run</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
