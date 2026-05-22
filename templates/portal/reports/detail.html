@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ report.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ report.name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo;
+      <a href="{% url 'portal:report_list' %}">My Reports</a> &rsaquo; {{ report.get_report_type_display }}
+    </div>
+  </div>
+  <div>
+    <a href="{% url 'portal:report_edit' report.pk %}" class="btn btn-outline-primary">
+      <i class="ri-pencil-line me-1"></i> Edit
+    </a>
+    <form method="post" action="{% url 'portal:report_delete' report.pk %}" class="d-inline"
+          onsubmit="return confirm('Delete this report?');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for label, value in result.summary.items %}
+    <div class="col-sm-6 col-xl-3">
+      <div class="stat-widget">
+        <div class="stat-icon"><i class="ri-bar-chart-box-line"></i></div>
+        <div>
+          <p class="stat-label">{{ label }}</p>
+          <p class="stat-value">{{ value|floatformat:'-2'|intcomma }}</p>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">{{ report.get_report_type_display }}</div>
+      <div class="card-body">
+        {% if result.values %}
+          <canvas id="reportChart" height="220"></canvas>
+        {% else %}
+          <div class="text-center text-muted py-5">
+            <i class="ri-inbox-line" style="font-size:32px;opacity:.4;"></i>
+            <p class="mt-2 mb-0 small">No data in the selected period.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Breakdown</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>{{ report.get_report_type_display }}</th>
+              <th class="text-end">{% if 'spend' in report.report_type %}Amount{% else %}Count{% endif %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in result.rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td class="text-end">
+                  {% if row.amount != None %}<strong>${{ row.amount|floatformat:2|intcomma }}</strong>{% else %}{{ row.count }}{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="text-center text-muted py-3 small">No rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="text-muted small mt-3">
+  Window: {{ report.date_from|date:'M d, Y'|default:'last 90 days' }}
+  &rarr; {{ report.date_to|date:'M d, Y'|default:'today' }}
+  &middot; generated {{ report.last_run_at|naturaltime }}
+</p>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    var el = document.getElementById('reportChart');
+    if (!el) return;
+    var labels = {{ result.labels|safe }};
+    var values = {{ result.values|safe }};
+    var palette = ['#3b5de7', '#22c55e', '#f59e0b', '#ef4444',
+                   '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
+    var colors = labels.map(function(_, i) { return palette[i % palette.length]; });
+    new Chart(el, {
+      type: '{{ result.kind }}',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '{{ report.name|escapejs }}',
+          data: values,
+          backgroundColor: colors,
+          borderColor: colors,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: '{{ result.kind }}' === 'doughnut' }
+        },
+        {% if result.kind == 'bar' %}
+        scales: { y: { beginAtZero: true } }
+        {% endif %}
+      }
+    });
+  })();
+</script>
+{% endblock %}
