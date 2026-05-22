@@ -389,6 +389,12 @@ class RequisitionDetailView(TenantRequiredMixin, View):
             pk=pk, tenant=request.tenant,
         )
         duplicates = find_potential_duplicates(req) if req.possible_duplicate else []
+        # Module 4: the most recent approval request driving this requisition.
+        from apps.approvals.models import ApprovalRequest
+        approval_request = (
+            ApprovalRequest.objects.filter(requisition=req)
+            .select_related('rule').order_by('-created_at').first()
+        )
         return render(request, 'requisitions/requisitions/detail.html', {
             'req': req,
             'lines': req.lines.select_related('account_code'),
@@ -396,6 +402,7 @@ class RequisitionDetailView(TenantRequiredMixin, View):
             'status_events': req.status_events.select_related('changed_by'),
             'duplicates': duplicates,
             'can_modify': can_modify_requisition(req, request.user),
+            'approval_request': approval_request,
         })
 
 
