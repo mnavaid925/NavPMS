@@ -68,8 +68,16 @@ line coverage on `apps/portal`. `python manage.py check` clean.
 - `test_security.py` pins every fix (D-01…D-03, CSRF, tenant/auth gates) so a
   regression re-opens as a red test.
 
-### Follow-ups (out of scope here)
+### Follow-ups
 
-- Extend the pytest suite to Modules 1, 3, 4 (`tenants`, `requisitions`, `approvals`).
+- [x] **Extend the pytest suite to Modules 1, 3, 4** (`tenants`, `requisitions`,
+  `approvals`) — done 2026-05-23. Each app now has a `tests/` package
+  (`conftest` + `test_models` / `test_services` / `test_views` / `test_security`,
+  plus `test_views_smoke` for branch coverage). Suite total: **253 tests**,
+  all green. Per-module line coverage: tenants views 92 % / services 100 %,
+  requisitions views 86 % / services 94 %, approvals views 89 % / services 97 %,
+  portal views 92 %. `apps.tenants.gateways` and all four `forms.py` at 100 %.
 - D-09 also needs `.env` to set a real `SECRET_KEY` and explicit `ALLOWED_HOSTS` in
   every non-dev environment — a deployment task, not a code change.
+- Remaining untested: `accounts` / `core` views and the `seed_*` commands
+  (data scripts) — candidates for a future pass.
