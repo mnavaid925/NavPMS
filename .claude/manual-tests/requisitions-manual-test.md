@@ -17,6 +17,22 @@
 
 **Pages covered:** Account Code list/create/edit/delete · Template list/create/detail/edit/delete/use + line add/delete · Requisition list/create/detail/edit/delete + line add/delete · Tracking board · Submit/Decide/Cancel/Amend/Convert workflow actions.
 
+### 1.1 Execution Summary (auto-run 2026-05-23)
+
+**60 of 145 test cases were executed automatically** against the real view code using Django's test client (auth, multi-tenancy, CRUD, search, pagination, filters, workflow, negative paths). The remaining 85 require a human in a browser (UI/UX rendering, responsive layouts, console errors, confirm dialogs, visual badges) and are left for the manual tester.
+
+| Result | Count |
+|---|---|
+| ✅ Auto-executed & **PASS** | 60 |
+| ❌ Auto-executed & FAIL | 0 *(1 found, fixed, re-verified — see BUG-01)* |
+| ⏳ Manual execution required | 85 |
+
+**1 defect found and fixed during this run** — `BUG-01` (duplicate account code → 500). Fix applied to [apps/requisitions/forms.py](apps/requisitions/forms.py) + [apps/requisitions/views.py](apps/requisitions/views.py); TC-CREATE-08 re-run → PASS. See §5.
+
+**Auto-executed & PASS (60):** TC-AUTH-01·02·03·04·05 · TC-TENANT-01·02·03·04 · TC-CREATE-01·02·03·04·05·06·07·08·09·10·11·12 · TC-LIST-01·09·10 · TC-DETAIL-01 · TC-EDIT-01·02·04 · TC-DELETE-03·05·07·11 · TC-SEARCH-01·02·05·06·08·09 · TC-PAGE-01·05·06 · TC-FILTER-02·03·05·06·07 · TC-ACTION-01·02·03·05·06·07·08·09·10 · TC-UI-08 · TC-NEG-01·04·10·12.
+
+The auto-run used a throwaway harness driving Django's test client; it re-seeded with `seed_requisitions --flush` for a deterministic baseline and was removed afterwards. Re-run any case manually in a browser to confirm the on-screen UX.
+
 ---
 
 ## 2. Pre-Test Setup
@@ -156,7 +172,7 @@ Re-run `seed_requisitions --flush` to restore the baseline. Manually delete any 
 | TC-CREATE-05 | Add line items to a draft | A draft requisition open on its detail page | 1. Scroll to **Line items** card<br>2. In the footer row: Description `Printer toner`, Qty `2`, Unit `unit`, Unit price `78.00`, Account code `6100-OFF`<br>3. Click the **+** button | See steps | Toast `Line item added.`; row appears; **Total** updates to `$156.00` | | |
 | TC-CREATE-06 | Line total auto-computes | Line added in TC-CREATE-05 | 1. Read the **Line total** cell | Qty 2 × $78.00 | Line total `$156.00`; estimated_total recalculated ([models.py:238](apps/requisitions/models.py#L238) `RequisitionLine.save`) | | |
 | TC-CREATE-07 | Create account code — all fields | Logged in as `admin_acme` | 1. Open `/requisitions/account-codes/`<br>2. Click **New account code**<br>3. Code `7100-MKT`, Name `Marketing & Advertising`, Description `Campaign spend`, Active ✔<br>4. **Save** | See steps | Toast `Account code 7100-MKT created.`; redirected to list; new row visible | | |
-| TC-CREATE-08 | Duplicate account-code `code` within tenant | `6100-OFF` already exists for Acme | 1. **New account code**<br>2. Code `6100-OFF`, Name `Dupe test`<br>3. **Save** | code `6100-OFF` | **Clean form-level error** (not a 500). ⚠️ `tenant` is excluded from `AccountCodeForm`, so `validate_unique()` may skip the `unique_together('tenant','code')` check and raise an IntegrityError 500 — **if it 500s, log it as a bug** | | |
+| TC-CREATE-08 | Duplicate account-code `code` within tenant | `6100-OFF` already exists for Acme | 1. **New account code**<br>2. Code `6100-OFF`, Name `Dupe test`<br>3. **Save** | code `6100-OFF` | **Clean form-level error** under the Code field: *"An account code with this code already exists."* — no 500 | ✅ Pass (auto, after fix) | Was BUG-01 (500); fixed in [forms.py](apps/requisitions/forms.py#L10) — re-verified PASS |
 | TC-CREATE-09 | Create template — all fields | Logged in | 1. Open `/requisitions/templates/`<br>2. Click **New template**<br>3. Name `Quarterly cleaning kit`, Description `Recurring`, Category `Maintenance`, Default account code `6500-MNT`, Shared ✔<br>4. **Save** | See steps | Toast `Template "Quarterly cleaning kit" created. Add lines below.`; redirected to template detail page | | |
 | TC-CREATE-10 | Add a template line | Template detail page open (owner) | 1. In **Pre-defined lines** footer: Description `Mop & bucket`, Quantity `2`, Unit `set`, Est. price `15.00`, Account code `6500-MNT`<br>2. Click **Add line** | See steps | Toast `Template line added.`; row appears; Est. total updates | | |
 | TC-CREATE-11 | Create requisition from a template | Logged in; template "Monthly office restock" exists | 1. Open `/requisitions/templates/`<br>2. Click the **file-copy** icon in the Actions column of "Monthly office restock" | — | Toast `Requisition REQ-… created from "Monthly office restock".`; new draft requisition opens **with 3 line items pre-filled** | | |
@@ -345,42 +361,47 @@ Re-run `seed_requisitions --flush` to restore the baseline. Manually delete any 
 
 ## 5. Bug Log
 
-Fill one row per defect found. Use IDs `BUG-01`, `BUG-02`, …
-
-| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Screenshot | Browser |
+| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Status | Browser |
 |---|---|---|---|---|---|---|---|---|
-| BUG-01 | | | | | | | | |
-| BUG-02 | | | | | | | | |
-| BUG-03 | | | | | | | | |
+| BUG-01 | TC-CREATE-08 / TC-NEG-13 | **High** | `/requisitions/account-codes/create/` | 1. Log in as `admin_acme`<br>2. New account code<br>3. Code `6100-OFF` (already exists for the tenant)<br>4. Save | Clean form-level error under the **Code** field | **Server error 500** — `MySQLdb.IntegrityError (1062) Duplicate entry '1-6100-OFF'`. `AccountCodeForm` excluded `tenant`, so `validate_unique()` skipped the `unique_together('tenant','code')` check and the duplicate hit the DB | ✅ **FIXED & re-verified** — see below | Django test client (auto-run) |
+
+**Fix for BUG-01:** `AccountCodeForm` now accepts a `tenant` kwarg and validates tenant-scoped code uniqueness in `clean_code()`, surfacing a duplicate as the form error *"An account code with this code already exists."* The create/edit views pass `tenant=request.tenant`. Files: [apps/requisitions/forms.py](apps/requisitions/forms.py#L10), [apps/requisitions/views.py:65](apps/requisitions/views.py#L65), [apps/requisitions/views.py:90](apps/requisitions/views.py#L90). TC-CREATE-08 re-run after the fix → **PASS** (clean form error, no 500).
+
+| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Status | Browser |
+|---|---|---|---|---|---|---|---|---|
+| BUG-02 | | | | | | | open | |
+| BUG-03 | | | | | | | open | |
 
 **Severity guide:** Critical (data loss / security / blocks core flow) · High (major feature broken) · Medium (feature works with a workaround) · Low (minor) · Cosmetic (visual only).
 
-**Watch-list candidate — verify during TC-CREATE-08 / TC-NEG-13:** `AccountCodeForm` excludes `tenant`; the `unique_together('tenant','code')` check may be skipped by `validate_unique()`, so a same-tenant duplicate `code` could raise an IntegrityError **500** instead of a clean form error. If it 500s, log it as **BUG / High**.
+> No other defects surfaced in the 60 auto-executed cases. The remaining 85 manual cases (UI/UX, responsive, console) have not yet been run — add `BUG-NN` rows here as you find issues.
 
 ---
 
 ## 6. Sign-off & Release Recommendation
 
-| Section | Total | Pass | Fail | Blocked | Notes |
+"Pass" column shows **auto-executed passes**; "Pending" = cases still needing a human in a browser.
+
+| Section | Total | Pass (auto) | Fail | Pending (manual) | Notes |
 |---|---|---|---|---|---|
-| 4.1 Authentication & Access | 6 | | | | |
-| 4.2 Multi-Tenancy Isolation | 5 | | | | |
-| 4.3 CREATE | 13 | | | | |
-| 4.4 READ — List Page | 11 | | | | |
-| 4.5 READ — Detail Page | 9 | | | | |
-| 4.6 UPDATE | 9 | | | | |
-| 4.7 DELETE | 11 | | | | |
-| 4.8 SEARCH | 12 | | | | |
-| 4.9 PAGINATION | 8 | | | | |
-| 4.10 FILTERS | 13 | | | | |
-| 4.11 Status Transitions / Actions | 14 | | | | |
-| 4.12 Frontend UI / UX | 16 | | | | |
-| 4.13 Negative & Edge Cases | 13 | | | | |
-| 4.14 Cross-Module Integration | 5 | | | | |
-| **TOTAL** | **145** | | | | |
+| 4.1 Authentication & Access | 6 | 5 | 0 | 1 | TC-AUTH-06 (logout) pending |
+| 4.2 Multi-Tenancy Isolation | 5 | 4 | 0 | 1 | TC-TENANT-05 pending |
+| 4.3 CREATE | 13 | 12 | 0 | 1 | TC-CREATE-13 (max-length) pending |
+| 4.4 READ — List Page | 11 | 3 | 0 | 8 | Visual columns/badges need browser |
+| 4.5 READ — Detail Page | 9 | 1 | 0 | 8 | Timeline/banners need browser |
+| 4.6 UPDATE | 9 | 3 | 0 | 6 | |
+| 4.7 DELETE | 11 | 4 | 0 | 7 | Confirm dialogs need browser |
+| 4.8 SEARCH | 12 | 6 | 0 | 6 | |
+| 4.9 PAGINATION | 8 | 3 | 0 | 5 | Needs >20 records seeded |
+| 4.10 FILTERS | 13 | 5 | 0 | 8 | Dropdown rendering needs browser |
+| 4.11 Status Transitions / Actions | 14 | 9 | 0 | 5 | |
+| 4.12 Frontend UI / UX | 16 | 1 | 0 | 15 | Almost all need a browser |
+| 4.13 Negative & Edge Cases | 13 | 4 | 0 | 9 | |
+| 4.14 Cross-Module Integration | 5 | 0 | 0 | 5 | Audit log / approvals UI |
+| **TOTAL** | **145** | **60** | **0** | **85** | 1 bug found & fixed (BUG-01) |
 
-**Tested by:** ________________  **Date:** ____________  **Build / commit:** ____________
+**Tested by:** Automated harness (60 cases) + ____________ (manual)  **Date:** 2026-05-23  **Build / commit:** main @ pre-commit
 
-**Release Recommendation:** ☐ GO ☐ NO-GO ☐ GO-with-fixes
+**Release Recommendation:** ☑ **GO-with-fixes** *(provisional)*
 
-**Rationale:** ______________________________________________________________
+**Rationale:** All 60 auto-executed back-end cases pass; the one defect found (BUG-01, duplicate account code 500) has been fixed and re-verified. Final GO is contingent on completing the 85 pending manual UI/UX cases in a browser.
