@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}{{ rule.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ rule.name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'approvals:rule_list' %}">Approval Rules</a> &rsaquo; {{ rule.name }}
+    </div>
+  </div>
+  <div>
+    <a href="{% url 'approvals:rule_edit' rule.pk %}" class="btn btn-outline-primary">
+      <i class="ri-pencil-line me-1"></i> Edit
+    </a>
+    <form method="post" action="{% url 'approvals:rule_delete' rule.pk %}" class="d-inline"
+          onsubmit="return confirm('Delete this rule?');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Routing conditions</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-6 text-muted">Status</dt>
+          <dd class="col-6">
+            {% if rule.is_active %}<span class="badge badge-soft-success">Active</span>
+            {% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}
+          </dd>
+          <dt class="col-6 text-muted">Priority</dt><dd class="col-6">{{ rule.priority }}</dd>
+          <dt class="col-6 text-muted">Document</dt><dd class="col-6">{{ rule.get_document_type_display }}</dd>
+          <dt class="col-6 text-muted">Min amount</dt><dd class="col-6">{% if rule.min_amount != None %}${{ rule.min_amount|floatformat:2 }}{% else %}Any{% endif %}</dd>
+          <dt class="col-6 text-muted">Max amount</dt><dd class="col-6">{% if rule.max_amount != None %}${{ rule.max_amount|floatformat:2 }}{% else %}Any{% endif %}</dd>
+          <dt class="col-6 text-muted">Department</dt><dd class="col-6">{{ rule.department|default:'Any' }}</dd>
+          <dt class="col-6 text-muted">Category</dt><dd class="col-6">{{ rule.get_category_display|default:'Any' }}</dd>
+        </dl>
+        {% if rule.description %}
+          <hr><p class="small text-muted mb-0">{{ rule.description|linebreaksbr }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">Approval chain ({{ steps|length }} step{{ steps|length|pluralize }})</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>#</th><th>Step</th><th>Approver</th>
+              <th>SLA</th><th>Escalates to</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for step in steps %}
+              <tr>
+                <td><span class="badge badge-soft-primary">{{ step.order }}</span></td>
+                <td>{{ step.name }}</td>
+                <td class="small">{{ step.approver.get_full_name|default:step.approver.username }}</td>
+                <td class="small text-muted">{% if step.sla_hours %}{{ step.sla_hours }}h{% else %}—{% endif %}</td>
+                <td class="small text-muted">{{ step.escalate_to.get_full_name|default:step.escalate_to.username|default:'—' }}</td>
+                <td class="text-end">
+                  <form method="post" action="{% url 'approvals:step_delete' rule.pk step.pk %}"
+                        onsubmit="return confirm('Remove this step?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-close-line"></i></button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="text-center text-muted py-3 small">No steps yet — add at least one for this rule to route approvals.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer">
+        <form method="post" action="{% url 'approvals:step_add' rule.pk %}" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <div class="col-md-1">
+            <label class="form-label small">Order</label>{{ step_form.order }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Step name</label>{{ step_form.name }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Approver</label>{{ step_form.approver }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">SLA (hours)</label>{{ step_form.sla_hours }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Escalate to</label>{{ step_form.escalate_to }}
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-primary"><i class="ri-add-line me-1"></i> Add step</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
