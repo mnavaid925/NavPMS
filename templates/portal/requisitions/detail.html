@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags humanize %}
+{% block title %}{{ req.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ req.number }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo;
+      <a href="{% url 'portal:requisition_list' %}">Quick Requisitions</a> &rsaquo; {{ req.title }}
+    </div>
+  </div>
+  <span class="badge badge-soft-{% if req.status == 'approved' %}success{% elif req.status == 'rejected' or req.status == 'cancelled' %}danger{% elif req.status == 'submitted' %}warning{% else %}secondary{% endif %} fs-6">
+    {{ req.get_status_display }}
+  </span>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Requisition details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3 text-muted">Title</dt><dd class="col-sm-9">{{ req.title }}</dd>
+          <dt class="col-sm-3 text-muted">Category</dt><dd class="col-sm-9">{{ req.get_category_display }}</dd>
+          <dt class="col-sm-3 text-muted">Priority</dt><dd class="col-sm-9">{{ req.get_priority_display }}</dd>
+          <dt class="col-sm-3 text-muted">Vendor</dt><dd class="col-sm-9">{{ req.vendor_name|default:'—' }}</dd>
+          <dt class="col-sm-3 text-muted">Needed by</dt><dd class="col-sm-9">{{ req.needed_by|date:'M d, Y'|default:'—' }}</dd>
+          <dt class="col-sm-3 text-muted">Description</dt><dd class="col-sm-9">{{ req.description|default:'—'|linebreaksbr }}</dd>
+          <dt class="col-sm-3 text-muted">Justification</dt><dd class="col-sm-9">{{ req.justification|default:'—'|linebreaksbr }}</dd>
+          {% if req.submitted_at %}
+            <dt class="col-sm-3 text-muted">Submitted</dt><dd class="col-sm-9">{{ req.submitted_at|date:'M d, Y H:i' }}</dd>
+          {% endif %}
+          {% if req.decided_at %}
+            <dt class="col-sm-3 text-muted">Decision</dt>
+            <dd class="col-sm-9">{{ req.decision_note|default:'—' }} <span class="text-muted small">({{ req.decided_at|date:'M d, Y' }})</span></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span>Line items</span>
+        <strong>Total: ${{ req.estimated_total|floatformat:2|intcomma }}</strong>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Item</th><th class="text-end">Qty</th><th>Unit</th>
+              <th class="text-end">Unit price</th><th class="text-end">Line total</th>
+              {% if req.is_editable %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+              <tr>
+                <td>{{ item.name }}</td>
+                <td class="text-end">{{ item.quantity|floatformat:2 }}</td>
+                <td class="small text-muted">{{ item.unit }}</td>
+                <td class="text-end">${{ item.unit_price|floatformat:2|intcomma }}</td>
+                <td class="text-end"><strong>${{ item.line_total|floatformat:2|intcomma }}</strong></td>
+                {% if req.is_editable %}
+                  <td class="text-end">
+                    <form method="post" action="{% url 'portal:requisition_item_delete' req.pk item.pk %}"
+                          onsubmit="return confirm('Remove this item?');">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-close-line"></i></button>
+                    </form>
+                  </td>
+                {% endif %}
+              </tr>
+            {% empty %}
+              <tr><td colspan="{% if req.is_editable %}6{% else %}5{% endif %}" class="text-center text-muted py-3 small">No items added yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if req.is_editable %}
+        <div class="card-footer">
+          <form method="post" action="{% url 'portal:requisition_item_add' req.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-4">
+              <label class="form-label small">Item name</label>
+              {{ item_form.name }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Quantity</label>
+              {{ item_form.quantity }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Unit</label>
+              {{ item_form.unit }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small">Unit price</label>
+              {{ item_form.unit_price }}
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-primary w-100"><i class="ri-add-line me-1"></i> Add</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if req.status == 'draft' %}
+          <form method="post" action="{% url 'portal:requisition_submit' req.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100"><i class="ri-send-plane-line me-1"></i> Submit for approval</button>
+          </form>
+          <a href="{% url 'portal:requisition_edit' req.pk %}" class="btn btn-outline-primary">
+            <i class="ri-pencil-line me-1"></i> Edit requisition
+          </a>
+          <form method="post" action="{% url 'portal:requisition_delete' req.pk %}"
+                onsubmit="return confirm('Delete requisition {{ req.number }}?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button>
+          </form>
+        {% else %}
+          <p class="text-muted small mb-0">
+            <i class="ri-lock-line me-1"></i>
+            This requisition is {{ req.get_status_display|lower }} and can no longer be edited.
+          </p>
+        {% endif %}
+        <a href="{% url 'portal:requisition_list' %}" class="btn btn-link">&larr; Back to list</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
