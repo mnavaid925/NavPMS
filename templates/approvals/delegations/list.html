@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Delegations of Authority{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Delegation of Authority</h1>
+    <div class="breadcrumb-trail">Temporarily reassign your approval rights to a delegate</div>
+  </div>
+  <a href="{% url 'approvals:delegation_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> New delegation
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-10">
+        <label class="form-label small">Status</label>
+        <select name="active" class="form-select">
+          <option value="">All</option>
+          <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Delegator</th><th>Delegate</th><th>Period</th>
+          <th>Reason</th><th>Status</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations %}
+          <tr>
+            <td>{{ d.delegator.get_full_name|default:d.delegator.username }}</td>
+            <td>{{ d.delegate.get_full_name|default:d.delegate.username }}</td>
+            <td class="small text-muted">{{ d.start_date|date:'M d, Y' }} &rarr; {{ d.end_date|date:'M d, Y' }}</td>
+            <td class="small">{{ d.reason|default:'—' }}</td>
+            <td>
+              {% if d.is_current %}
+                <span class="badge badge-soft-success">Active now</span>
+              {% elif d.is_active %}
+                <span class="badge badge-soft-info">Scheduled</span>
+              {% else %}
+                <span class="badge badge-soft-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'approvals:delegation_edit' d.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'approvals:delegation_delete' d.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete this delegation?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No delegations.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
