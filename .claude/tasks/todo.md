@@ -1,100 +1,108 @@
-# Module 3 — Requisition Management
+# Module 4 — Approval Workflow Engine
 
 **Created:** 2026-05-22
-**Scope:** New Django app `apps/requisitions/` implementing the 5 PMS sub-modules of Module 3.
+**Scope:** New Django app `apps/approvals/` implementing the 5 PMS sub-modules of Module 4,
+integrated with Module 3 requisitions.
 
 | Sub-module | Implementation |
 |-----------|----------------|
-| Requisition Creation | `Requisition` + `RequisitionLine` — item descriptions, quantities, required dates, account codes |
-| Requisition Tracking | `status` field + `RequisitionStatusEvent` timeline + dedicated `/requisitions/tracking/` board grouped by status |
-| Duplicate Requisition Check | `find_potential_duplicates()` service — flags `possible_duplicate` + `duplicate_of` on create/submit within a 30-day window |
-| Requisition Templates | `RequisitionTemplate` + `RequisitionTemplateLine` — pre-defined recurring forms + "create requisition from template" |
-| Cancellation/Amendment | Cancel action + Amend action (revert approved/submitted to draft, bump `revision`, log status event) |
+| Dynamic Routing Rules | `ApprovalRule` + `ApprovalStep` — conditions on amount range / department / category, ordered multi-step chains |
+| Delegation of Authority | `ApprovalDelegation` — temporary reassignment of approval rights (delegator → delegate, date-bounded) |
+| Approval History & Audit Trail | `ApprovalAction` — append-only log of every submit/approve/reject/delegate/escalate/comment |
+| Escalation Management | `sla_hours` + `escalate_to` per step; `run_escalations` command + lazy sweep on inbox open |
+| Mobile Approval Interface | Responsive card-based "My Approvals" inbox + mobile-friendly task review/decide page |
 
 ## Architecture decisions
-- Dedicated `AccountCode` master model (tenant-scoped, full CRUD, FK from requisition lines).
-- Amendment = revert-to-draft + `revision` counter (single record, full timeline history).
-- Fully separate from `apps/portal/` QuickRequisition — no Module 2 changes.
-- Reuse `TenantAwareModel`/`TimeStampedModel`; views use `TenantRequiredMixin`, scope by tenant.
-- Reuse `apps.tenants.services.record_audit` so portal Activity Feed shows requisition actions.
-- Mounted at `/requisitions/`.
+- Submitting a requisition routes through the matching `ApprovalRule`; **falls back** to the
+  existing Module 3 admin approve/reject when no rule matches.
+- Steps name a **specific user** approver (+ optional `escalate_to` user).
+- Escalation: `run_escalations` management command **and** lazy on-view sweep of the inbox.
+- `ApprovalRequest` links directly to `requisitions.Requisition` (one document type today).
+- Engine completion calls `requisitions.services.decide_requisition()` to set the
+  requisition status — reuses Module 3, avoids duplication. Circular import avoided with
+  lazy imports both ways.
+- Reuse `TenantAwareModel`/`TimeStampedModel`, `record_audit`. Mounted at `/approvals/`.
 
-## Models (`apps/requisitions/models.py`)
-1. **AccountCode** — code, name, description, is_active.
-2. **RequisitionTemplate** — owner (user), name, description, category, default_account_code FK, is_shared.
-3. **RequisitionTemplateLine** — template FK, description, quantity, unit, estimated_unit_price, account_code FK.
-4. **Requisition** — requested_by (user), number (REQ-SLUG-00001), title, department, priority, required_date, justification, notes, status (draft/submitted/approved/rejected/cancelled/converted), revision, estimated_total, currency, submitted_at, approved_by/approved_at/decision_note, cancelled_at, converted_at, po_reference, created_from_template FK, possible_duplicate, duplicate_of FK.
-5. **RequisitionLine** — requisition FK, description, quantity, unit, unit_price, line_total, account_code FK, required_date.
-6. **RequisitionStatusEvent** — requisition FK, from_status, to_status, changed_by, note (tracking timeline).
+## Models (`apps/approvals/models.py`)
+1. **ApprovalRule** — name, document_type, description, is_active, priority, min_amount, max_amount, department, category.
+2. **ApprovalStep** — rule FK, order, name, approver (user), sla_hours, escalate_to (user).
+3. **ApprovalRequest** — requisition FK, rule FK, status (pending/approved/rejected/cancelled), current_step, submitted_by, completed_at.
+4. **ApprovalTask** — request FK, step FK, order, name, assigned_to (effective approver), original_approver, status (pending/approved/rejected/escalated/skipped), acted_by, acted_at, comment, due_at, escalated_at.
+5. **ApprovalAction** — request FK, task FK, actor, action, comment (append-only timeline).
+6. **ApprovalDelegation** — delegator (user), delegate (user), start_date, end_date, reason, is_active.
 
 ## Tasks
 
-### Backend — `apps/requisitions/`
+### Backend — `apps/approvals/`
 - [ ] `__init__.py`, `apps.py`
-- [ ] `models.py` — 6 models above
-- [ ] `admin.py` — register all models (template + requisition with line inlines)
-- [ ] `forms.py` — AccountCode, RequisitionTemplate, RequisitionTemplateLine, Requisition, RequisitionLine forms
-- [ ] `services.py` — `next_requisition_number`, `recalc_total`, `record_status_event`, `find_potential_duplicates`, `create_requisition_from_template`, transition helpers (submit/approve/reject/cancel/amend/convert)
-- [ ] `views.py` — full CRUD per model + workflow actions + tracking board
-- [ ] `urls.py` — `app_name = 'requisitions'`
+- [ ] `models.py` — 6 models
+- [ ] `admin.py` — register all (rule + request with inlines)
+- [ ] `forms.py` — ApprovalRule, ApprovalStep, ApprovalDelegation, TaskAction forms
+- [ ] `services.py` — `match_rule`, `resolve_approver`, `start_approval`, `act_on_task`, `escalate_overdue`, `cancel_approval`, `record_action`
+- [ ] `views.py` — rule CRUD + steps, delegation CRUD, request list/detail, inbox, task review/act, history
+- [ ] `urls.py` — `app_name = 'approvals'`
 - [ ] `migrations/__init__.py`
 - [ ] `management/__init__.py`, `management/commands/__init__.py`
-- [ ] `management/commands/seed_requisitions.py` — idempotent: account codes, templates, requisitions across all statuses
+- [ ] `management/commands/seed_approvals.py` — idempotent: rules, steps, delegations, route submitted requisitions
+- [ ] `management/commands/run_escalations.py` — escalate overdue tasks
 
-### Views (full CRUD + workflow)
-- Account codes: list / create / edit / delete
-- Templates: list / create / detail / edit / delete + line add/delete + create-requisition-from-template
-- Requisitions: list / create / detail / edit (draft) / delete (draft) + line add/delete
-- Workflow: submit, approve, reject, cancel, amend, convert-to-PO
-- Tracking: `RequisitionTrackingView` — status board with counts
+### Templates — `templates/approvals/`
+- [ ] `rules/list.html`, `rules/form.html`, `rules/detail.html`
+- [ ] `delegations/list.html`, `delegations/form.html`
+- [ ] `requests/list.html`, `requests/detail.html`
+- [ ] `inbox.html` (mobile-friendly), `task_detail.html` (review/decide), `history.html`
 
-### Templates — `templates/requisitions/`
-- [ ] `account_codes/list.html`, `account_codes/form.html`
-- [ ] `req_templates/list.html`, `req_templates/form.html`, `req_templates/detail.html`
-- [ ] `requisitions/list.html`, `requisitions/form.html`, `requisitions/detail.html`
-- [ ] `tracking.html`
+### Module 3 integration (modified files)
+- [ ] `apps/requisitions/services.py` — `submit_requisition` calls `start_approval` (lazy)
+- [ ] `apps/requisitions/views.py` — `RequisitionDetailView` passes the `ApprovalRequest`
+- [ ] `templates/requisitions/requisitions/detail.html` — show approval progress; gate the
+      admin approve/reject fallback to "no engine request"
 
 ### Wiring (modified files)
-- [ ] `config/settings.py` — add `'apps.requisitions'`
-- [ ] `config/urls.py` — `path('requisitions/', include('apps.requisitions.urls'))`
-- [ ] `templates/partials/sidebar.html` — new "Procurement" nav section
-- [ ] `apps/core/management/commands/seed_data.py` — add `seed_requisitions` step
-- [ ] `README.md` — structure, ToC, commands, seeded data, Module 3 section, routes, roadmap
+- [ ] `config/settings.py` — add `'apps.approvals'`
+- [ ] `config/urls.py` — `path('approvals/', include('apps.approvals.urls'))`
+- [ ] `templates/partials/sidebar.html` — add Approvals entries to the Procurement section
+- [ ] `apps/core/management/commands/seed_data.py` — add `seed_approvals` step
+- [ ] `README.md` — structure, ToC, commands, seeded data, Module 4 section, routes, roadmap
 
 ### Verification
-- [ ] `makemigrations requisitions` + `migrate` + `seed_requisitions` + `check`
-- [ ] Smoke test: all GET routes 200; create → add line → submit → approve → convert; amend; cancel; duplicate flag; create-from-template
+- [ ] `makemigrations approvals` + `migrate` + `seed_approvals` + `check`
+- [ ] Smoke test: rule match, multi-step routing, approve advances step, final approve sets
+      requisition approved, reject, delegation reassigns, escalation command + lazy sweep,
+      fallback path when no rule matches
 
 ## Review
 
-**Status: complete & verified (2026-05-22).**
+**Status: complete & verified (2026-05-23).**
 
-- New app `apps/requisitions/` — 6 models, services (numbering, status workflow,
-  duplicate detection, template instantiation), full-CRUD views + workflow actions,
-  urls, admin, idempotent `seed_requisitions` command (wired into `seed_data`).
-- 9 templates under `templates/requisitions/` (account_codes, req_templates,
-  requisitions, tracking board).
-- Wiring: `INSTALLED_APPS`, `config/urls.py` (`/requisitions/`), sidebar "Procurement"
-  section, `seed_data` orchestrator.
-- `README.md` updated: intro, ToC, structure, commands, seeded data, Module 3 section,
-  routes table, roadmap (Module 3 → Shipped).
+- New app `apps/approvals/` — 6 models, the workflow engine (`services.py`: routing,
+  delegation resolution, task progression, completion, escalation), full-CRUD views +
+  inbox/task/history, urls, admin, `seed_approvals` + `run_escalations` commands.
+- 10 templates under `templates/approvals/`.
+- Module 3 integration: `submit_requisition` routes through the engine;
+  `cancel_requisition`/`amend_requisition` withdraw in-flight approvals;
+  `RequisitionDetailView` + requisition `detail.html` show approval progress and gate
+  the admin approve/reject fallback to "no engine request".
+- Wiring: `INSTALLED_APPS`, `/approvals/`, sidebar "Approvals" group, `seed_data`.
+- `README.md` updated end to end (Module 4 → Shipped).
 
 **Verification performed:**
-- `manage.py check` — 0 issues (fixed an early `related_name` clash: portal and
-  requisitions both used `decided_requisitions` → renamed Module 3's to
-  `requisitions_decided`).
-- `makemigrations requisitions` → `0001_initial` (6 models + 2 indexes + unique_together);
-  `migrate` OK.
-- `seed_requisitions` — account codes, templates, requisitions across all 6 statuses
-  for all 3 tenants.
-- Smoke test 1: all 13 GET routes returned HTTP 200.
-- Smoke test 2 (workflow): create → add line (total 100) → submit → approve →
-  amend (revision 2) → re-submit → convert; duplicate auto-flagged; cancel;
-  create-from-template copied 3 lines; account-code create — all passed.
+- `manage.py check` — 0 issues.
+- `makemigrations approvals` → `0001_initial` (6 models + 3 indexes); `migrate` OK.
+- `seed_approvals` — rules/steps/delegation + routed 1 submitted requisition per tenant.
+- Smoke test 1: all 12 GET routes returned HTTP 200; engine routed 3 seeded requisitions.
+- Smoke test 2 (engine): 2-step routing → approve step 1 (pending) → approve step 2
+  (request approved → requisition approved); reject (request + requisition rejected,
+  later step skipped); delegation re-assigned a task to the delegate; overdue task
+  escalated; no-rule case returned None (admin fallback). All passed.
+- `run_escalations` command runs clean.
 
 **Design notes:**
-- Dedicated `AccountCode` master (unique code per tenant), FK'd from requisition + template lines.
-- Amendment = revert-to-draft + `revision` counter; every transition logs a
-  `RequisitionStatusEvent` and an `AuditLog` entry (feeds Module 2 Activity Feed).
-- Duplicate check: same requester, 30-day window, equal title or shared line description.
-- Kept fully separate from Module 2's portal QuickRequisition — no Module 2 changes.
+- `ApprovalRequest` → direct FK to `requisitions.Requisition` (one document type today).
+- Circular import (requisitions ⇄ approvals services) avoided with lazy imports both ways.
+- Tasks created upfront; `due_at` is stamped only when a step becomes active, so
+  not-yet-reached steps are never counted overdue.
+- Engine completion reuses Module 3's `decide_requisition()` — no duplicate status logic.
+
+**Note:** `.claude/manual-tests/` changes + a stray `.tmp` file are from the user's
+manual-test skill run — not part of this module and left untouched.
