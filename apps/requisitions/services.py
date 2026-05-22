@@ -128,7 +128,12 @@ def create_requisition_from_template(template: RequisitionTemplate, user, tenant
 # ---------- 1./5. Status workflow ----------
 
 def submit_requisition(requisition, user, *, request=None):
-    """Move a draft requisition to submitted and scan for duplicates."""
+    """Move a draft requisition to submitted, scan for duplicates, and route it
+    through the Module 4 approval workflow engine.
+
+    If a matching approval rule exists the requisition is driven by the engine;
+    otherwise it falls back to the simple admin approve/reject path.
+    """
     from_status = requisition.status
     requisition.status = 'submitted'
     requisition.submitted_at = timezone.now()
@@ -142,6 +147,9 @@ def submit_requisition(requisition, user, *, request=None):
         message=f'Requisition {requisition.number} submitted for approval',
         request=request,
     )
+    # Lazy import avoids a circular dependency with apps.approvals.services.
+    from apps.approvals.services import start_approval
+    start_approval(requisition, user, request=request)
     return requisition
 
 
@@ -182,6 +190,9 @@ def cancel_requisition(requisition, user, *, note='', request=None):
         message=f'Requisition {requisition.number} cancelled',
         request=request,
     )
+    # Withdraw any in-flight approval workflow.
+    from apps.approvals.services import cancel_approval
+    cancel_approval(requisition, user, request=request)
     return requisition
 
 
@@ -209,6 +220,9 @@ def amend_requisition(requisition, user, *, note='', request=None):
                 f'(revision {requisition.revision})',
         request=request,
     )
+    # Withdraw the in-flight approval workflow; re-submitting starts a fresh one.
+    from apps.approvals.services import cancel_approval
+    cancel_approval(requisition, user, request=request)
     return requisition
 
 
