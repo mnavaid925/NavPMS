@@ -47,6 +47,17 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
   **kwargs)`) and re-validate uniqueness in `clean_<field>()`; pass it from the view
   on every POST. Verified fix: `AccountCodeForm` in `apps/requisitions/forms.py`.
 
+- **2026-05-23 — Wide tables need `.table-responsive` AND a shrinkable layout
+  container.** A multi-column table forces horizontal page overflow on mobile
+  unless (a) it is wrapped in `.table-responsive` *and* (b) its layout ancestor
+  can shrink below its content. A CSS-grid item (like `.app-main` in a `1fr`
+  track) or a flex item defaults to `min-width: auto` and will NOT shrink below
+  its intrinsic content width — set `min-width: 0` on it. **How to apply:** wrap
+  every list/detail table in `.table-responsive`; ensure the main content
+  region has `min-width: 0`. Also watch theme-attribute selectors
+  (`html[data-...] .x`) out-specifying media-query rules — scope the responsive
+  rule through the same attribute so it wins.
+
 - **2026-05-23 — Driving Django's test `Client` from a plain script needs
   `setup_test_environment()`.** Outside `manage.py test`, `response.context` and
   `response.templates` are `None` unless `django.test.utils.setup_test_environment()`
