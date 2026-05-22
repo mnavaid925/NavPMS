@@ -10,6 +10,7 @@ Covers the five PMS sub-modules:
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -145,7 +146,7 @@ class QuickRequisition(TenantAwareModel, TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name='quick_requisitions',
     )
-    number = models.CharField(max_length=40, unique=True)
+    number = models.CharField(max_length=40)
     title = models.CharField(max_length=160)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
     description = models.TextField(blank=True)
@@ -168,6 +169,8 @@ class QuickRequisition(TenantAwareModel, TimeStampedModel):
 
     class Meta:
         ordering = ['-created_at']
+        # number is unique per tenant (not globally) — see SQA defect D-08.
+        unique_together = [('tenant', 'number')]
         indexes = [
             models.Index(fields=['tenant', 'user', 'status']),
         ]
@@ -198,10 +201,12 @@ class QuickRequisitionItem(TenantAwareModel, TimeStampedModel):
     name = models.CharField(max_length=200)
     quantity = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('1.00'),
+        validators=[MinValueValidator(Decimal('0.01'))],
     )
     unit = models.CharField(max_length=30, default='unit')
     unit_price = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
     )
     line_total = models.DecimalField(
         max_digits=14, decimal_places=2, default=Decimal('0.00'),
