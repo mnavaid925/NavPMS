@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'approvals:rule_list' %}">Approval Rules</a> &rsaquo; {{ title }}
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+      <p class="text-muted small mb-0">
+        <i class="ri-information-line me-1"></i>
+        Leave amount / department / category blank to match any requisition.
+        Lower priority numbers are evaluated first. Add approval steps on the
+        rule detail page after saving.
+      </p>
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% if rule %}{% url 'approvals:rule_detail' rule.pk %}{% else %}{% url 'approvals:rule_list' %}{% endif %}"
+         class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save rule</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
