@@ -40,6 +40,27 @@
       </li>
     </ul>
 
+    <div class="sidebar-section">Procurement</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbRequisitions" role="button" aria-expanded="false">
+          <i class="ri-file-list-3-line"></i> <span class="flex-grow-1">Requisitions</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbRequisitions">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_list' %}">All Requisitions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_create' %}">New Requisition</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:tracking' %}">Tracking Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:template_list' %}">Templates</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:account_code_list' %}">Account Codes</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </li>
+    </ul>
+
     <div class="sidebar-section">Tenant Management</div>
     <ul class="nav">
       <li class="nav-item">
