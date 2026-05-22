@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}My Reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Self-Service Reports</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo; Personal usage &amp; spend reports
+    </div>
+  </div>
+  <a href="{% url 'portal:report_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> New report
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Report name…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">Report type</label>
+        <select name="report_type" class="form-select">
+          <option value="">All types</option>
+          {% for v, l in report_type_choices %}
+            <option value="{{ v }}" {% if request.GET.report_type == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Name</th><th>Type</th><th>Date range</th>
+          <th>Last run</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rep in reports %}
+          <tr>
+            <td><a href="{% url 'portal:report_run' rep.pk %}">{{ rep.name }}</a></td>
+            <td><span class="badge badge-soft-primary">{{ rep.get_report_type_display }}</span></td>
+            <td class="small text-muted">
+              {{ rep.date_from|date:'M d, Y'|default:'—' }} &rarr; {{ rep.date_to|date:'M d, Y'|default:'today' }}
+            </td>
+            <td class="small text-muted">{% if rep.last_run_at %}{{ rep.last_run_at|naturaltime }}{% else %}Never{% endif %}</td>
+            <td class="text-end">
+              <a href="{% url 'portal:report_run' rep.pk %}" class="btn btn-sm btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
+              <a href="{% url 'portal:report_edit' rep.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'portal:report_delete' rep.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete this report?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No saved reports. Create one to track your spend and usage.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include 'partials/_pagination.html' %}
+{% endblock %}
