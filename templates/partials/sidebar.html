@@ -59,6 +59,23 @@
           </ul>
         </div>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbApprovals" role="button" aria-expanded="false">
+          <i class="ri-checkbox-circle-line"></i> <span class="flex-grow-1">Approvals</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbApprovals">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:inbox' %}">My Approvals</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:request_list' %}">Approval Requests</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:delegation_list' %}">Delegations</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:history' %}">History</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:rule_list' %}">Approval Rules</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </li>
     </ul>
 
     <div class="sidebar-section">Tenant Management</div>
