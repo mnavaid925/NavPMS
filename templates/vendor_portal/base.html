@@ -1,0 +1,70 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" data-theme="light" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Vendor Portal{% endblock %} &middot; {{ app_name }}</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+  <link href="{% static 'css/style.css' %}" rel="stylesheet">
+  <style>
+    body { background:#f6f8fb; font-family:'Inter',system-ui,sans-serif; }
+    .vp-shell { min-height:100vh; display:grid; grid-template-columns:240px 1fr; }
+    .vp-sidebar { background:#fff; border-right:1px solid #e5e7eb; padding:18px 14px; }
+    .vp-sidebar .brand { display:flex; align-items:center; gap:8px; font-weight:600; color:#1f2937; margin-bottom:18px; }
+    .vp-sidebar .brand .brand-mark { width:28px;height:28px;border-radius:6px;background:#2563eb;color:#fff;display:grid;place-items:center;font-weight:700; }
+    .vp-sidebar .small-label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; padding:8px 10px 4px; }
+    .vp-sidebar a.nav-link { color:#374151; border-radius:6px; padding:8px 10px; display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+    .vp-sidebar a.nav-link:hover { background:#eef2ff; color:#2563eb; }
+    .vp-sidebar a.nav-link.active { background:#2563eb; color:#fff; }
+    .vp-topbar { background:#fff; border-bottom:1px solid #e5e7eb; padding:10px 18px; display:flex; align-items:center; justify-content:space-between; }
+    .vp-main { padding:22px; }
+    @media(max-width:768px) { .vp-shell { grid-template-columns:1fr; } .vp-sidebar { display:none; } }
+  </style>
+</head>
+<body>
+<div class="vp-shell">
+  <aside class="vp-sidebar">
+    <div class="brand">
+      <span class="brand-mark">V</span>
+      <span>Vendor Portal</span>
+    </div>
+    <div class="small-label">{{ request.user.vendor.legal_name|default:'Vendor' }}</div>
+    <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+       href="{% url 'vendor_portal:dashboard' %}"><i class="ri-dashboard-line"></i> Dashboard</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'profile' or request.resolver_match.url_name == 'profile_edit' %}active{% endif %}"
+       href="{% url 'vendor_portal:profile' %}"><i class="ri-building-line"></i> My Profile</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'contacts' %}active{% endif %}"
+       href="{% url 'vendor_portal:contacts' %}"><i class="ri-contacts-line"></i> Contacts</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'documents' %}active{% endif %}"
+       href="{% url 'vendor_portal:documents' %}"><i class="ri-file-line"></i> Documents</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
+       href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}"
+       href="{% url 'vendor_portal:invoices' %}"><i class="ri-bill-line"></i> Invoices</a>
+    <hr>
+    <a class="nav-link" href="{% url 'accounts:logout' %}"><i class="ri-logout-box-line"></i> Sign out</a>
+  </aside>
+
+  <div>
+    <header class="vp-topbar">
+      <div>
+        <strong>{{ request.user.vendor.legal_name }}</strong>
+        <span class="text-muted small ms-2">{{ request.user.vendor.vendor_number }}</span>
+      </div>
+      <div class="small text-muted">{{ request.user.email }}</div>
+    </header>
+
+    <main class="vp-main">
+      {% include 'partials/_messages.html' %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
