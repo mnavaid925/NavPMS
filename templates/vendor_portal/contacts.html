@@ -1,0 +1,48 @@
+{% extends 'vendor_portal/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Contacts{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Contacts</h4>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">My contacts</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Primary</th></tr></thead>
+          <tbody>
+            {% for c in contacts %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>{{ c.role|default:'—' }}</td>
+              <td>{{ c.email|default:'—' }}</td>
+              <td>{{ c.phone|default:'—' }}</td>
+              <td>{% if c.is_primary %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No contacts.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Add a contact</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <button class="btn btn-primary w-100"><i class="ri-user-add-line me-1"></i> Add</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
