@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'vendors:vendor_list' %}">Vendors</a> &rsaquo; {{ title }}
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% if vendor %}{% url 'vendors:vendor_detail' vendor.pk %}{% else %}{% url 'vendors:vendor_list' %}{% endif %}"
+         class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="ri-save-line me-1"></i> Save vendor
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
