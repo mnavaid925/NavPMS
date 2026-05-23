@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ application.company_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ application.company_name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'vendors:onboarding_list' %}">Vendor Onboarding</a> &rsaquo; {{ application.company_name }}
+    </div>
+  </div>
+  <div>
+    {% if application.status == 'approved' %}<span class="badge badge-soft-success">Approved</span>
+    {% elif application.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+    {% elif application.status == 'under_review' %}<span class="badge badge-soft-info">Under review</span>
+    {% else %}<span class="badge badge-soft-warning">Submitted</span>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Application details</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-sm-4 text-muted">Trade name</dt><dd class="col-sm-8">{{ application.trade_name|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Vendor type</dt><dd class="col-sm-8">{{ application.get_vendor_type_display }}</dd>
+          <dt class="col-sm-4 text-muted">Country</dt><dd class="col-sm-8">{{ application.country|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Tax ID</dt><dd class="col-sm-8">{{ application.tax_id|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Registration #</dt><dd class="col-sm-8">{{ application.registration_number|default:'—' }}</dd>
+          <dt class="col-sm-4 text-muted">Website</dt><dd class="col-sm-8">
+            {% if application.website %}<a href="{{ application.website }}" target="_blank" rel="noopener">{{ application.website }}</a>{% else %}—{% endif %}
+          </dd>
+          <dt class="col-sm-4 text-muted">Contact</dt><dd class="col-sm-8">
+            {{ application.contact_name }}<br>
+            <a href="mailto:{{ application.contact_email }}">{{ application.contact_email }}</a>
+            {% if application.contact_phone %}<br>{{ application.contact_phone }}{% endif %}
+          </dd>
+          <dt class="col-sm-4 text-muted">Submitted</dt><dd class="col-sm-8">{{ application.submitted_at|date:'Y-m-d H:i' }}</dd>
+        </dl>
+        {% if application.service_description %}
+          <hr>
+          <h6 class="small text-muted text-uppercase">Service description</h6>
+          <p class="mb-0">{{ application.service_description|linebreaksbr }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if application.review_notes or application.rejection_reason %}
+    <div class="card mt-3">
+      <div class="card-header">Review notes</div>
+      <div class="card-body">
+        {% if application.rejection_reason %}
+          <p><strong>Rejection reason:</strong> {{ application.rejection_reason }}</p>
+        {% endif %}
+        {% if application.review_notes %}
+          <p class="mb-0 small">{{ application.review_notes|linebreaksbr }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Decision</div>
+      <div class="card-body">
+        {% if application.is_open %}
+          <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="ri-checkbox-circle-line me-1"></i> Submit decision
+            </button>
+          </form>
+        {% else %}
+          <p class="text-muted small mb-2">
+            This application is closed ({{ application.get_status_display }}).
+            {% if application.converted_to_vendor %}
+              A vendor record was created:
+              <a href="{% url 'vendors:vendor_detail' application.converted_to_vendor.pk %}">
+                {{ application.converted_to_vendor.vendor_number }}
+              </a>.
+            {% endif %}
+          </p>
+          <a href="{% url 'vendors:onboarding_list' %}" class="btn btn-outline-secondary w-100">
+            Back to queue
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
