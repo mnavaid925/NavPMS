@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Vendor Onboarding{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Vendor Onboarding</h1>
+    <div class="breadcrumb-trail">Supplier applications awaiting review</div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="alert alert-info small mb-3">
+      <i class="ri-link me-1"></i>
+      Share this public application URL with prospective suppliers:
+      <code>{{ apply_url }}</code>
+    </div>
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-8">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Company name, email, tax ID…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Company</th><th>Contact</th><th>Type</th><th>Submitted</th>
+          <th>Status</th><th>Reviewed by</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in applications %}
+          <tr>
+            <td>
+              <a href="{% url 'vendors:onboarding_detail' a.pk %}" class="text-decoration-none">
+                <strong>{{ a.company_name }}</strong>
+              </a>
+              {% if a.country %}<div class="small text-muted">{{ a.country }}</div>{% endif %}
+            </td>
+            <td class="small">
+              {{ a.contact_name }}<br>
+              <span class="text-muted">{{ a.contact_email }}</span>
+            </td>
+            <td><span class="badge badge-soft-secondary">{{ a.get_vendor_type_display }}</span></td>
+            <td class="small">{{ a.submitted_at|date:'Y-m-d H:i' }}</td>
+            <td>
+              {% if a.status == 'approved' %}<span class="badge badge-soft-success">Approved</span>
+              {% elif a.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+              {% elif a.status == 'under_review' %}<span class="badge badge-soft-info">Under review</span>
+              {% else %}<span class="badge badge-soft-warning">Submitted</span>{% endif %}
+              {% if a.converted_to_vendor %}
+                <div class="small mt-1"><a href="{% url 'vendors:vendor_detail' a.converted_to_vendor.pk %}">{{ a.converted_to_vendor.vendor_number }}</a></div>
+              {% endif %}
+            </td>
+            <td class="small">{{ a.reviewed_by|default:'—' }}</td>
+            <td class="text-end">
+              <a href="{% url 'vendors:onboarding_detail' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No applications yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
