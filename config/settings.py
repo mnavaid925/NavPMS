@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'apps.portal',
     'apps.requisitions',
     'apps.approvals',
+    'apps.vendors',
 ]
 
 MIDDLEWARE = [
@@ -39,6 +40,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.core.middleware.TenantMiddleware',
+    'apps.vendors.middleware.VendorPortalSandboxMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
