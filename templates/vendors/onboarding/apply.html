@@ -1,0 +1,24 @@
+{% extends 'base_auth.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Vendor application — {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<h4 class="mb-1">Vendor application</h4>
+<p class="text-muted small mb-3">
+  Become an approved supplier for <strong>{{ tenant.name }}</strong>. Fill in
+  your company details below. Our procurement team will review your
+  application and reach out once it has been processed.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form|crispy }}
+  <button type="submit" class="btn btn-primary w-100">
+    <i class="ri-send-plane-line me-1"></i> Submit application
+  </button>
+</form>
+
+<p class="text-center text-muted small mt-3 mb-0">
+  Already a vendor? <a href="{% url 'accounts:login' %}">Log in here</a>.
+</p>
+{% endblock %}
