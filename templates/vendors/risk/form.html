@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'vendors:vendor_list' %}">Vendors</a> &rsaquo;
+      <a href="{% url 'vendors:vendor_detail' vendor.pk %}">{{ vendor.legal_name }}</a> &rsaquo;
+      Risk Assessment
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+      <div class="alert alert-info small mb-0">
+        <i class="ri-information-line me-1"></i>
+        Score each pillar 0 (low risk) to 100 (critical). The overall score is
+        the unweighted average; the level is auto-derived: 0–25 Low, 26–50
+        Medium, 51–75 High, 76–100 Critical. Saving this assessment will
+        replace the vendor's current level.
+      </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'vendors:vendor_detail' vendor.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="ri-save-line me-1"></i> Save assessment
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
