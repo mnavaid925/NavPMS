@@ -10,9 +10,11 @@ Health Monitoring), **Module 2 — User Dashboard & Portal** (all five sub-modul
 Personalized Overview, Task & Alert Center, Quick Requisition Entry, Recent Activity Feed,
 Self-Service Reporting), **Module 3 — Requisition Management** (all five sub-modules:
 Requisition Creation, Requisition Tracking, Duplicate Requisition Check, Requisition
-Templates, Cancellation/Amendment), and **Module 4 — Approval Workflow Engine** (all five
+Templates, Cancellation/Amendment), **Module 4 — Approval Workflow Engine** (all five
 sub-modules: Dynamic Routing Rules, Delegation of Authority, Approval History & Audit Trail,
-Escalation Management, Mobile Approval Interface).
+Escalation Management, Mobile Approval Interface), and **Module 5 — Vendor Management**
+(all five sub-modules: Vendor Onboarding, Vendor Portal, Vendor Classification &
+Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension).
 
 ---
 
@@ -29,11 +31,12 @@ Escalation Management, Mobile Approval Interface).
 10. [Module 2 — User Dashboard & Portal](#module-2--user-dashboard--portal)
 11. [Module 3 — Requisition Management](#module-3--requisition-management)
 12. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
-13. [Routes / UI Tour](#routes--ui-tour)
-14. [Multi-tenancy Model](#multi-tenancy-model)
-15. [Payment Gateway](#payment-gateway)
-16. [Browser Compatibility](#browser-compatibility)
-17. [Roadmap](#roadmap)
+13. [Module 5 — Vendor Management](#module-5--vendor-management)
+14. [Routes / UI Tour](#routes--ui-tour)
+15. [Multi-tenancy Model](#multi-tenancy-model)
+16. [Payment Gateway](#payment-gateway)
+17. [Browser Compatibility](#browser-compatibility)
+18. [Roadmap](#roadmap)
 
 ---
 
@@ -66,8 +69,12 @@ NavPMS/
 │   │                         # QuickRequisition(+Item), SavedReport, activity feed
 │   ├── requisitions/         # Module 3: AccountCode, RequisitionTemplate(+Line),
 │   │                         # Requisition(+Line), RequisitionStatusEvent
-│   └── approvals/            # Module 4: ApprovalRule(+Step), ApprovalDelegation,
-│                             # ApprovalRequest, ApprovalTask, ApprovalAction
+│   ├── approvals/            # Module 4: ApprovalRule(+Step), ApprovalDelegation,
+│   │                         # ApprovalRequest, ApprovalTask, ApprovalAction
+│   └── vendors/              # Module 5: VendorCategory, VendorSegment, Vendor,
+│                             # VendorContact, VendorDocument, VendorBankAccount,
+│                             # VendorOnboardingApplication, VendorRiskAssessment,
+│                             # VendorBlacklistEvent (+ vendor portal sandbox)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -83,7 +90,9 @@ NavPMS/
 │   ├── tenants/{onboarding,plans,subscriptions,invoices,branding,security,monitoring}/
 │   ├── portal/{widgets,notifications,requisitions,reports,activity}/ + dashboard.html
 │   ├── requisitions/{account_codes,req_templates,requisitions}/ + tracking.html
-│   └── approvals/{rules,delegations,requests}/ + inbox, task_detail, history
+│   ├── approvals/{rules,delegations,requests}/ + inbox, task_detail, history
+│   ├── vendors/{vendors,categories,segments,risk,onboarding,blacklist}/
+│   └── vendor_portal/        # Separate shell for supplier self-service
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -164,13 +173,14 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
 | `python manage.py seed_portal` | Creates dashboard widgets, notifications, quick requisitions and saved reports for every tenant user. |
 | `python manage.py seed_requisitions` | Creates account codes, requisition templates and requisitions across every status for each tenant. |
 | `python manage.py seed_approvals` | Creates approval rules, steps and a delegation, and routes submitted requisitions through the engine. |
+| `python manage.py seed_vendors` | Creates vendor categories, segments, 8 vendors across every status, contacts/docs/banks, risk assessments, 3 onboarding applications and blacklist history. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
@@ -239,6 +249,14 @@ converted) — each with line items and a status-event timeline.
 Each tenant gets 2 approval rules (a single-step "Standard approval" and a two-step
 "High-value approval (over $1,000)"), one active delegation, and an `ApprovalRequest` with
 step tasks for every already-submitted requisition.
+
+### Vendor data
+Each tenant gets 5 vendor categories (Raw Materials, IT Services, Maintenance, Office
+Supplies, Logistics), 4 segments (Strategic, Tactical, Preferred, Approved), 8 vendors
+covering every status (3 active, 1 pending verification, 1 suspended, 1 blacklisted, 2
+drafts plus an approved onboarding conversion = 9 total), contacts/documents/bank accounts
+on each vendor, risk assessments on the active ones, and 3 onboarding applications
+(submitted / under review / approved-and-converted).
 
 ---
 
@@ -346,6 +364,37 @@ approve/reject. Amending or cancelling a requisition withdraws any in-flight app
 
 ---
 
+## Module 5 — Vendor Management
+
+The supplier master and supplier self-service portal ([`apps/vendors/`](apps/vendors/)) — a
+full vendor lifecycle from public onboarding application to active vendor, risk-rated and
+classified, with a separate portal shell for the suppliers themselves. All five PMS
+sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Vendor Onboarding** | Public per-tenant URL `/vendors/onboarding/apply/<tenant-slug>/` (no login). A `VendorOnboardingApplication` is created; tenant admin reviews from `/vendors/onboarding/`, then **approves → converts to a draft `Vendor`** or rejects with a reason. |
+| **Vendor Portal** | Separate shell mounted at `/vendor-portal/`. A `User.vendor` OneToOne FK turns a user into a supplier-portal user; login redirects them to the portal, and **`VendorPortalSandboxMiddleware`** prevents access to any other namespace. Self-service: dashboard, profile edit, contact CRUD, document upload, with PO/invoice placeholders for Modules 11/14. |
+| **Vendor Classification & Segmentation** | `VendorCategory` (tree-capable, parent self-FK) and `VendorSegment` (Strategic / Tactical / Preferred / Approved with badge color). Full CRUD; both surface as filters on the vendor list. |
+| **Vendor Risk Profiling** | `VendorRiskAssessment` — four 0–100 pillars (financial / operational / compliance / quality), unweighted average → 0–25 Low, 26–50 Medium, 51–75 High, 76–100 Critical. Latest assessment is marked `is_current=True` and its level/score are **denormalised onto `Vendor`** for fast filtering. |
+| **Vendor Blacklisting/Suspension** | `VendorBlacklistEvent` (append-only) records suspend / blacklist / reinstate with reason, effective date and optional end date. `Vendor.status` flips accordingly. The blacklist history page at `/vendors/blacklist/history/` is the audit trail. |
+
+The vendor record carries [`apps/vendors/models.py`](apps/vendors/models.py) — `Vendor`,
+`VendorContact`, `VendorDocument` (with `expires_at`), `VendorBankAccount`,
+`VendorOnboardingApplication`, `VendorRiskAssessment`, `VendorBlacklistEvent`,
+`VendorCategory`, `VendorSegment`. Auto-numbered as `VND-<SLUG>-NNNNN`. Document uploads
+go to `MEDIA_ROOT/vendor_docs/`. The "Verify & activate" action stamps the vendor as
+verified and moves draft/pending records to `active`.
+
+**Vendor portal invite flow:** tenant admin clicks **Invite to portal** on a vendor's
+detail page → [`apps/vendors/services.py`](apps/vendors/services.py) creates a `User` with
+the `vendor_portal` role and `vendor` FK set, returns a one-time password (shown back to
+the inviter — wire to an email backend in production). The new portal user logs in via
+the regular `/accounts/login/` and is auto-redirected to `/vendor-portal/`. The middleware
+keeps them sandboxed; `Revoke portal access` disables the user.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -381,6 +430,17 @@ approve/reject. Amending or cancelling a requisition withdraws any in-flight app
 | `/approvals/rules/` | Approval rule + step CRUD (tenant admin) |
 | `/approvals/delegations/` | Delegation of authority CRUD |
 | `/approvals/history/` | Append-only approval audit trail |
+| `/vendors/` | Vendor master — search + status/category/segment/risk filters |
+| `/vendors/create/` | New vendor form |
+| `/vendors/<id>/` | Vendor detail (tabs: contacts, documents, banks, risk, blacklist history) |
+| `/vendors/categories/` | Vendor classification CRUD (tenant admin) |
+| `/vendors/segments/` | Vendor segmentation CRUD (tenant admin) |
+| `/vendors/onboarding/` | Supplier onboarding queue (admin review) |
+| `/vendors/onboarding/apply/<tenant-slug>/` | **Public** supplier application form |
+| `/vendors/blacklist/history/` | Append-only suspend/blacklist/reinstate log |
+| `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
+| `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
+| `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
 ---
@@ -419,7 +479,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–4 ship. Modules 5–21 from the PMS spec are not yet implemented:
+Modules 1–5 ship. Modules 6–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -427,7 +487,7 @@ Modules 1–4 ship. Modules 5–21 from the PMS spec are not yet implemented:
 | 2 | User Dashboard & Portal | Shipped |
 | 3 | Requisition Management | Shipped |
 | 4 | Approval Workflow Engine | Shipped |
-| 5 | Vendor Management | Planned |
+| 5 | Vendor Management | Shipped |
 | 6 | Sourcing & Tendering | Planned |
 | 7 | RFx Management | Planned |
 | 8 | E-Auction Management | Planned |
