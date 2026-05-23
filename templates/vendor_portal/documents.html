@@ -1,0 +1,53 @@
+{% extends 'vendor_portal/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Documents{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Documents</h4>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">My documents</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Type</th><th>Title</th><th>Expires</th><th>Verified</th></tr></thead>
+          <tbody>
+            {% for d in documents %}
+            <tr>
+              <td><span class="badge badge-soft-secondary">{{ d.get_doc_type_display }}</span></td>
+              <td>
+                {% if d.file %}<a href="{{ d.file.url }}" target="_blank" rel="noopener">{{ d.title }}</a>{% else %}{{ d.title }}{% endif %}
+              </td>
+              <td>
+                {% if d.expires_at %}{{ d.expires_at|date:'Y-m-d' }}{% if d.is_expired %} <span class="badge badge-soft-danger">Expired</span>{% endif %}{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if d.is_verified %}<i class="ri-check-line text-success"></i>{% else %}<span class="text-muted small">Pending</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No documents uploaded yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Upload a document</div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <button class="btn btn-primary w-100"><i class="ri-upload-line me-1"></i> Upload</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
