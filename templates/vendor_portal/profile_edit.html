@@ -1,0 +1,27 @@
+{% extends 'vendor_portal/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Edit Profile</h4>
+  <a href="{% url 'vendor_portal:profile' %}" class="btn btn-outline-secondary btn-sm">Cancel</a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      <div class="alert alert-info small mb-3">
+        <i class="ri-information-line me-1"></i>
+        Legal name, tax ID and registration number can only be changed by the
+        buyer organisation. Submit a support request if those need updating.
+      </div>
+      {{ form|crispy }}
+    </div>
+    <div class="card-footer text-end">
+      <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save changes</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
