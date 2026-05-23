@@ -31,6 +31,13 @@ class User(AbstractUser):
     phone = models.CharField(max_length=30, blank=True)
     job_title = models.CharField(max_length=120, blank=True)
     is_tenant_admin = models.BooleanField(default=False)
+    vendor = models.OneToOneField(
+        'vendors.Vendor',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='portal_user_link',
+        help_text='If set, this user is a vendor portal user sandboxed to /vendor-portal/.',
+    )
 
     class Meta:
         ordering = ['first_name', 'last_name']
@@ -42,6 +49,11 @@ class User(AbstractUser):
         if self.first_name and self.last_name:
             return f'{self.first_name[0]}{self.last_name[0]}'.upper()
         return (self.username[:2] or 'U').upper()
+
+    @property
+    def is_vendor_user(self):
+        """True if this user is a supplier-portal user (sandboxed to /vendor-portal/)."""
+        return self.vendor_id is not None
 
 
 class UserProfile(TimeStampedModel):
