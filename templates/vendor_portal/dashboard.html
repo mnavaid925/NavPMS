@@ -1,0 +1,88 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Welcome, {{ request.user.first_name|default:vendor.legal_name }}</h4>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Status</div>
+    <div>
+      {% if vendor.status == 'active' %}<span class="badge badge-soft-success">Active</span>
+      {% elif vendor.status == 'pending_verification' %}<span class="badge badge-soft-warning">Pending verification</span>
+      {% elif vendor.status == 'suspended' %}<span class="badge badge-soft-danger">Suspended</span>
+      {% elif vendor.status == 'blacklisted' %}<span class="badge badge-soft-danger">Blacklisted</span>
+      {% else %}<span class="badge badge-soft-secondary">{{ vendor.get_status_display }}</span>{% endif %}
+    </div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Risk level</div>
+    <div>
+      {% if vendor.risk_level == 'critical' %}<span class="badge badge-soft-danger">Critical</span>
+      {% elif vendor.risk_level == 'high' %}<span class="badge badge-soft-warning">High</span>
+      {% elif vendor.risk_level == 'medium' %}<span class="badge badge-soft-info">Medium</span>
+      {% else %}<span class="badge badge-soft-success">Low</span>{% endif %}
+    </div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Documents pending verification</div>
+    <div class="h4 mb-0 text-warning">{{ open_docs }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Expiring in 60 days</div>
+    <div class="h4 mb-0 text-danger">{{ expiring_docs }}</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Profile completeness</div>
+      <div class="card-body small">
+        <ul class="list-unstyled mb-0">
+          <li>
+            {% if vendor.tax_id %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}
+            Tax ID
+          </li>
+          <li>
+            {% if vendor.country %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}
+            Country &amp; address
+          </li>
+          <li>
+            {% if vendor.bank_accounts.count %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}
+            Bank account
+          </li>
+          <li>
+            {% if vendor.documents.count %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}
+            At least one document uploaded
+          </li>
+          <li>
+            {% if vendor.contacts.count %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}
+            Secondary contact
+          </li>
+        </ul>
+        <a href="{% url 'vendor_portal:profile_edit' %}" class="btn btn-sm btn-outline-primary mt-3">
+          <i class="ri-pencil-line me-1"></i> Update profile
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Recent compliance events</div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush small">
+          {% for e in recent_events %}
+          <li class="list-group-item">
+            <strong>{{ e.get_action_display }}</strong> on {{ e.effective_date|date:'Y-m-d' }} — {{ e.reason }}
+          </li>
+          {% empty %}
+          <li class="list-group-item text-muted text-center py-3">No compliance events.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
