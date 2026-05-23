@@ -12,6 +12,8 @@ urlpatterns = [
     path('portal/', include('apps.portal.urls')),
     path('requisitions/', include('apps.requisitions.urls')),
     path('approvals/', include('apps.approvals.urls')),
+    path('vendors/', include('apps.vendors.urls')),
+    path('vendor-portal/', include('apps.vendors.portal_urls')),
 ]
 
 if settings.DEBUG:
