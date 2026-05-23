@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ vendor.legal_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ vendor.legal_name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'vendors:vendor_list' %}">Vendors</a> &rsaquo;
+      <code>{{ vendor.vendor_number }}</code>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'vendors:vendor_edit' vendor.pk %}" class="btn btn-outline-primary">
+      <i class="ri-pencil-line me-1"></i> Edit
+    </a>
+    {% if vendor.can_be_active and not vendor.is_verified %}
+      <form method="post" action="{% url 'vendors:vendor_verify' vendor.pk %}" class="d-inline">
+        {% csrf_token %}
+        <button class="btn btn-outline-success" title="Mark verified and set active">
+          <i class="ri-verified-badge-line me-1"></i> Verify &amp; activate
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <!-- Sidebar: summary + status + actions -->
+    <div class="card mb-3">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if vendor.status == 'active' %}<span class="badge badge-soft-success">Active</span>
+            {% elif vendor.status == 'pending_verification' %}<span class="badge badge-soft-warning">Pending verification</span>
+            {% elif vendor.status == 'suspended' %}<span class="badge badge-soft-danger">Suspended</span>
+            {% elif vendor.status == 'blacklisted' %}<span class="badge badge-soft-danger">Blacklisted</span>
+            {% elif vendor.status == 'inactive' %}<span class="badge badge-soft-secondary">Inactive</span>
+            {% else %}<span class="badge badge-soft-secondary">Draft</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ vendor.get_vendor_type_display }}</dd>
+          <dt class="col-5 text-muted">Category</dt><dd class="col-7">{{ vendor.category.name|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Segment</dt><dd class="col-7">
+            {% if vendor.segment %}<span class="badge bg-{{ vendor.segment.color }}-subtle text-{{ vendor.segment.color }}">{{ vendor.segment.name }}</span>{% else %}—{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Risk</dt>
+          <dd class="col-7">
+            {% if vendor.risk_level == 'critical' %}<span class="badge badge-soft-danger">Critical</span>
+            {% elif vendor.risk_level == 'high' %}<span class="badge badge-soft-warning">High</span>
+            {% elif vendor.risk_level == 'medium' %}<span class="badge badge-soft-info">Medium</span>
+            {% else %}<span class="badge badge-soft-success">Low</span>{% endif %}
+            <span class="text-muted">({{ vendor.risk_score }})</span>
+          </dd>
+          <dt class="col-5 text-muted">Verified</dt>
+          <dd class="col-7">
+            {% if vendor.is_verified %}<i class="ri-check-line text-success"></i> {{ vendor.verified_at|date:'Y-m-d' }}{% else %}<span class="text-muted">No</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Portal</dt>
+          <dd class="col-7">
+            {% if vendor.portal_user %}<span class="badge badge-soft-success">Enabled</span> <span class="small">{{ vendor.portal_user.username }}</span>{% else %}<span class="text-muted">Disabled</span>{% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Contact</div>
+      <div class="card-body small">
+        <div><i class="ri-user-line me-1"></i> {{ vendor.primary_contact_name|default:'—' }}</div>
+        <div><i class="ri-mail-line me-1"></i> {{ vendor.primary_contact_email|default:vendor.email|default:'—' }}</div>
+        <div><i class="ri-phone-line me-1"></i> {{ vendor.primary_contact_phone|default:vendor.phone|default:'—' }}</div>
+        {% if vendor.website %}<div><i class="ri-global-line me-1"></i> <a href="{{ vendor.website }}" target="_blank" rel="noopener">{{ vendor.website }}</a></div>{% endif %}
+        <hr class="my-2">
+        <div class="text-muted">
+          {{ vendor.address_line1 }}{% if vendor.address_line1 %},{% endif %}
+          {{ vendor.address_line2 }}{% if vendor.address_line2 %},{% endif %}
+          {{ vendor.city }} {{ vendor.state }} {{ vendor.postal_code }} {{ vendor.country }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        <a href="{% url 'vendors:risk_create' vendor.pk %}" class="btn btn-outline-primary btn-sm">
+          <i class="ri-bar-chart-line me-1"></i> New risk assessment
+        </a>
+        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="collapse" data-bs-target="#blacklistForm">
+          <i class="ri-forbid-2-line me-1"></i> Suspend / Blacklist / Reinstate
+        </button>
+        {% if not vendor.portal_user %}
+          <button class="btn btn-outline-info btn-sm" data-bs-toggle="collapse" data-bs-target="#inviteForm">
+            <i class="ri-mail-send-line me-1"></i> Invite to portal
+          </button>
+        {% else %}
+          <form method="post" action="{% url 'vendors:portal_revoke' vendor.pk %}"
+                onsubmit="return confirm('Revoke portal access for {{ vendor.legal_name }}?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger btn-sm w-100">
+              <i class="ri-shield-cross-line me-1"></i> Revoke portal access
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="collapse mb-3" id="blacklistForm">
+      <div class="card">
+        <div class="card-header">Suspend / Blacklist / Reinstate</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'vendors:blacklist_action' vendor.pk %}" novalidate>
+            {% csrf_token %}
+            {{ blacklist_form|crispy }}
+            <button class="btn btn-warning w-100" type="submit">
+              <i class="ri-shield-flash-line me-1"></i> Record action
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% if not vendor.portal_user %}
+    <div class="collapse mb-3" id="inviteForm">
+      <div class="card">
+        <div class="card-header">Invite vendor to the portal</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'vendors:portal_invite' vendor.pk %}" novalidate>
+            {% csrf_token %}
+            {{ invite_form|crispy }}
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="ri-mail-send-line me-1"></i> Generate credentials
+            </button>
+            <p class="small text-muted mt-2 mb-0">
+              A one-time password is shown back to you (this demo build has no email backend).
+              Share it with the vendor securely.
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <ul class="nav nav-tabs" id="vtab" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-contacts">Contacts ({{ contacts.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-docs">Documents ({{ documents.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-banks">Banks ({{ bank_accounts.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-risk">Risk</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history">Blacklist history</button></li>
+    </ul>
+    <div class="tab-content border border-top-0 p-3">
+
+      <!-- Contacts -->
+      <div class="tab-pane fade show active" id="tab-contacts">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Contacts</h6>
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#contactForm">
+            <i class="ri-add-line"></i> Add contact
+          </button>
+        </div>
+        <div class="collapse mb-3" id="contactForm">
+          <form method="post" action="{% url 'vendors:contact_add' vendor.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ contact_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save contact</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Primary</th><th></th></tr></thead>
+          <tbody>
+            {% for c in contacts %}
+            <tr>
+              <td>{{ c.name }}</td><td>{{ c.role|default:'—' }}</td>
+              <td>{{ c.email|default:'—' }}</td><td>{{ c.phone|default:'—' }}</td>
+              <td>{% if c.is_primary %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+              <td class="text-end">
+                <form method="post" action="{% url 'vendors:contact_delete' vendor.pk c.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete contact?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No contacts.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Documents -->
+      <div class="tab-pane fade" id="tab-docs">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Documents</h6>
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#docForm">
+            <i class="ri-add-line"></i> Add document
+          </button>
+        </div>
+        <div class="collapse mb-3" id="docForm">
+          <form method="post" action="{% url 'vendors:document_add' vendor.pk %}" enctype="multipart/form-data" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ document_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Upload</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Type</th><th>Title</th><th>Expires</th><th>Verified</th><th></th></tr></thead>
+          <tbody>
+            {% for d in documents %}
+            <tr>
+              <td><span class="badge badge-soft-secondary">{{ d.get_doc_type_display }}</span></td>
+              <td>
+                {% if d.file %}<a href="{{ d.file.url }}" target="_blank" rel="noopener">{{ d.title }}</a>{% else %}{{ d.title }}{% endif %}
+              </td>
+              <td>
+                {% if d.expires_at %}{{ d.expires_at|date:'Y-m-d' }}{% if d.is_expired %} <span class="badge badge-soft-danger">Expired</span>{% endif %}{% else %}—{% endif %}
+              </td>
+              <td>{% if d.is_verified %}<i class="ri-check-line text-success"></i>{% else %}<span class="text-muted small">Pending</span>{% endif %}</td>
+              <td class="text-end">
+                {% if not d.is_verified %}
+                <form method="post" action="{% url 'vendors:document_verify' vendor.pk d.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-success" title="Mark verified"><i class="ri-check-line"></i></button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'vendors:document_delete' vendor.pk d.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete document?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted small py-3">No documents.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Banks -->
+      <div class="tab-pane fade" id="tab-banks">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Bank accounts</h6>
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#bankForm">
+            <i class="ri-add-line"></i> Add bank account
+          </button>
+        </div>
+        <div class="collapse mb-3" id="bankForm">
+          <form method="post" action="{% url 'vendors:bank_add' vendor.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ bank_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save bank</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Bank</th><th>Holder</th><th>Account</th><th>Currency</th><th>Primary</th><th></th></tr></thead>
+          <tbody>
+            {% for b in bank_accounts %}
+            <tr>
+              <td>{{ b.bank_name }}</td><td>{{ b.account_holder }}</td>
+              <td><code class="small">…{{ b.account_number|slice:"-4:" }}</code></td>
+              <td>{{ b.currency }}</td>
+              <td>{% if b.is_primary %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+              <td class="text-end">
+                <form method="post" action="{% url 'vendors:bank_delete' vendor.pk b.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete bank account?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No bank accounts.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Risk -->
+      <div class="tab-pane fade" id="tab-risk">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Risk assessments</h6>
+          <a href="{% url 'vendors:risk_create' vendor.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="ri-add-line"></i> New assessment
+          </a>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Date</th><th>Score</th><th>Level</th><th>Current</th><th>Assessed by</th><th></th></tr></thead>
+          <tbody>
+            {% for r in risk_assessments %}
+            <tr>
+              <td>{{ r.assessment_date|date:'Y-m-d' }}</td>
+              <td>{{ r.overall_score }}</td>
+              <td>
+                {% if r.level == 'critical' %}<span class="badge badge-soft-danger">Critical</span>
+                {% elif r.level == 'high' %}<span class="badge badge-soft-warning">High</span>
+                {% elif r.level == 'medium' %}<span class="badge badge-soft-info">Medium</span>
+                {% else %}<span class="badge badge-soft-success">Low</span>{% endif %}
+              </td>
+              <td>{% if r.is_current %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+              <td class="small">{{ r.assessed_by|default:'—' }}</td>
+              <td class="text-end">
+                <a href="{% url 'vendors:risk_detail' vendor.pk r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                <form method="post" action="{% url 'vendors:risk_delete' vendor.pk r.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete this assessment?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No risk assessments yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Blacklist history -->
+      <div class="tab-pane fade" id="tab-history">
+        <h6 class="mb-2">Blacklist / Suspension history</h6>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Date</th><th>Action</th><th>Reason</th><th>End</th><th>By</th></tr></thead>
+          <tbody>
+            {% for e in blacklist_events %}
+            <tr>
+              <td>{{ e.effective_date|date:'Y-m-d' }}</td>
+              <td>
+                {% if e.action == 'suspend' %}<span class="badge badge-soft-warning">Suspended</span>
+                {% elif e.action == 'blacklist' %}<span class="badge badge-soft-danger">Blacklisted</span>
+                {% else %}<span class="badge badge-soft-success">Reinstated</span>{% endif %}
+              </td>
+              <td>{{ e.reason }}</td>
+              <td>{{ e.end_date|date:'Y-m-d'|default:'—' }}</td>
+              <td class="small">{{ e.actioned_by|default:'—' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted small py-3">No suspension or blacklist events.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
