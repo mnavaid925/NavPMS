@@ -1,81 +1,217 @@
-# Module 4 — Approval Workflow Engine
+# Module 5 — Vendor Management
 
-**Created:** 2026-05-22
-**Scope:** New Django app `apps/approvals/` implementing the 5 PMS sub-modules of Module 4,
-integrated with Module 3 requisitions.
+**Created:** 2026-05-24
+**Scope:** New Django app `apps/vendors/` implementing the 5 PMS sub-modules of Module 5, plus
+a separate Vendor Portal shell at `/vendor-portal/` for suppliers.
 
 | Sub-module | Implementation |
 |-----------|----------------|
-| Dynamic Routing Rules | `ApprovalRule` + `ApprovalStep` — conditions on amount range / department / category, ordered multi-step chains |
-| Delegation of Authority | `ApprovalDelegation` — temporary reassignment of approval rights (delegator → delegate, date-bounded) |
-| Approval History & Audit Trail | `ApprovalAction` — append-only log of every submit/approve/reject/delegate/escalate/comment |
-| Escalation Management | `sla_hours` + `escalate_to` per step; `run_escalations` command + lazy sweep on inbox open |
-| Mobile Approval Interface | Responsive card-based "My Approvals" inbox + mobile-friendly task review/decide page |
+| **Vendor Onboarding** | Public per-tenant slug application form (`/vendors/onboarding/apply/<tenant-slug>/`), tenant-admin review queue, "Approve → convert to Vendor" workflow, document verification. |
+| **Vendor Portal** | Separate shell at `/vendor-portal/`. Supplier auth via `User.vendor` OneToOne FK + invite link. Login redirects vendor users to portal; portal users sandboxed. Self-service: profile, contacts, documents. PO/invoice placeholders for Module 11/14. |
+| **Vendor Classification & Segmentation** | `VendorCategory` (tree-capable, parent self-FK) + `VendorSegment` (Strategic/Tactical/Preferred/Approved with badge colors). Full CRUD. Assigned on vendor form + filterable on list. |
+| **Vendor Risk Profiling** | `VendorRiskAssessment` with four-pillar 0–100 sliders (financial/operational/compliance/quality). Overall = average; level auto-derived (low/medium/high/critical). One `is_current` per vendor; denormalised onto `Vendor.risk_level` for fast filtering. |
+| **Vendor Blacklisting/Suspension** | `VendorBlacklistEvent` append-only timeline (suspend/blacklist/reinstate) with effective + end dates and reason. `Vendor.status` flips accordingly. Blacklisted/suspended vendors are flagged in the queryset for future PO selection (Module 11). |
 
 ## Architecture decisions
-- Submitting a requisition routes through the matching `ApprovalRule`; **falls back** to the
-  existing Module 3 admin approve/reject when no rule matches.
-- Steps name a **specific user** approver (+ optional `escalate_to` user).
-- Escalation: `run_escalations` management command **and** lazy on-view sweep of the inbox.
-- `ApprovalRequest` links directly to `requisitions.Requisition` (one document type today).
-- Engine completion calls `requisitions.services.decide_requisition()` to set the
-  requisition status — reuses Module 3, avoids duplication. Circular import avoided with
-  lazy imports both ways.
-- Reuse `TenantAwareModel`/`TimeStampedModel`, `record_audit`. Mounted at `/approvals/`.
+- New app `apps/vendors/` mounted at `/vendors/`. Vendor portal mounted at `/vendor-portal/`.
+- `User.vendor` (OneToOne, nullable) added to `apps.accounts.models.User`. A user with this set
+  is a supplier portal user.
+- `vendor_required` decorator: only users with `user.vendor` set may hit portal routes.
+- `vendor_blocked` decorator: portal users are kicked out of internal `/vendors/`,
+  `/requisitions/`, etc. routes.
+- Login flow patched: after login, if `user.vendor` set → redirect to `/vendor-portal/`.
+- Onboarding form is **public** (no `@login_required`) at `/vendors/onboarding/apply/<tenant-slug>/`.
+  Submission creates a `VendorOnboardingApplication` for that tenant. CSRF protected; rate
+  not enforced (deferred to Module 21).
+- `Vendor.risk_level` + `Vendor.risk_score` are denormalised from the latest
+  `is_current=True` `VendorRiskAssessment` for filter performance.
+- `VendorBlacklistEvent` is append-only (admin add/delete disabled, mirroring `AuditLog`).
+- Reuse `TenantAwareModel` / `TimeStampedModel` and `record_audit` for the audit trail.
 
-## Models (`apps/approvals/models.py`)
-1. **ApprovalRule** — name, document_type, description, is_active, priority, min_amount, max_amount, department, category.
-2. **ApprovalStep** — rule FK, order, name, approver (user), sla_hours, escalate_to (user).
-3. **ApprovalRequest** — requisition FK, rule FK, status (pending/approved/rejected/cancelled), current_step, submitted_by, completed_at.
-4. **ApprovalTask** — request FK, step FK, order, name, assigned_to (effective approver), original_approver, status (pending/approved/rejected/escalated/skipped), acted_by, acted_at, comment, due_at, escalated_at.
-5. **ApprovalAction** — request FK, task FK, actor, action, comment (append-only timeline).
-6. **ApprovalDelegation** — delegator (user), delegate (user), start_date, end_date, reason, is_active.
+## Models (`apps/vendors/models.py`)
+1. **VendorCategory** — tenant, name, code, description, parent (self FK, nullable), is_active.
+   `unique_together(tenant, code)`. Ordering: `name`.
+2. **VendorSegment** — tenant, name, code, color (hex for badge), description, is_active.
+   `unique_together(tenant, code)`. Ordering: `name`.
+3. **Vendor** — tenant, vendor_number (auto `VND-<SLUG>-NNNNN`), legal_name, trade_name,
+   vendor_type (manufacturer/distributor/service_provider/contractor/other), tax_id,
+   registration_number, email, phone, website, country, address_line1, address_line2,
+   city, state, postal_code, primary_contact_name, primary_contact_email,
+   primary_contact_phone, category FK, segment FK, status (draft/pending_verification/
+   active/suspended/blacklisted/inactive), is_verified, verified_at, verified_by,
+   risk_level (low/medium/high/critical, default low), risk_score (decimal, default 0),
+   portal_user OneToOne to User (nullable), notes.
+   `unique_together(tenant, vendor_number)`.
+4. **VendorContact** — vendor FK, name, email, phone, role, is_primary, notes.
+5. **VendorDocument** — vendor FK, doc_type (registration/tax/nda/insurance/bank/
+   quality_cert/other), title, file (`upload_to='vendor_docs/'`), description,
+   expires_at, is_verified, verified_at, verified_by, uploaded_at.
+6. **VendorBankAccount** — vendor FK, bank_name, account_holder, account_number, branch,
+   iban, swift_code, currency, country, is_primary, notes.
+7. **VendorOnboardingApplication** — tenant, token (uuid, unique, public), company_name,
+   contact_name, contact_email, contact_phone, country, vendor_type, tax_id,
+   registration_number, website, service_description, status (submitted/under_review/
+   approved/rejected), submitted_at, reviewed_by FK, reviewed_at, rejection_reason,
+   converted_to_vendor FK (nullable, set on approval).
+8. **VendorRiskAssessment** — vendor FK, assessment_date, valid_until, financial_score
+   (0–100), operational_score (0–100), compliance_score (0–100), quality_score (0–100),
+   overall_score (computed in `save()`), level (computed), notes, assessed_by FK,
+   is_current (boolean — only one current per vendor enforced in `save()`).
+9. **VendorBlacklistEvent** — vendor FK, action (suspend/blacklist/reinstate),
+   effective_date, end_date (suspension only), reason, notes, actioned_by FK,
+   created_at. Append-only.
 
 ## Tasks
 
-### Backend — `apps/approvals/`
+### Backend — `apps/vendors/`
 - [ ] `__init__.py`, `apps.py`
-- [ ] `models.py` — 6 models
-- [ ] `admin.py` — register all (rule + request with inlines)
-- [ ] `forms.py` — ApprovalRule, ApprovalStep, ApprovalDelegation, TaskAction forms
-- [ ] `services.py` — `match_rule`, `resolve_approver`, `start_approval`, `act_on_task`, `escalate_overdue`, `cancel_approval`, `record_action`
-- [ ] `views.py` — rule CRUD + steps, delegation CRUD, request list/detail, inbox, task review/act, history
-- [ ] `urls.py` — `app_name = 'approvals'`
+- [ ] `models.py` — 9 models above
+- [ ] `admin.py` — register all (vendor with contact/doc/bank inlines; application + risk + blacklist read-mostly)
+- [ ] `forms.py` — VendorForm, ContactForm, DocumentForm, BankAccountForm, CategoryForm, SegmentForm, RiskAssessmentForm, OnboardingApplicationForm (public), BlacklistEventForm, VendorPortalInviteForm
+- [ ] `services.py` — `generate_vendor_number`, `compute_risk_level`, `apply_risk_assessment`, `convert_application_to_vendor`, `suspend_vendor`, `blacklist_vendor`, `reinstate_vendor`, `invite_to_portal` (creates User + token), `accept_portal_invite`
+- [ ] `decorators.py` — `vendor_required`, `vendor_blocked`
+- [ ] `views.py` — vendor CRUD, contact/doc/bank inline CRUD, category CRUD, segment CRUD, risk CRUD (per-vendor list/create/detail), onboarding apply (public), onboarding review (admin), blacklist actions, portal invite send/accept, portal: dashboard/profile/profile_edit/documents/contacts/PO+invoice placeholders
+- [ ] `urls.py` — `app_name = 'vendors'` with all internal routes
+- [ ] `portal_urls.py` (or share `urls.py` with a separate namespace) — `app_name = 'vendor_portal'` for `/vendor-portal/`
 - [ ] `migrations/__init__.py`
 - [ ] `management/__init__.py`, `management/commands/__init__.py`
-- [ ] `management/commands/seed_approvals.py` — idempotent: rules, steps, delegations, route submitted requisitions
-- [ ] `management/commands/run_escalations.py` — escalate overdue tasks
+- [ ] `management/commands/seed_vendors.py` — idempotent
 
-### Templates — `templates/approvals/`
-- [ ] `rules/list.html`, `rules/form.html`, `rules/detail.html`
-- [ ] `delegations/list.html`, `delegations/form.html`
-- [ ] `requests/list.html`, `requests/detail.html`
-- [ ] `inbox.html` (mobile-friendly), `task_detail.html` (review/decide), `history.html`
+### Templates — `templates/vendors/`
+- [ ] `vendors/list.html` — search + status/category/segment/risk filters + actions
+- [ ] `vendors/form.html` — create/edit (also reused for verify)
+- [ ] `vendors/detail.html` — tabs: Overview / Contacts / Documents / Bank Accounts / Risk / Blacklist History; Action sidebar (edit/suspend/blacklist/reinstate/invite-to-portal)
+- [ ] `categories/list.html`, `categories/form.html`
+- [ ] `segments/list.html`, `segments/form.html`
+- [ ] `contacts/form.html`
+- [ ] `documents/form.html`
+- [ ] `bank_accounts/form.html`
+- [ ] `risk/form.html`, `risk/detail.html`
+- [ ] `onboarding/apply.html` (PUBLIC, anon-friendly card layout)
+- [ ] `onboarding/applied.html` (PUBLIC thank-you)
+- [ ] `onboarding/list.html` (admin review queue)
+- [ ] `onboarding/detail.html` (admin review + approve/reject)
+- [ ] `blacklist/form.html` (action dialog: suspend/blacklist/reinstate)
 
-### Module 3 integration (modified files)
-- [ ] `apps/requisitions/services.py` — `submit_requisition` calls `start_approval` (lazy)
-- [ ] `apps/requisitions/views.py` — `RequisitionDetailView` passes the `ApprovalRequest`
-- [ ] `templates/requisitions/requisitions/detail.html` — show approval progress; gate the
-      admin approve/reject fallback to "no engine request"
+### Templates — `templates/vendor_portal/`
+- [ ] `base.html` — separate shell (minimal sidebar: Dashboard / My Profile / Documents / Contacts / Purchase Orders / Invoices), logo+vendor name in topbar
+- [ ] `dashboard.html` — welcome card, profile completeness, document expiry alerts, recent activity
+- [ ] `profile.html`, `profile_edit.html`
+- [ ] `documents.html` (list + upload)
+- [ ] `contacts.html` (list + add)
+- [ ] `purchase_orders.html` (placeholder — "Available in Module 11")
+- [ ] `invoices.html` (placeholder — "Available in Module 14")
+- [ ] `invite_accept.html` — token URL → set-password form
+
+### Auth integration (modified files)
+- [ ] `apps/accounts/models.py` — add `User.vendor` OneToOne FK + `is_vendor_user` property
+- [ ] `apps/accounts/views.py` — login redirect: if `user.vendor`, go to `/vendor-portal/`
+- [ ] `apps/accounts/middleware.py` (or new vendor middleware) — sandbox vendor users
+      OR per-view `vendor_blocked` on every internal namespace's URLConf (simpler, do this)
 
 ### Wiring (modified files)
-- [ ] `config/settings.py` — add `'apps.approvals'`
-- [ ] `config/urls.py` — `path('approvals/', include('apps.approvals.urls'))`
-- [ ] `templates/partials/sidebar.html` — add Approvals entries to the Procurement section
-- [ ] `apps/core/management/commands/seed_data.py` — add `seed_approvals` step
-- [ ] `README.md` — structure, ToC, commands, seeded data, Module 4 section, routes, roadmap
+- [ ] `config/settings.py` — add `'apps.vendors'`
+- [ ] `config/urls.py` — `path('vendors/', include('apps.vendors.urls'))` and
+      `path('vendor-portal/', include(('apps.vendors.portal_urls', 'vendor_portal'), namespace='vendor_portal'))`
+- [ ] `templates/partials/sidebar.html` — new "Vendors" group in the Procurement section
+      (Vendors list, Categories, Segments, Onboarding Applications, Blacklist History)
+- [ ] `apps/core/management/commands/seed_data.py` — add `seed_vendors` after `seed_approvals`
+- [ ] `README.md` — Project Structure, ToC, Management Commands, Seeded Demo Data,
+      **new Module 5 section**, Routes table, Roadmap (Module 5 → Shipped)
+
+### Seed data per tenant
+- 5 categories: Raw Materials, IT Services, Maintenance, Office Supplies, Logistics
+- 4 segments: Strategic (red), Tactical (orange), Preferred (green), Approved (blue)
+- 8 vendors: 3 active, 1 pending_verification, 1 suspended, 1 blacklisted, 2 draft
+- 1–2 contacts, 1 document, 1 bank account per vendor (file stays None on doc rows — path-only or skipped)
+- Risk assessment on each active vendor (varied scores → varied levels)
+- 3 onboarding applications: 1 submitted, 1 under_review, 1 approved-and-converted
+- 2–3 blacklist events on the suspended + blacklisted vendors
 
 ### Verification
-- [ ] `makemigrations approvals` + `migrate` + `seed_approvals` + `check`
-- [ ] Smoke test: rule match, multi-step routing, approve advances step, final approve sets
-      requisition approved, reject, delegation reassigns, escalation command + lazy sweep,
-      fallback path when no rule matches
+- [ ] `python manage.py check` — 0 issues
+- [ ] `makemigrations vendors` → `0001_initial`; `makemigrations accounts` → adds `vendor` FK
+- [ ] `migrate` — both clean
+- [ ] `seed_vendors` (and via `seed_data --flush`) — populated for each tenant
+- [ ] Smoke test: every GET route returns 200 with `admin_acme`
+- [ ] Multi-tenancy: admin_acme cannot see admin_globex vendor rows
+- [ ] CRUD: create/edit/delete on vendor, category, segment, risk assessment
+- [ ] Status workflow: draft → pending → verify → active; active → suspend → reinstate; active → blacklist
+- [ ] Public onboarding application: submit anon → tenant admin sees in queue → approve → vendor created
+- [ ] Portal: invite vendor → accept link → log in → land on `/vendor-portal/`; cannot reach `/vendors/`
 
 ## Review
 
+**Status: complete & verified (2026-05-24).**
+
+- New app `apps/vendors/` — 9 models (`VendorCategory`, `VendorSegment`, `Vendor`,
+  `VendorContact`, `VendorDocument`, `VendorBankAccount`, `VendorOnboardingApplication`,
+  `VendorRiskAssessment`, `VendorBlacklistEvent`), service layer
+  (`next_vendor_number`, `apply_risk_assessment` with denorm onto Vendor,
+  `convert_application_to_vendor`, `suspend/blacklist/reinstate_vendor`,
+  `verify_vendor`, `invite_to_portal`, `revoke_portal_access`), full views,
+  forms, admin, urls (`vendors:` and `vendor_portal:` namespaces), seed command.
+- 15 internal templates (`templates/vendors/`) + 8 vendor portal templates
+  (`templates/vendor_portal/`) with a separate shell.
+- `User.vendor` OneToOne FK added (`apps/accounts/migrations/0002_user_vendor.py`),
+  `User.is_vendor_user` helper, login flow auto-redirects vendor users to the portal.
+- **`VendorPortalSandboxMiddleware`** — kicks vendor users back to `/vendor-portal/`
+  when they attempt to access internal namespaces (`/vendors/`, `/requisitions/`,
+  `/approvals/`, `/portal/`, `/`). Allowed prefixes: `/vendor-portal/`,
+  `/accounts/`, `/admin/`, `/static/`, `/media/`. Chosen over per-app decorators
+  because it provides blanket coverage that future modules inherit automatically.
+- Wiring: `INSTALLED_APPS`, `/vendors/` + `/vendor-portal/` URL mounts, sidebar
+  "Vendors" group with role-gated entries, `seed_data` orchestrator extended with
+  `seed_vendors`, README updated end to end (Module 5 → Shipped).
+
+**Verification performed:**
+- `manage.py check` — 0 issues.
+- `makemigrations vendors accounts` → `vendors.0001_initial` (9 models, 3 indexes,
+  unique_together) + `accounts.0002_user_vendor`; `migrate` OK.
+- `seed_vendors` — populated categories, segments, 9 vendors, contacts/docs/banks,
+  risk assessments, 3 onboarding apps, blacklist events. Idempotent (skips with
+  warning on second run, supports `--flush`).
+- Smoke test 1: 13 GET routes returned HTTP 200 as `admin_acme` (list, create,
+  detail, edit, categories, segments, risk, onboarding queue, public apply form
+  anonymous, blacklist history).
+- Smoke test 2 (vendor portal): 7 routes returned 200 as a portal user
+  (dashboard, profile, profile_edit, documents, contacts, PO+invoice placeholders).
+- Smoke test 3 (sandbox middleware): vendor user → 5 internal namespaces all
+  returned 302 → `/vendor-portal/`. Tenant admin unaffected.
+- Smoke test 4 (workflows): multi-tenancy (Globex admin gets 404 on Acme vendor);
+  status transitions draft → verify → active → suspend → reinstate → blacklist;
+  risk recompute (new critical assessment denormalises to Vendor.risk_level);
+  onboarding approve creates a vendor via `convert_application_to_vendor`; public
+  anonymous application submission creates an application for the right tenant.
+- Login flow: POST `/accounts/login/` with vendor user credentials returns 302 →
+  `/vendor-portal/`.
+
+**Design notes:**
+- `Vendor.risk_level` + `Vendor.risk_score` are denormalised from the current
+  `VendorRiskAssessment` to keep list filters fast. `apply_risk_assessment`
+  marks older assessments stale in the same transaction.
+- Onboarding `convert_application_to_vendor` creates the vendor as
+  `pending_verification`, not active — the verify step is a deliberate gate.
+- Onboarding apply form is *fully public*: no `@login_required`; tenant resolved
+  from URL slug; `set_current_tenant` is invoked manually because the auth
+  middleware leaves `request.tenant` None for anonymous requests.
+- Portal invite returns a one-time password back to the caller (no email
+  backend yet). Production must wire SMTP and stop displaying the raw secret.
+- Vendor portal uses its own base template (`vendor_portal/base.html`), not the
+  internal `base.html`, so changes to the buyer sidebar/topbar don't leak into
+  the supplier experience.
+
+**Files changed:** 32 new + 8 modified = 40 files.
+
+---
+
+# Previous Modules
+
+## Module 4 — Approval Workflow Engine — 2026-05-22 / 2026-05-23
+
 **Status: complete & verified (2026-05-23).**
 
-- New app `apps/approvals/` — 6 models, the workflow engine (`services.py`: routing,
+- New app `apps/approvals/` — 6 models, workflow engine (`services.py`: routing,
   delegation resolution, task progression, completion, escalation), full-CRUD views +
   inbox/task/history, urls, admin, `seed_approvals` + `run_escalations` commands.
 - 10 templates under `templates/approvals/`.
@@ -85,72 +221,20 @@ integrated with Module 3 requisitions.
   the admin approve/reject fallback to "no engine request".
 - Wiring: `INSTALLED_APPS`, `/approvals/`, sidebar "Approvals" group, `seed_data`.
 - `README.md` updated end to end (Module 4 → Shipped).
-
-**Verification performed:**
-- `manage.py check` — 0 issues.
-- `makemigrations approvals` → `0001_initial` (6 models + 3 indexes); `migrate` OK.
-- `seed_approvals` — rules/steps/delegation + routed 1 submitted requisition per tenant.
-- Smoke test 1: all 12 GET routes returned HTTP 200; engine routed 3 seeded requisitions.
-- Smoke test 2 (engine): 2-step routing → approve step 1 (pending) → approve step 2
-  (request approved → requisition approved); reject (request + requisition rejected,
-  later step skipped); delegation re-assigned a task to the delegate; overdue task
-  escalated; no-rule case returned None (admin fallback). All passed.
-- `run_escalations` command runs clean.
-
-**Design notes:**
-- `ApprovalRequest` → direct FK to `requisitions.Requisition` (one document type today).
-- Circular import (requisitions ⇄ approvals services) avoided with lazy imports both ways.
-- Tasks created upfront; `due_at` is stamped only when a step becomes active, so
-  not-yet-reached steps are never counted overdue.
-- Engine completion reuses Module 3's `decide_requisition()` — no duplicate status logic.
-
-**Note:** `.claude/manual-tests/` changes + a stray `.tmp` file are from the user's
-manual-test skill run — not part of this module and left untouched.
-
----
+- Verified: `manage.py check` clean; migrations + seed + 12 routes 200 + engine smoke
+  test (2-step approve, reject, delegate, escalate, no-rule fallback) all passed.
 
 ## Manual Test — Requisition Management (Module 3) — 2026-05-23
 
 **Scope:** `/manual-test "Requisition Management"` → produced
-`.claude/manual-tests/requisitions-manual-test.md` (145 test cases), then executed
-the back-end-verifiable subset and fixed the defect found.
+`.claude/manual-tests/requisitions-manual-test.md` (145 test cases), executed the
+back-end-verifiable subset, then a 43-case browser pass; fixed two bugs.
 
-**Work done:**
-- Built a 145-case manual test plan (auth, multi-tenancy, CRUD, search, pagination,
-  filters, workflow, UI/UX, negative, integration), verified against the codebase.
-- Auto-executed 60 cases via Django's test `Client` (throwaway harness, since removed).
-- **Bug found & fixed — BUG-01:** creating an `AccountCode` with a `code` that already
-  exists for the tenant raised a 500 `IntegrityError` instead of a clean form error.
-  Root cause: `tenant` is excluded from `AccountCodeForm`, so `validate_unique()`
-  skipped the `unique_together('tenant','code')` check.
+- **BUG-01:** `AccountCode` duplicate-code 500 (unique_together + excluded field).
+  Fixed in `apps/requisitions/forms.py` (tenant kwarg + `clean_code`).
+- **BUG-02:** mobile horizontal overflow. Fixed in `static/css/style.css`
+  (`.app-main { min-width: 0 }` + sidebar selector re-scoped) and five
+  requisition tables wrapped in `.table-responsive`.
 
-**Fix:**
-- `apps/requisitions/forms.py` — `AccountCodeForm` now takes a `tenant` kwarg and
-  validates tenant-scoped code uniqueness in `clean_code()`.
-- `apps/requisitions/views.py` — create & edit views pass `tenant=request.tenant`.
-
-**Verification:**
-- All 60 auto-executed cases PASS after the fix (0 fail); TC-CREATE-08 re-run →
-  clean form error "An account code with this code already exists.", no 500.
-- `seed_requisitions --flush` re-run to leave a clean data baseline.
-- Lesson captured in `lessons.md` (unique_together + excluded-field 500 trap).
-
-**Browser pass (Playwright + system Chrome):**
-- Drove 43 more UI/UX cases at 1920×1080, 768×1024 and 375×667 mobile — page
-  titles, sidebar, breadcrumbs, badge colours, confirm dialogs, console errors,
-  pagination, filters, responsive layout. All 43 PASS after the fix below.
-- **Bug found & fixed — BUG-02:** horizontal page overflow on mobile (≤992px).
-  Two causes: (a) wide tables not wrapped in `.table-responsive`; (b) the theme
-  rule `html[data-layout-position="fixed"] .app-sidebar { position: sticky }`
-  overrode the mobile `position: fixed`, jamming the 260px sidebar in-flow.
-- **Fix:** `static/css/style.css` — `.app-main { min-width: 0 }` + the mobile
-  sidebar rule re-scoped to `html[data-layout-position] .app-sidebar`; five
-  requisition list/detail tables wrapped in `.table-responsive`. The sidebar
-  half is an app-wide layout defect — the CSS fix corrects it globally.
-- Verified: every module page now `scrollWidth = 375` at a 375px viewport;
-  desktop 1920px layout unchanged.
-
-**Totals:** 103 / 145 cases executed (60 back-end + 43 browser), 0 fail,
-2 bugs found & fixed (BUG-01, BUG-02). 42 cases still need a human (visual
-judgement, double-submit timing, browser back/forward). GO-with-fixes.
-
+**Totals:** 103 / 145 cases executed, 0 fail, 2 bugs fixed. 42 cases still need a
+human (visual judgement, double-submit timing, browser back/forward). GO-with-fixes.
