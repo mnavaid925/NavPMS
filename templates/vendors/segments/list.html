@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Vendor Segments{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Vendor Segments</h1>
+    <div class="breadcrumb-trail">Strategic / Tactical / Preferred / Approved tiers</div>
+  </div>
+  <a href="{% url 'vendors:segment_create' %}" class="btn btn-primary">
+    <i class="ri-add-line me-1"></i> New segment
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-10">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Segment name or code…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>Code</th><th>Name</th><th>Color</th><th>Vendors</th><th>Status</th><th class="text-end">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for s in segments %}
+          <tr>
+            <td><code class="small">{{ s.code }}</code></td>
+            <td>{{ s.name }}{% if s.description %}<div class="small text-muted">{{ s.description|truncatechars:80 }}</div>{% endif %}</td>
+            <td><span class="badge bg-{{ s.color }}-subtle text-{{ s.color }}">{{ s.name }}</span></td>
+            <td><span class="badge badge-soft-secondary">{{ s.vendor_count }}</span></td>
+            <td>
+              {% if s.is_active %}<span class="badge badge-soft-success">Active</span>
+              {% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'vendors:segment_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'vendors:segment_delete' s.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete segment {{ s.name }}?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No segments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
