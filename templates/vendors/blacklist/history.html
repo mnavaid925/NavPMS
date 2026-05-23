@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Blacklist History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Blacklist History</h1>
+    <div class="breadcrumb-trail">Append-only suspension, blacklist and reinstatement log</div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-7">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Vendor name or reason…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Action</label>
+        <select name="action" class="form-select">
+          <option value="">All</option>
+          {% for value, label in action_choices %}
+            <option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th>Date</th><th>Vendor</th><th>Action</th><th>Reason</th><th>End date</th><th>By</th></tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+          <tr>
+            <td class="small">{{ e.effective_date|date:'Y-m-d' }}</td>
+            <td><a href="{% url 'vendors:vendor_detail' e.vendor.pk %}">{{ e.vendor.legal_name }}</a></td>
+            <td>
+              {% if e.action == 'suspend' %}<span class="badge badge-soft-warning">Suspended</span>
+              {% elif e.action == 'blacklist' %}<span class="badge badge-soft-danger">Blacklisted</span>
+              {% else %}<span class="badge badge-soft-success">Reinstated</span>{% endif %}
+            </td>
+            <td>{{ e.reason }}</td>
+            <td class="small">{{ e.end_date|date:'Y-m-d'|default:'—' }}</td>
+            <td class="small">{{ e.actioned_by|default:'—' }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No blacklist events recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
