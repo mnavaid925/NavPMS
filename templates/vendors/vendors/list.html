@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}Vendors{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Vendors</h1>
+    <div class="breadcrumb-trail">Supplier master records — Module 5</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'vendors:onboarding_list' %}" class="btn btn-outline-secondary">
+      <i class="ri-user-add-line me-1"></i> Onboarding queue
+    </a>
+    <a href="{% url 'vendors:vendor_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New vendor
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total</div>
+    <div class="h4 mb-0">{{ stats.total }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Active</div>
+    <div class="h4 mb-0 text-success">{{ stats.active }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Pending verification</div>
+    <div class="h4 mb-0 text-warning">{{ stats.pending }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Suspended / blacklisted</div>
+    <div class="h4 mb-0 text-danger">{{ stats.blocked }}</div>
+  </div></div></div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Vendor name, number, email, tax ID…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Category</label>
+        <select name="category" class="form-select">
+          <option value="">Any</option>
+          {% for cat in categories %}
+            <option value="{{ cat.pk }}" {% if request.GET.category == cat.pk|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Segment</label>
+        <select name="segment" class="form-select">
+          <option value="">Any</option>
+          {% for seg in segments %}
+            <option value="{{ seg.pk }}" {% if request.GET.segment == seg.pk|stringformat:"d" %}selected{% endif %}>{{ seg.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label small">Risk</label>
+        <select name="risk" class="form-select">
+          <option value="">Any</option>
+          {% for value, label in risk_choices %}
+            <option value="{{ value }}" {% if request.GET.risk == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Number</th><th>Vendor</th><th>Type</th><th>Category</th>
+          <th>Segment</th><th>Status</th><th>Risk</th><th>Portal</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendors %}
+          <tr>
+            <td><code class="small">{{ v.vendor_number }}</code></td>
+            <td>
+              <a href="{% url 'vendors:vendor_detail' v.pk %}" class="text-decoration-none">
+                <strong>{{ v.legal_name }}</strong>
+              </a>
+              {% if v.trade_name %}<div class="small text-muted">{{ v.trade_name }}</div>{% endif %}
+            </td>
+            <td class="small">{{ v.get_vendor_type_display }}</td>
+            <td class="small">{{ v.category.name|default:'—' }}</td>
+            <td>
+              {% if v.segment %}<span class="badge bg-{{ v.segment.color }}-subtle text-{{ v.segment.color }}">{{ v.segment.name }}</span>{% else %}<span class="text-muted small">—</span>{% endif %}
+            </td>
+            <td>
+              {% if v.status == 'active' %}<span class="badge badge-soft-success">Active</span>
+              {% elif v.status == 'pending_verification' %}<span class="badge badge-soft-warning">Pending</span>
+              {% elif v.status == 'suspended' %}<span class="badge badge-soft-danger">Suspended</span>
+              {% elif v.status == 'blacklisted' %}<span class="badge badge-soft-danger">Blacklisted</span>
+              {% elif v.status == 'inactive' %}<span class="badge badge-soft-secondary">Inactive</span>
+              {% else %}<span class="badge badge-soft-secondary">Draft</span>{% endif %}
+            </td>
+            <td>
+              {% if v.risk_level == 'critical' %}<span class="badge badge-soft-danger">Critical</span>
+              {% elif v.risk_level == 'high' %}<span class="badge badge-soft-warning">High</span>
+              {% elif v.risk_level == 'medium' %}<span class="badge badge-soft-info">Medium</span>
+              {% else %}<span class="badge badge-soft-success">Low</span>{% endif %}
+            </td>
+            <td>
+              {% if v.portal_user %}<i class="ri-shield-check-line text-success" title="Portal enabled"></i>
+              {% else %}<i class="ri-shield-line text-muted" title="No portal access"></i>{% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'vendors:vendor_detail' v.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'vendors:vendor_edit' v.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'vendors:vendor_delete' v.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete vendor {{ v.legal_name }}?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-4">
+            No vendors yet. <a href="{% url 'vendors:vendor_create' %}">Create the first one</a> or check the
+            <a href="{% url 'vendors:onboarding_list' %}">onboarding queue</a>.
+          </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
