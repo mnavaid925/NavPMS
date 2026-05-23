@@ -32,8 +32,14 @@ class LoginView(View):
 
     def get(self, request):
         if request.user.is_authenticated:
-            return redirect('dashboard')
+            return redirect(self._post_login_target(request.user))
         return render(request, self.template_name, {'form': LoginForm()})
+
+    @staticmethod
+    def _post_login_target(user):
+        if getattr(user, 'is_vendor_user', False):
+            return 'vendor_portal:dashboard'
+        return 'dashboard'
 
     def post(self, request):
         form = LoginForm(request.POST)
@@ -53,7 +59,7 @@ class LoginView(View):
                     request,
                     f'Welcome back, {user.get_full_name() or user.username}!',
                 )
-                return redirect('dashboard')
+                return redirect(self._post_login_target(user))
             messages.error(request, 'Invalid credentials or inactive account.')
         return render(request, self.template_name, {'form': form})
 
