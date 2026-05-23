@@ -24,6 +24,7 @@ class Command(BaseCommand):
             ('seed_portal', 'Portal widgets + notifications + requisitions + reports'),
             ('seed_requisitions', 'Account codes + requisition templates + requisitions'),
             ('seed_approvals', 'Approval rules + steps + delegations + routed requests'),
+            ('seed_vendors', 'Vendors + categories + segments + risk + onboarding'),
         ]
 
         for cmd, label in steps:
