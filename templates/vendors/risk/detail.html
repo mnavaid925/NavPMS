@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Risk Assessment — {{ vendor.legal_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Risk Assessment</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'vendors:vendor_list' %}">Vendors</a> &rsaquo;
+      <a href="{% url 'vendors:vendor_detail' vendor.pk %}">{{ vendor.legal_name }}</a> &rsaquo;
+      {{ assessment.assessment_date|date:'Y-m-d' }}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Overall</div>
+      <div class="card-body text-center">
+        <div class="h2 mb-0">{{ assessment.overall_score }}</div>
+        <div class="text-muted small">out of 100</div>
+        <hr>
+        <div>
+          {% if assessment.level == 'critical' %}<span class="badge badge-soft-danger fs-6">Critical risk</span>
+          {% elif assessment.level == 'high' %}<span class="badge badge-soft-warning fs-6">High risk</span>
+          {% elif assessment.level == 'medium' %}<span class="badge badge-soft-info fs-6">Medium risk</span>
+          {% else %}<span class="badge badge-soft-success fs-6">Low risk</span>{% endif %}
+        </div>
+        {% if assessment.is_current %}
+          <div class="small text-success mt-2"><i class="ri-check-line"></i> Current</div>
+        {% else %}
+          <div class="small text-muted mt-2">Superseded</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">Pillars</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small"><span>Financial</span><span>{{ assessment.financial_score }} / 100</span></div>
+          <div class="progress" style="height: 8px;"><div class="progress-bar bg-primary" style="width: {{ assessment.financial_score }}%;"></div></div>
+        </div>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small"><span>Operational</span><span>{{ assessment.operational_score }} / 100</span></div>
+          <div class="progress" style="height: 8px;"><div class="progress-bar bg-info" style="width: {{ assessment.operational_score }}%;"></div></div>
+        </div>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small"><span>Compliance</span><span>{{ assessment.compliance_score }} / 100</span></div>
+          <div class="progress" style="height: 8px;"><div class="progress-bar bg-warning" style="width: {{ assessment.compliance_score }}%;"></div></div>
+        </div>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small"><span>Quality</span><span>{{ assessment.quality_score }} / 100</span></div>
+          <div class="progress" style="height: 8px;"><div class="progress-bar bg-success" style="width: {{ assessment.quality_score }}%;"></div></div>
+        </div>
+
+        <dl class="row mb-0 small">
+          <dt class="col-sm-3 text-muted">Assessment date</dt>
+          <dd class="col-sm-9">{{ assessment.assessment_date|date:'Y-m-d' }}</dd>
+          <dt class="col-sm-3 text-muted">Valid until</dt>
+          <dd class="col-sm-9">{{ assessment.valid_until|date:'Y-m-d'|default:'—' }}</dd>
+          <dt class="col-sm-3 text-muted">Assessed by</dt>
+          <dd class="col-sm-9">{{ assessment.assessed_by|default:'—' }}</dd>
+          {% if assessment.notes %}
+          <dt class="col-sm-3 text-muted">Notes</dt>
+          <dd class="col-sm-9">{{ assessment.notes|linebreaksbr }}</dd>
+          {% endif %}
+        </dl>
+
+        <div class="mt-3 d-flex justify-content-end gap-2">
+          <a href="{% url 'vendors:vendor_detail' vendor.pk %}" class="btn btn-outline-secondary">Back</a>
+          <form method="post" action="{% url 'vendors:risk_delete' vendor.pk assessment.pk %}"
+                onsubmit="return confirm('Delete this assessment?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
