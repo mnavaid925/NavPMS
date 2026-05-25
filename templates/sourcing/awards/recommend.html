@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Recommend award — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Recommend award</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'sourcing:event_list' %}">Sourcing Events</a> &rsaquo;
+      <a href="{% url 'sourcing:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      Recommend award
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info small">
+  Pick the vendor you want to recommend and the amount you want to award them. This creates a
+  <strong>recommended</strong> award record; click <strong>Finalize award</strong> on the event
+  page to commit the decision (winner becomes <em>awarded</em>, others <em>rejected</em>).
+  {% if event.allow_partial_award %}
+  <br>This event allows <strong>partial awards</strong>, so you can recommend multiple vendors.
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'sourcing:event_detail' event.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-success">
+        <i class="ri-award-line me-1"></i> Recommend award
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
