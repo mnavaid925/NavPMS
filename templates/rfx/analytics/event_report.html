@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Analytics — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Analytics — {{ event.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo; Analytics
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Invited</div><div class="h4 mb-0">{{ metrics.invited }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Responded</div><div class="h4 mb-0 text-primary">{{ metrics.responded }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Response rate</div>
+    <div class="h4 mb-0 text-success">{{ metrics.response_rate }}%</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Shortlisted</div>
+    <div class="h4 mb-0 text-success">{{ metrics.shortlisted }}</div>
+  </div></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">Final ranking</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr>
+        <th>Rank</th><th>Vendor</th><th>Status</th><th class="text-end">Score</th><th>Decision</th>
+      </tr></thead>
+      <tbody>
+        {% for r in ranked %}
+        <tr>
+          <td>{{ r.rank|default:'—' }}</td>
+          <td>
+            <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="text-decoration-none">
+              <strong>{{ r.vendor.legal_name }}</strong>
+            </a>
+          </td>
+          <td>
+            {% if r.status == 'shortlisted' %}<span class="badge badge-soft-success">Shortlisted</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+            {% elif r.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+            {% elif r.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ r.get_status_display }}</span>{% endif %}
+          </td>
+          <td class="text-end">{{ r.overall_score|floatformat:2 }}</td>
+          <td class="small">{{ r.decision_reason|truncatechars:80|default:'—' }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No responses on this event.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
