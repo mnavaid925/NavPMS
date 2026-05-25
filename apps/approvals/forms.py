@@ -22,6 +22,28 @@ class ApprovalRuleForm(forms.ModelForm):
             'department': forms.TextInput(attrs={'placeholder': 'Blank = any department'}),
         }
 
+    def clean_min_amount(self):
+        value = self.cleaned_data.get('min_amount')
+        if value is not None and value < 0:
+            raise forms.ValidationError('Minimum amount cannot be negative.')
+        return value
+
+    def clean_max_amount(self):
+        value = self.cleaned_data.get('max_amount')
+        if value is not None and value < 0:
+            raise forms.ValidationError('Maximum amount cannot be negative.')
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        lo, hi = cleaned.get('min_amount'), cleaned.get('max_amount')
+        if lo is not None and hi is not None and lo > hi:
+            self.add_error(
+                'max_amount',
+                'Maximum amount must be greater than or equal to the minimum.',
+            )
+        return cleaned
+
 
 class ApprovalStepForm(forms.ModelForm):
     """Rendered field-by-field on the rule detail page."""
