@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ template.title }} — RFx Template{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ template.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:template_list' %}">Templates</a> &rsaquo; {{ template.title }}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    <a href="{% url 'rfx:template_edit' template.pk %}" class="btn btn-outline-primary">
+      <i class="ri-pencil-line me-1"></i> Edit
+    </a>
+    <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#useTplForm">
+      <i class="ri-play-line me-1"></i> Use this template
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Template details</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ template.get_rfx_type_display }}</dd>
+          <dt class="col-5 text-muted">Shared</dt>
+          <dd class="col-7">{% if template.is_shared %}<i class="ri-check-line text-success"></i> Yes{% else %}No{% endif %}</dd>
+          <dt class="col-5 text-muted">Archived</dt>
+          <dd class="col-7">{% if template.archived %}Yes{% else %}No{% endif %}</dd>
+          <dt class="col-5 text-muted">Created by</dt><dd class="col-7">{{ template.created_by|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Sections</dt><dd class="col-7">{{ template.sections.count }}</dd>
+          <dt class="col-5 text-muted">Scored weight</dt>
+          <dd class="col-7">{{ scored_weight_total }}% {% if scored_weight_total != 100 %}<span class="small text-muted">(must reach 100% before use)</span>{% endif %}</dd>
+        </dl>
+        {% if template.description %}
+        <hr><p class="mb-0 small">{{ template.description|linebreaksbr }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if can_manage %}
+    <div class="collapse mb-3" id="useTplForm">
+      <div class="card">
+        <div class="card-header">Spawn an event from this template</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'rfx:template_use' template.pk %}" novalidate>
+            {% csrf_token %}{{ use_form|crispy }}
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="ri-send-plane-line me-1"></i> Create RFx event
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <div class="d-flex justify-content-between mb-2">
+      <h5 class="mb-0">Sections &amp; questions</h5>
+      {% if can_manage %}
+      <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#sectionForm">
+        <i class="ri-add-line"></i> Add section
+      </button>
+      {% endif %}
+    </div>
+    {% if can_manage %}
+    <div class="collapse mb-3" id="sectionForm">
+      <form method="post" action="{% url 'rfx:template_section_create' template.pk %}" novalidate class="border rounded p-3">
+        {% csrf_token %}{{ section_form|crispy }}
+        <button class="btn btn-primary btn-sm" type="submit">Save section</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% for section in sections %}
+    <div class="card mb-2">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <strong>{{ section.position }}. {{ section.title }}</strong>
+          {% if section.description %}<div class="small text-muted">{{ section.description }}</div>{% endif %}
+        </div>
+        {% if can_manage %}
+        <div class="d-flex gap-1">
+          <a href="{% url 'rfx:template_section_edit' template.pk section.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+          <form method="post" action="{% url 'rfx:template_section_delete' template.pk section.pk %}" class="d-inline"
+                onsubmit="return confirm('Delete section &quot;{{ section.title }}&quot; and all its questions?');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-body p-2">
+        <table class="table table-sm table-borderless mb-2">
+          <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Req.</th><th>Scored</th><th class="text-end">Weight</th><th></th></tr></thead>
+          <tbody>
+            {% for q in section.questions.all %}
+            <tr>
+              <td>{{ q.position }}</td>
+              <td>
+                <strong>{{ q.prompt }}</strong>
+                {% if q.help_text %}<div class="small text-muted">{{ q.help_text|truncatechars:80 }}</div>{% endif %}
+              </td>
+              <td class="small"><span class="badge badge-soft-info">{{ q.get_question_type_display }}</span></td>
+              <td>{% if q.is_required %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+              <td>{% if q.is_scored %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+              <td class="text-end">{{ q.weight }}%</td>
+              <td class="text-end">
+                {% if can_manage %}
+                <a href="{% url 'rfx:template_question_edit' template.pk q.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'rfx:template_question_delete' template.pk q.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete this question?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted small py-2">No questions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if can_manage %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#qForm-{{ section.pk }}">
+          <i class="ri-add-line"></i> Add question
+        </button>
+        <div class="collapse mt-2" id="qForm-{{ section.pk }}">
+          <form method="post" action="{% url 'rfx:template_question_create' template.pk section.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ question_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save question</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-3">No sections yet. Add one to start building the template.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
