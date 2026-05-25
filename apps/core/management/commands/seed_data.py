@@ -26,6 +26,7 @@ class Command(BaseCommand):
             ('seed_approvals', 'Approval rules + steps + delegations + routed requests'),
             ('seed_vendors', 'Vendors + categories + segments + risk + onboarding'),
             ('seed_sourcing', 'Sourcing events + invitees + bids + evaluations + awards'),
+            ('seed_rfx', 'RFx templates + events + responses + evaluations + shortlist'),
         ]
 
         for cmd, label in steps:
