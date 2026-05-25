@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Compare responses — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Compare responses</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      Compare
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="min-width: 240px;">Question</th>
+          {% for r in responses %}
+          <th class="text-center" style="min-width: 200px;">
+            <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="text-decoration-none">
+              <div>{{ r.vendor.legal_name }}</div>
+            </a>
+            <div class="small text-muted">Rank {{ r.rank|default:'—' }} · Score {{ r.overall_score|floatformat:2 }}</div>
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in matrix %}
+        <tr>
+          <td>
+            <div class="small text-muted">{{ row.section.title }}</div>
+            <strong>Q{{ row.question.position }}. {{ row.question.prompt }}</strong>
+            {% if row.question.is_scored %}
+              <div class="small text-muted">Scored ({{ row.question.weight }}%, max {{ row.question.max_score }})</div>
+            {% endif %}
+          </td>
+          {% for c in row.cells %}
+          <td class="small">
+            {% with ans=c.answer q=row.question %}
+              {% if ans and ans.is_answered %}
+                {% if q.question_type == 'text' or q.question_type == 'longtext' or q.question_type == 'yes_no' %}
+                  {{ ans.value_text|truncatechars:160 }}
+                {% elif q.question_type == 'number' or q.question_type == 'scale' %}
+                  {{ ans.value_number|floatformat }}
+                {% elif q.question_type == 'single_choice' or q.question_type == 'multi_choice' %}
+                  {{ ans.value_choices|join:', ' }}
+                {% elif q.question_type == 'date' %}
+                  {{ ans.value_date|date:'Y-m-d' }}
+                {% elif q.question_type == 'file' %}
+                  {% if ans.value_file %}<a href="{{ ans.value_file.url }}" target="_blank">file</a>{% else %}—{% endif %}
+                {% endif %}
+              {% else %}<em class="text-muted">—</em>{% endif %}
+            {% endwith %}
+            {% if c.avg_score %}
+              <div class="small text-primary">avg {{ c.avg_score|floatformat:2 }}</div>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ responses|length|add:'1' }}" class="text-center text-muted py-3">No questions on this event.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
