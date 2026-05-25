@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block title %}Sourcing Events{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Sourcing &amp; Tendering</h1>
+    <div class="breadcrumb-trail">Events, bids, evaluation &amp; award — Module 6</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sourcing:analytics_dashboard' %}" class="btn btn-outline-secondary">
+      <i class="ri-line-chart-line me-1"></i> Analytics
+    </a>
+    {% if can_manage %}
+    <a href="{% url 'sourcing:event_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New event
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total events</div>
+    <div class="h4 mb-0">{{ stats.total }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Draft</div>
+    <div class="h4 mb-0 text-secondary">{{ stats.draft }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Open for bids</div>
+    <div class="h4 mb-0 text-warning">{{ stats.open }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded</div>
+    <div class="h4 mb-0 text-success">{{ stats.awarded }}</div>
+  </div></div></div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Event number, title…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Type</label>
+        <select name="event_type" class="form-select">
+          <option value="">Any</option>
+          {% for value, label in type_choices %}
+            <option value="{{ value }}" {% if request.GET.event_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Category</label>
+        <select name="category" class="form-select">
+          <option value="">Any</option>
+          {% for cat in categories %}
+            <option value="{{ cat.pk }}" {% if request.GET.category == cat.pk|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Number</th><th>Title</th><th>Type</th><th>Status</th>
+          <th class="text-end">Estimated</th>
+          <th>Publish</th><th>Close</th><th>Invitees</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+          <tr>
+            <td><code class="small">{{ ev.event_number }}</code></td>
+            <td>
+              <a href="{% url 'sourcing:event_detail' ev.pk %}" class="text-decoration-none">
+                <strong>{{ ev.title }}</strong>
+              </a>
+              {% if ev.requisition %}<div class="small text-muted">From {{ ev.requisition.number }}</div>{% endif %}
+            </td>
+            <td class="small">{{ ev.get_event_type_display }}</td>
+            <td>
+              {% if ev.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+              {% elif ev.status == 'scheduled' %}<span class="badge badge-soft-info">Scheduled</span>
+              {% elif ev.status == 'open' %}<span class="badge badge-soft-warning">Open</span>
+              {% elif ev.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+              {% elif ev.status == 'under_evaluation' %}<span class="badge badge-soft-primary">Under eval</span>
+              {% elif ev.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+              {% elif ev.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+              {% else %}<span class="badge badge-soft-secondary">{{ ev.get_status_display }}</span>{% endif %}
+            </td>
+            <td class="text-end">{{ ev.currency }} {{ ev.estimated_value|floatformat:2 }}</td>
+            <td class="small">{{ ev.publish_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td class="small">{{ ev.close_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td class="small">{{ ev.invitees.count }}</td>
+            <td class="text-end">
+              <a href="{% url 'sourcing:event_detail' ev.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+              {% if can_manage and ev.is_editable %}
+              <a href="{% url 'sourcing:event_edit' ev.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'sourcing:event_delete' ev.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete event {{ ev.event_number }}?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-4">
+            No sourcing events yet.
+            {% if can_manage %}<a href="{% url 'sourcing:event_create' %}">Create the first one</a>.{% endif %}
+          </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
