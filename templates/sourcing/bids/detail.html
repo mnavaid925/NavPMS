@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}Bid {{ bid.bid_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Bid {{ bid.bid_number }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'sourcing:event_list' %}">Sourcing Events</a> &rsaquo;
+      <a href="{% url 'sourcing:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      <a href="{% url 'sourcing:bid_list' event.pk %}">Bids</a> &rsaquo;
+      {{ bid.bid_number }}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if not sealed and can_evaluate %}
+    <a href="{% url 'sourcing:bid_evaluate' event.pk bid.pk %}" class="btn btn-success">
+      <i class="ri-edit-line me-1"></i> Score this bid
+    </a>
+    {% endif %}
+    <a href="{% url 'sourcing:event_detail' event.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line me-1"></i> Back to event
+    </a>
+  </div>
+</div>
+
+{% if sealed %}
+  <div class="card">
+    <div class="card-body text-center py-5">
+      <i class="ri-lock-line h1 text-warning"></i>
+      <h4 class="mt-3">This bid is sealed</h4>
+      <p class="text-muted">
+        Bid content becomes visible after the event closes
+        ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
+      </p>
+    </div>
+  </div>
+{% else %}
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Vendor</dt>
+          <dd class="col-7">
+            <a href="{% url 'vendors:vendor_detail' bid.vendor.pk %}" class="text-decoration-none">{{ bid.vendor.legal_name }}</a>
+          </dd>
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if bid.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+            {% elif bid.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+            {% elif bid.status == 'shortlisted' %}<span class="badge badge-soft-primary">Shortlisted</span>
+            {% elif bid.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+            {% elif bid.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+            {% elif bid.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ bid.get_status_display }}</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Total</dt>
+          <dd class="col-7"><strong>{{ bid.currency }} {{ bid.total_amount|floatformat:2 }}</strong></dd>
+          <dt class="col-5 text-muted">Compliant</dt>
+          <dd class="col-7">{% if bid.is_compliant %}<i class="ri-check-line text-success"></i> Yes{% else %}<i class="ri-close-line text-danger"></i> No{% endif %}</dd>
+          <dt class="col-5 text-muted">Score</dt>
+          <dd class="col-7">{{ bid.overall_score|floatformat:2 }}</dd>
+          <dt class="col-5 text-muted">Rank</dt>
+          <dd class="col-7">{{ bid.rank|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Submitted</dt>
+          <dd class="col-7">{{ bid.submitted_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">By</dt>
+          <dd class="col-7">{{ bid.submitted_by|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Lead time</dt>
+          <dd class="col-7">{{ bid.delivery_lead_time_days|default:'—' }}{% if bid.delivery_lead_time_days %} days{% endif %}</dd>
+          <dt class="col-5 text-muted">Validity</dt>
+          <dd class="col-7">{{ bid.validity_days|default:'—' }}{% if bid.validity_days %} days{% endif %}</dd>
+        </dl>
+      </div>
+    </div>
+
+    {% if bid.payment_terms or bid.notes %}
+    <div class="card mb-3">
+      <div class="card-header">Notes</div>
+      <div class="card-body small">
+        {% if bid.payment_terms %}<div><strong>Payment terms:</strong> {{ bid.payment_terms }}</div>{% endif %}
+        {% if bid.notes %}<div class="mt-2">{{ bid.notes|linebreaksbr }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_manage and bid.status in 'submitted,under_review' %}
+    <div class="card mb-3">
+      <div class="card-header">Decision</div>
+      <div class="card-body d-grid gap-2">
+        <form method="post" action="{% url 'sourcing:bid_shortlist' event.pk bid.pk %}">
+          {% csrf_token %}
+          <button class="btn btn-outline-primary w-100"><i class="ri-medal-line me-1"></i> Shortlist</button>
+        </form>
+        <form method="post" action="{% url 'sourcing:bid_reject' event.pk bid.pk %}"
+              onsubmit="return confirm('Reject bid {{ bid.bid_number }}?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger w-100"><i class="ri-close-circle-line me-1"></i> Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span>Line items</span>
+        <span class="text-muted small">{{ lines|length }} line(s)</span>
+      </div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>#</th><th>Item</th><th class="text-end">RFQ qty</th><th class="text-end">Bid qty</th><th class="text-end">Unit price</th><th class="text-end">Line total</th><th>Lead time</th></tr></thead>
+        <tbody>
+          {% for l in lines %}
+          <tr>
+            <td>{{ l.event_item.line_no }}</td>
+            <td>{{ l.event_item.item_description }}</td>
+            <td class="text-end">{{ l.event_item.quantity|floatformat:3 }}</td>
+            <td class="text-end">{{ l.quantity_offered|floatformat:3 }}</td>
+            <td class="text-end">{{ l.unit_price|floatformat:2 }}</td>
+            <td class="text-end"><strong>{{ l.line_total|floatformat:2 }}</strong></td>
+            <td class="small">{{ l.lead_time_days|default:'—' }}{% if l.lead_time_days %} d{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted small py-3">No lines.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5" class="text-end">Total</th>
+            <th class="text-end">{{ bid.currency }} {{ bid.total_amount|floatformat:2 }}</th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>
+
+    {% if documents %}
+    <div class="card mb-3">
+      <div class="card-header">Documents</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Title</th><th>Uploaded</th><th></th></tr></thead>
+        <tbody>
+          {% for d in documents %}
+          <tr>
+            <td>{{ d.title }}</td>
+            <td class="small">{{ d.uploaded_at|date:'Y-m-d H:i' }}</td>
+            <td class="text-end">{% if d.file %}<a href="{{ d.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="ri-download-line"></i></a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if criteria %}
+    <div class="card">
+      <div class="card-header">Evaluation panel scores</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Criterion</th><th class="text-end">Weight</th><th class="text-end">Max</th><th class="text-end">Panel evaluations</th></tr></thead>
+        <tbody>
+          {% for c in criteria %}
+          <tr>
+            <td><strong>{{ c.name }}</strong> <span class="badge badge-soft-info">{{ c.get_criterion_type_display }}</span></td>
+            <td class="text-end">{{ c.weight }}%</td>
+            <td class="text-end">{{ c.max_score }}</td>
+            <td class="text-end">{{ bid.evaluations.all|length }} score(s)</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <div class="card-footer small text-muted">
+        Click <strong>Score this bid</strong> above to record your own evaluation.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
