@@ -1,0 +1,192 @@
+{% extends 'vendor_portal/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Bid — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">Your bid for {{ event.title }}</h2>
+    <div class="small text-muted">
+      <code>{{ event.event_number }}</code> · Bid <code>{{ bid.bid_number }}</code> ·
+      Close: {{ event.close_at|date:'Y-m-d H:i'|default:'no close date' }}
+    </div>
+  </div>
+  <a href="{% url 'vendor_portal:sourcing_event_detail' event.pk %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to event
+  </a>
+</div>
+
+{% if locked %}
+<div class="alert alert-info small">
+  This bid is <strong>{{ bid.get_status_display }}</strong> and can no longer be edited.
+  {% if bid.status == 'submitted' and event.status == 'open' %}
+  You can still <strong>withdraw</strong> it before the event closes.
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+
+  <div class="card mb-3">
+    <div class="card-header">Bid header</div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-2">
+          <label class="form-label small">Currency</label>
+          <input type="text" class="form-control" value="{{ bid.currency }}" disabled>
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small">Delivery lead time (days)</label>
+          {% if locked %}
+            <input type="number" class="form-control" value="{{ bid.delivery_lead_time_days|default:'' }}" disabled>
+          {% else %}
+            {{ header_form.delivery_lead_time_days }}
+          {% endif %}
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small">Validity (days)</label>
+          {% if locked %}
+            <input type="number" class="form-control" value="{{ bid.validity_days|default:'' }}" disabled>
+          {% else %}
+            {{ header_form.validity_days }}
+          {% endif %}
+        </div>
+        <div class="col-md-3 mb-2">
+          <label class="form-label small">Payment terms</label>
+          {% if locked %}
+            <input type="text" class="form-control" value="{{ bid.payment_terms }}" disabled>
+          {% else %}
+            {{ header_form.payment_terms }}
+          {% endif %}
+        </div>
+      </div>
+      <div class="mb-0">
+        <label class="form-label small">Notes</label>
+        {% if locked %}
+          <textarea class="form-control" rows="2" disabled>{{ bid.notes }}</textarea>
+        {% else %}
+          {{ header_form.notes }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Line items</div>
+    <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>#</th><th>Item</th><th>UoM</th><th class="text-end">RFQ qty</th><th>Bid qty</th><th>Unit price</th><th>Lead time</th><th>Notes</th><th class="text-end">Line total</th></tr></thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>{{ line.event_item.line_no }}</td>
+          <td>{{ line.event_item.item_description }}</td>
+          <td><span class="badge bg-secondary">{{ line.event_item.uom }}</span></td>
+          <td class="text-end small text-muted">{{ line.event_item.quantity|floatformat:3 }}</td>
+          <td>
+            <input type="number" step="0.001" min="0" name="line_{{ line.pk }}_quantity_offered"
+                   class="form-control form-control-sm" style="width:110px"
+                   value="{{ line.quantity_offered|stringformat:'s' }}" {% if locked %}disabled{% endif %}>
+          </td>
+          <td>
+            <input type="number" step="0.01" min="0" name="line_{{ line.pk }}_unit_price"
+                   class="form-control form-control-sm" style="width:120px"
+                   value="{{ line.unit_price|stringformat:'s' }}" {% if locked %}disabled{% endif %}>
+          </td>
+          <td>
+            <input type="number" step="1" min="0" name="line_{{ line.pk }}_lead_time_days"
+                   class="form-control form-control-sm" style="width:90px"
+                   value="{{ line.lead_time_days|default:'' }}" {% if locked %}disabled{% endif %}>
+          </td>
+          <td>
+            <input type="text" name="line_{{ line.pk }}_notes"
+                   class="form-control form-control-sm"
+                   value="{{ line.notes }}" {% if locked %}disabled{% endif %}>
+          </td>
+          <td class="text-end"><strong>{{ line.line_total|floatformat:2 }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="8" class="text-end">Total</th>
+          <th class="text-end">{{ bid.currency }} {{ bid.total_amount|floatformat:2 }}</th>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+  </div>
+
+  {% if not locked %}
+  <div class="card mb-3">
+    <div class="card-header">Upload supporting document (optional)</div>
+    <div class="card-body">
+      {{ doc_form|crispy }}
+      <div class="small text-muted">Max 10 MB per file. Add a separate save action below.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if documents %}
+  <div class="card mb-3">
+    <div class="card-header">Attached documents</div>
+    <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Title</th><th>Uploaded</th><th></th></tr></thead>
+      <tbody>
+        {% for d in documents %}
+        <tr>
+          <td>{{ d.title }}</td>
+          <td class="small">{{ d.uploaded_at|date:'Y-m-d H:i' }}</td>
+          <td class="text-end">{% if d.file %}<a class="btn btn-sm btn-outline-primary" href="{{ d.file.url }}" target="_blank" rel="noopener"><i class="ri-download-line"></i></a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="d-flex justify-content-between">
+    <a href="{% url 'vendor_portal:sourcing_event_detail' event.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    {% if not locked %}
+      <button type="submit" class="btn btn-primary">
+        <i class="ri-save-line me-1"></i> Save draft
+      </button>
+    {% endif %}
+  </div>
+</form>
+
+{% if not locked and bid.status == 'draft' %}
+<hr class="my-4">
+<div class="card">
+  <div class="card-header">Ready to submit?</div>
+  <div class="card-body">
+    <p class="small">
+      Submitting locks your bid. You can still <strong>withdraw</strong> it before the event closes.
+      Make sure every line has a unit price &gt; 0 — bids with missing prices are flagged
+      as non-compliant.
+    </p>
+    <form method="post" action="{% url 'vendor_portal:sourcing_bid_submit' event.pk bid.pk %}"
+          onsubmit="return confirm('Submit your bid? You can still withdraw before close.');">
+      {% csrf_token %}
+      <button class="btn btn-success">
+        <i class="ri-send-plane-line me-1"></i> Submit bid
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if bid.status == 'submitted' and event.status == 'open' %}
+<hr class="my-4">
+<form method="post" action="{% url 'vendor_portal:sourcing_bid_withdraw' event.pk bid.pk %}"
+      onsubmit="return confirm('Withdraw your bid? You will not be able to re-submit.');">
+  {% csrf_token %}
+  <button class="btn btn-outline-danger">
+    <i class="ri-close-circle-line me-1"></i> Withdraw bid
+  </button>
+</form>
+{% endif %}
+{% endblock %}
