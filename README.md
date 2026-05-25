@@ -12,9 +12,11 @@ Self-Service Reporting), **Module 3 — Requisition Management** (all five sub-m
 Requisition Creation, Requisition Tracking, Duplicate Requisition Check, Requisition
 Templates, Cancellation/Amendment), **Module 4 — Approval Workflow Engine** (all five
 sub-modules: Dynamic Routing Rules, Delegation of Authority, Approval History & Audit Trail,
-Escalation Management, Mobile Approval Interface), and **Module 5 — Vendor Management**
+Escalation Management, Mobile Approval Interface), **Module 5 — Vendor Management**
 (all five sub-modules: Vendor Onboarding, Vendor Portal, Vendor Classification &
-Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension).
+Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension), and
+**Module 6 — Sourcing & Tendering** (all five sub-modules: Event Creation & Scheduling,
+Bid Submission Portal, Bid Evaluation Matrix, Award Recommendation, Sourcing Analytics).
 
 ---
 
@@ -32,11 +34,12 @@ Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension).
 11. [Module 3 — Requisition Management](#module-3--requisition-management)
 12. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
 13. [Module 5 — Vendor Management](#module-5--vendor-management)
-14. [Routes / UI Tour](#routes--ui-tour)
-15. [Multi-tenancy Model](#multi-tenancy-model)
-16. [Payment Gateway](#payment-gateway)
-17. [Browser Compatibility](#browser-compatibility)
-18. [Roadmap](#roadmap)
+14. [Module 6 — Sourcing & Tendering](#module-6--sourcing--tendering)
+15. [Routes / UI Tour](#routes--ui-tour)
+16. [Multi-tenancy Model](#multi-tenancy-model)
+17. [Payment Gateway](#payment-gateway)
+18. [Browser Compatibility](#browser-compatibility)
+19. [Roadmap](#roadmap)
 
 ---
 
@@ -71,10 +74,13 @@ NavPMS/
 │   │                         # Requisition(+Line), RequisitionStatusEvent
 │   ├── approvals/            # Module 4: ApprovalRule(+Step), ApprovalDelegation,
 │   │                         # ApprovalRequest, ApprovalTask, ApprovalAction
-│   └── vendors/              # Module 5: VendorCategory, VendorSegment, Vendor,
-│                             # VendorContact, VendorDocument, VendorBankAccount,
-│                             # VendorOnboardingApplication, VendorRiskAssessment,
-│                             # VendorBlacklistEvent (+ vendor portal sandbox)
+│   ├── vendors/              # Module 5: VendorCategory, VendorSegment, Vendor,
+│   │                         # VendorContact, VendorDocument, VendorBankAccount,
+│   │                         # VendorOnboardingApplication, VendorRiskAssessment,
+│   │                         # VendorBlacklistEvent (+ vendor portal sandbox)
+│   └── sourcing/             # Module 6: SourcingEvent(+Item), SourcingEventInvitee,
+│                             # SourcingCriterion, Bid(+Line +Document), BidEvaluation,
+│                             # SourcingAward (append-only)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -92,7 +98,9 @@ NavPMS/
 │   ├── requisitions/{account_codes,req_templates,requisitions}/ + tracking.html
 │   ├── approvals/{rules,delegations,requests}/ + inbox, task_detail, history
 │   ├── vendors/{vendors,categories,segments,risk,onboarding,blacklist}/
+│   ├── sourcing/{events,items,criteria,bids,awards,analytics}/
 │   └── vendor_portal/        # Separate shell for supplier self-service
+│       └── sourcing/         # Vendor-side bid submission + invitations
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -173,7 +181,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -181,6 +189,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_requisitions` | Creates account codes, requisition templates and requisitions across every status for each tenant. |
 | `python manage.py seed_approvals` | Creates approval rules, steps and a delegation, and routes submitted requisitions through the engine. |
 | `python manage.py seed_vendors` | Creates vendor categories, segments, 8 vendors across every status, contacts/docs/banks, risk assessments, 3 onboarding applications and blacklist history. |
+| `python manage.py seed_sourcing` | Creates 3 sourcing events per tenant (draft / open with 2 bids / awarded with full evaluation matrix + finalised award + savings). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
@@ -257,6 +266,14 @@ covering every status (3 active, 1 pending verification, 1 suspended, 1 blacklis
 drafts plus an approved onboarding conversion = 9 total), contacts/documents/bank accounts
 on each vendor, risk assessments on the active ones, and 3 onboarding applications
 (submitted / under review / approved-and-converted).
+
+### Sourcing data
+Each tenant gets 3 sourcing events:
+- **Draft** — "Office stationery Q2" (RFQ, 3 items, 4 criteria, no invitees yet)
+- **Open** — "Server hardware refresh" (RFP, 4 items, 4 criteria, 3 invitees, 1 draft bid + 1 submitted bid)
+- **Awarded** — "Janitorial services Q1" (Tender, 2 items, 4 criteria, 3 submitted bids, full panel evaluation, lowest weighted-cost compliant winner, recorded savings)
+
+Criteria template: Price 40 / Quality 25 / Delivery 20 / Compliance 15 (sums to 100).
 
 ---
 
@@ -395,6 +412,40 @@ keeps them sandboxed; `Revoke portal access` disables the user.
 
 ---
 
+## Module 6 — Sourcing & Tendering
+
+The tendering and bid-management surface ([`apps/sourcing/`](apps/sourcing/)) — buyers
+issue RFQ / RFP / RFT / Tender events, invite vendors, receive sealed bids, score them
+against weighted criteria, and award the contract. Vendors bid through the existing
+vendor portal — no second shell. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Event Creation & Scheduling** | `SourcingEvent` (`SRC-<SLUG>-NNNNN`, type RFQ/RFP/RFT/Tender) + `SourcingEventItem` lines (qty, UoM, est. unit price, optional `AccountCode`). Status workflow `draft → scheduled → open → closed → under_evaluation → awarded` plus `cancelled`. Optional FK to source `Requisition` so an approved REQ can spawn an event with pre-filled lines — the "Create Sourcing Event" button on the requisition detail page does exactly this. |
+| **Bid Submission Portal** | `SourcingEventInvitee` (one row per invited vendor, status `invited → viewed → submitted / declined / withdrawn`). Vendors bid from `/vendor-portal/sourcing/` — a draft `Bid` is created with one `BidLine` per `SourcingEventItem`, pre-filled with the buyer's quantities, plus optional `BidDocument` uploads. **Sealed bids**: bid totals/lines/documents are hidden from buyers (and other vendors) until the event closes. Vendors can `withdraw` while the event is open. |
+| **Bid Evaluation Matrix** | `SourcingCriterion` (weighted criteria per event, weights sum to 100 — validated at publish time). `BidEvaluation` is one score per `(bid, criterion, evaluator)` — supports panel scoring (multi-evaluator average per criterion). The service computes `overall_score = Σ(weight × avg_score / max_score)` and persists it on `Bid.overall_score` + rank. A side-by-side bid comparison matrix lives at `/sourcing/events/<pk>/bids/compare/`. |
+| **Award Recommendation** | `recommend_award(event, vendor, amount, user, justification)` creates a `SourcingAward` (status `recommended`). `finalize_award(event, user)` promotes the recommendation to `approved`, flips the winning `Bid.status` → `awarded` and others → `rejected`, denormalises the winning vendor and amount onto the event, and computes savings. Direct admin action — Module 4 routing is not gated in this build. Set `allow_partial_award=True` to award by line. |
+| **Sourcing Analytics** | Per-event report (estimated vs awarded, savings $/%, invitees / submitted, response rate, cycle time) plus a tenant-wide dashboard at `/sourcing/analytics/` (counts by status, total estimated/awarded/savings, response rate, top vendors by wins). |
+
+**Permission gate:** event create / edit / publish / close / award is restricted to roles
+`tenant_admin`, `procurement_manager`, `buyer` (plus Django superuser). Evaluators include
+those plus `approver` — any of them can score a bid. Helpers
+[`can_manage_sourcing`](apps/sourcing/services.py) and [`can_evaluate`](apps/sourcing/services.py)
+encapsulate the check.
+
+**Sealed-bid enforcement:** the [`bid_visible_to(user, bid)`](apps/sourcing/services.py)
+gate returns True only when (a) the user is the vendor portal user who owns the bid,
+or (b) the event status is in `{closed, under_evaluation, awarded, cancelled}`. The
+[`bid_detail`](apps/sourcing/views.py) and [`bid_list`](apps/sourcing/views.py) views
+render a sealed-bid placeholder when this check fails, instead of leaking the bid content.
+
+**Integration with Module 5 (Vendors):** only `active` vendors can be invited (the form
+queryset excludes `suspended`, `blacklisted`, `inactive`). Vendors with a portal user
+see invitations directly; vendors without a portal user are still recorded as invitees
+(the tenant admin can `Invite to portal` from the vendor detail to grant access).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -438,8 +489,21 @@ keeps them sandboxed; `Revoke portal access` disables the user.
 | `/vendors/onboarding/` | Supplier onboarding queue (admin review) |
 | `/vendors/onboarding/apply/<tenant-slug>/` | **Public** supplier application form |
 | `/vendors/blacklist/history/` | Append-only suspend/blacklist/reinstate log |
+| `/sourcing/events/` | Sourcing events — search + status/type/category filters |
+| `/sourcing/events/new/` | New sourcing event (or `?from_requisition=<id>` to pre-fill from a REQ) |
+| `/sourcing/events/<id>/` | Event detail (tabs: items, invitees, criteria, bids, awards) + lifecycle actions |
+| `/sourcing/events/<id>/bids/` | Bid list (sealed until close) |
+| `/sourcing/events/<id>/bids/compare/` | Side-by-side bid comparison matrix |
+| `/sourcing/events/<id>/bids/<bid>/evaluate/` | Score a bid against the weighted criteria |
+| `/sourcing/events/<id>/awards/recommend/` | Recommend an award; `finalize` from the event page |
+| `/sourcing/analytics/` | Tenant-wide sourcing analytics dashboard |
+| `/sourcing/events/<id>/analytics/` | Per-event savings + response-rate report |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
+| `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
+| `/vendor-portal/sourcing/<event>/` | RFQ read-only view (items, criteria, terms) |
+| `/vendor-portal/sourcing/<event>/bid/<bid>/` | Bid form (prices per line, lead time, documents) |
+| `/vendor-portal/sourcing/bids/` | All bids the vendor has started or submitted |
 | `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
@@ -479,7 +543,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–5 ship. Modules 6–21 from the PMS spec are not yet implemented:
+Modules 1–6 ship. Modules 7–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -488,7 +552,7 @@ Modules 1–5 ship. Modules 6–21 from the PMS spec are not yet implemented:
 | 3 | Requisition Management | Shipped |
 | 4 | Approval Workflow Engine | Shipped |
 | 5 | Vendor Management | Shipped |
-| 6 | Sourcing & Tendering | Planned |
+| 6 | Sourcing & Tendering | Shipped |
 | 7 | RFx Management | Planned |
 | 8 | E-Auction Management | Planned |
 | 9 | Contract Management | Planned |
