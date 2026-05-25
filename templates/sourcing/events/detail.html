@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ event.event_number }} — {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ event.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'sourcing:event_list' %}">Sourcing Events</a> &rsaquo;
+      <code>{{ event.event_number }}</code>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage and event.is_editable %}
+      <a href="{% url 'sourcing:event_edit' event.pk %}" class="btn btn-outline-primary">
+        <i class="ri-pencil-line me-1"></i> Edit
+      </a>
+    {% endif %}
+    <a href="{% url 'sourcing:analytics_event_report' event.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-bar-chart-line me-1"></i> Analytics
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Sidebar: summary + lifecycle actions -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if event.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+            {% elif event.status == 'scheduled' %}<span class="badge badge-soft-info">Scheduled</span>
+            {% elif event.status == 'open' %}<span class="badge badge-soft-warning">Open for bids</span>
+            {% elif event.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+            {% elif event.status == 'under_evaluation' %}<span class="badge badge-soft-primary">Under evaluation</span>
+            {% elif event.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+            {% elif event.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ event.get_status_display }}</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ event.get_event_type_display }}</dd>
+          <dt class="col-5 text-muted">Category</dt><dd class="col-7">{{ event.category.name|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Currency</dt><dd class="col-7">{{ event.currency }}</dd>
+          <dt class="col-5 text-muted">Estimated</dt>
+          <dd class="col-7">{{ event.estimated_value|floatformat:2 }}</dd>
+          <dt class="col-5 text-muted">Publish</dt>
+          <dd class="col-7">{{ event.publish_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Close</dt>
+          <dd class="col-7">{{ event.close_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Award target</dt>
+          <dd class="col-7">{{ event.award_target_at|date:'Y-m-d'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Partial award</dt>
+          <dd class="col-7">{% if event.allow_partial_award %}Yes{% else %}No{% endif %}</dd>
+          <dt class="col-5 text-muted">Created by</dt><dd class="col-7">{{ event.created_by|default:'—' }}</dd>
+          {% if event.requisition %}
+          <dt class="col-5 text-muted">From REQ</dt>
+          <dd class="col-7"><a href="{% url 'requisitions:requisition_detail' event.requisition.pk %}">{{ event.requisition.number }}</a></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {% if savings %}
+    <div class="card mb-3">
+      <div class="card-header">Award</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Winner</dt>
+          <dd class="col-7"><strong>{{ event.awarded_vendor.legal_name }}</strong></dd>
+          <dt class="col-5 text-muted">Amount</dt>
+          <dd class="col-7">{{ event.currency }} {{ event.awarded_amount|floatformat:2 }}</dd>
+          <dt class="col-5 text-muted">Awarded</dt>
+          <dd class="col-7">{{ event.awarded_at|date:'Y-m-d H:i' }}</dd>
+          <dt class="col-5 text-muted">Savings</dt>
+          <dd class="col-7"><strong class="text-success">{{ event.currency }} {{ savings.savings|floatformat:2 }} ({{ savings.savings_pct }}%)</strong></dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if event.status == 'draft' %}
+          {% if publish_errors %}
+            <div class="alert alert-warning small mb-2">
+              <strong>Before publishing:</strong>
+              <ul class="mb-0 ps-3">
+                {% for err in publish_errors %}<li>{{ err }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          <form method="post" action="{% url 'sourcing:event_publish' event.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100" {% if publish_errors %}disabled{% endif %}>
+              <i class="ri-send-plane-line me-1"></i> Publish event
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'scheduled' %}
+          <form method="post" action="{% url 'sourcing:event_open' event.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-warning w-100">
+              <i class="ri-play-circle-line me-1"></i> Open for bids now
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'open' %}
+          <form method="post" action="{% url 'sourcing:event_close' event.pk %}"
+                onsubmit="return confirm('Close bidding on {{ event.event_number }}? Bids will become visible for evaluation.');">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100">
+              <i class="ri-stop-circle-line me-1"></i> Close bidding
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'under_evaluation' or event.status == 'closed' %}
+          <a href="{% url 'sourcing:award_recommend' event.pk %}" class="btn btn-success">
+            <i class="ri-award-line me-1"></i> Recommend award
+          </a>
+          {% if event.awards.count %}
+          <form method="post" action="{% url 'sourcing:award_finalize' event.pk %}"
+                onsubmit="return confirm('Finalize award on {{ event.event_number }}? Winning bid will be marked awarded; others will be rejected.');">
+            {% csrf_token %}
+            <button class="btn btn-outline-success w-100">
+              <i class="ri-check-double-line me-1"></i> Finalize award
+            </button>
+          </form>
+          {% endif %}
+        {% endif %}
+        {% if event.can_cancel %}
+          <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#cancelForm">
+            <i class="ri-close-circle-line me-1"></i> Cancel event
+          </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if event.can_cancel %}
+    <div class="collapse mb-3" id="cancelForm">
+      <div class="card">
+        <div class="card-header">Cancel event</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'sourcing:event_cancel' event.pk %}" novalidate>
+            {% csrf_token %}
+            {{ cancel_form|crispy }}
+            <button class="btn btn-danger w-100" type="submit">
+              <i class="ri-alert-line me-1"></i> Cancel this event
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Main content tabs -->
+  <div class="col-lg-8">
+    {% if event.description %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <p class="mb-0">{{ event.description|linebreaksbr }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-items">Items ({{ items.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-invitees">Invitees ({{ invitees.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-criteria">Criteria ({{ criteria.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-bids">Bids ({{ bids.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-awards">Awards ({{ awards.count }})</button></li>
+      {% if event.terms_and_conditions %}
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-terms">Terms</button></li>
+      {% endif %}
+    </ul>
+    <div class="tab-content border border-top-0 p-3">
+
+      <!-- Items -->
+      <div class="tab-pane fade show active" id="tab-items">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Event items</h6>
+          {% if can_manage and event.is_editable %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#itemForm">
+            <i class="ri-add-line"></i> Add item
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage and event.is_editable %}
+        <div class="collapse mb-3" id="itemForm">
+          <form method="post" action="{% url 'sourcing:item_create' event.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ item_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save item</button>
+          </form>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Qty</th><th class="text-end">Est. price</th><th class="text-end">Est. total</th><th>Required by</th><th></th></tr></thead>
+          <tbody>
+            {% for it in items %}
+            <tr>
+              <td>{{ it.line_no }}</td>
+              <td>{{ it.item_description }}</td>
+              <td><span class="badge badge-soft-secondary">{{ it.uom }}</span></td>
+              <td class="text-end">{{ it.quantity|floatformat:3 }}</td>
+              <td class="text-end">{{ it.est_unit_price|floatformat:2 }}</td>
+              <td class="text-end">{{ it.estimated_line_total|floatformat:2 }}</td>
+              <td class="small">{{ it.required_date|date:'Y-m-d'|default:'—' }}</td>
+              <td class="text-end">
+                {% if can_manage and event.is_editable %}
+                <a href="{% url 'sourcing:item_edit' event.pk it.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'sourcing:item_delete' event.pk it.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete line #{{ it.line_no }}?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center text-muted small py-3">No items yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Invitees -->
+      <div class="tab-pane fade" id="tab-invitees">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Invited vendors</h6>
+          {% if can_manage and event.status != 'awarded' and event.status != 'cancelled' %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#inviteForm">
+            <i class="ri-add-line"></i> Invite vendors
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage %}
+        <div class="collapse mb-3" id="inviteForm">
+          <form method="post" action="{% url 'sourcing:invitee_add' event.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}
+            {{ invitee_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Send invitations</button>
+          </form>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Vendor</th><th>Status</th><th>Invited</th><th>Responded</th><th></th></tr></thead>
+          <tbody>
+            {% for inv in invitees %}
+            <tr>
+              <td>
+                <a href="{% url 'vendors:vendor_detail' inv.vendor.pk %}" class="text-decoration-none">
+                  {{ inv.vendor.legal_name }}
+                </a>
+                <div class="small text-muted">{{ inv.vendor.vendor_number }}</div>
+              </td>
+              <td>
+                {% if inv.status == 'invited' %}<span class="badge badge-soft-secondary">Invited</span>
+                {% elif inv.status == 'viewed' %}<span class="badge badge-soft-info">Viewed</span>
+                {% elif inv.status == 'submitted' %}<span class="badge badge-soft-success">Submitted</span>
+                {% elif inv.status == 'declined' %}<span class="badge badge-soft-warning">Declined</span>
+                {% elif inv.status == 'withdrawn' %}<span class="badge badge-soft-danger">Withdrawn</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ inv.invited_at|date:'Y-m-d H:i' }}</td>
+              <td class="small">{{ inv.responded_at|date:'Y-m-d H:i'|default:'—' }}</td>
+              <td class="text-end">
+                {% if can_manage and inv.status != 'submitted' %}
+                <form method="post" action="{% url 'sourcing:invitee_remove' event.pk inv.pk %}" class="d-inline"
+                      onsubmit="return confirm('Remove this invitation?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted small py-3">No vendors invited yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Criteria -->
+      <div class="tab-pane fade" id="tab-criteria">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">
+            Evaluation criteria
+            <span class="small text-muted ms-2">(weights total: <strong>{{ criteria_total }}%</strong>{% if criteria_total != 100 %} — must reach 100% to publish{% endif %})</span>
+          </h6>
+          {% if can_manage and event.status == 'draft' or event.status == 'scheduled' %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#criterionForm">
+            <i class="ri-add-line"></i> Add criterion
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage %}
+        <div class="collapse mb-3" id="criterionForm">
+          <form method="post" action="{% url 'sourcing:criterion_create' event.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ criterion_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save criterion</button>
+          </form>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Order</th><th>Name</th><th>Type</th><th class="text-end">Weight</th><th class="text-end">Max score</th><th></th></tr></thead>
+          <tbody>
+            {% for c in criteria %}
+            <tr>
+              <td>{{ c.order }}</td>
+              <td>
+                <strong>{{ c.name }}</strong>
+                {% if c.description %}<div class="small text-muted">{{ c.description|truncatechars:80 }}</div>{% endif %}
+              </td>
+              <td class="small"><span class="badge badge-soft-info">{{ c.get_criterion_type_display }}</span></td>
+              <td class="text-end"><strong>{{ c.weight }}%</strong></td>
+              <td class="text-end">{{ c.max_score }}</td>
+              <td class="text-end">
+                {% if can_manage and event.status == 'draft' or event.status == 'scheduled' %}
+                <a href="{% url 'sourcing:criterion_edit' event.pk c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'sourcing:criterion_delete' event.pk c.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete criterion {{ c.name }}?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No evaluation criteria defined.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Bids -->
+      <div class="tab-pane fade" id="tab-bids">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Bids</h6>
+          {% if can_view_bids and bids.count > 1 %}
+          <a href="{% url 'sourcing:bid_compare' event.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="ri-bar-chart-grouped-line"></i> Compare bids
+          </a>
+          {% endif %}
+        </div>
+        {% if not event.bids_are_visible %}
+          <div class="alert alert-info small">
+            <i class="ri-lock-line me-1"></i>
+            <strong>Bids are sealed.</strong> Bid details become visible after the event closes
+            ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}). Until then,
+            you can only see how many vendors have submitted.
+          </div>
+          <div class="small">
+            <strong>{{ bids.count }}</strong> bid(s) received from
+            {{ invitees.count }} invitation(s).
+          </div>
+        {% else %}
+          <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>#</th><th>Bid</th><th>Vendor</th><th>Status</th><th class="text-end">Total</th><th class="text-end">Score</th><th>Compliant</th><th></th></tr></thead>
+            <tbody>
+              {% for b in bids %}
+              <tr>
+                <td>{{ b.rank|default:'—' }}</td>
+                <td><code class="small">{{ b.bid_number }}</code></td>
+                <td>{{ b.vendor.legal_name }}</td>
+                <td>
+                  {% if b.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+                  {% elif b.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+                  {% elif b.status == 'shortlisted' %}<span class="badge badge-soft-primary">Shortlisted</span>
+                  {% elif b.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+                  {% elif b.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+                  {% elif b.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+                  {% else %}<span class="badge badge-soft-secondary">{{ b.get_status_display }}</span>{% endif %}
+                </td>
+                <td class="text-end">{{ b.currency }} {{ b.total_amount|floatformat:2 }}</td>
+                <td class="text-end">{{ b.overall_score|floatformat:2 }}</td>
+                <td>{% if b.is_compliant %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}</td>
+                <td class="text-end">
+                  <a href="{% url 'sourcing:bid_detail' event.pk b.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="8" class="text-center text-muted small py-3">No bids received.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Awards -->
+      <div class="tab-pane fade" id="tab-awards">
+        <h6 class="mb-2">Award decisions</h6>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Date</th><th>Vendor</th><th>Bid</th><th class="text-end">Amount</th><th>Status</th><th>Awarded by</th></tr></thead>
+          <tbody>
+            {% for a in awards %}
+            <tr>
+              <td class="small">{{ a.awarded_at|date:'Y-m-d H:i' }}</td>
+              <td>{{ a.vendor.legal_name }}</td>
+              <td><code class="small">{{ a.bid.bid_number }}</code></td>
+              <td class="text-end">{{ a.currency }} {{ a.award_amount|floatformat:2 }}</td>
+              <td>
+                {% if a.status == 'recommended' %}<span class="badge badge-soft-info">Recommended</span>
+                {% elif a.status == 'approved' %}<span class="badge badge-soft-success">Approved</span>
+                {% elif a.status == 'contracted' %}<span class="badge badge-soft-primary">Contracted</span>
+                {% elif a.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>{% endif %}
+              </td>
+              <td class="small">{{ a.awarded_by|default:'—' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No award recommendations yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% if event.cancelled_reason %}
+        <div class="alert alert-danger mt-3 small">
+          <strong>Cancelled:</strong> {{ event.cancelled_reason }}
+          <div class="text-muted">on {{ event.cancelled_at|date:'Y-m-d H:i' }} by {{ event.cancelled_by|default:'—' }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if event.terms_and_conditions %}
+      <div class="tab-pane fade" id="tab-terms">
+        <h6 class="mb-2">Terms &amp; conditions</h6>
+        <div class="small">{{ event.terms_and_conditions|linebreaksbr }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}
