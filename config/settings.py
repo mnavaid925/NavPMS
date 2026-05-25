@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'apps.approvals',
     'apps.vendors',
     'apps.sourcing',
+    'apps.rfx',
 ]
 
 MIDDLEWARE = [
