@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Responses — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Responses — {{ event.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      Responses
+    </div>
+  </div>
+  <div>
+    {% if not sealed and responses|length > 1 %}
+    <a href="{% url 'rfx:response_compare' event.pk %}" class="btn btn-outline-primary">
+      <i class="ri-bar-chart-grouped-line me-1"></i> Compare
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if sealed %}
+  <div class="alert alert-info">
+    <i class="ri-lock-line me-1"></i>
+    <strong>Responses are sealed.</strong>
+    Contents become visible after the event closes ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
+  </div>
+{% else %}
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Rank</th><th>Vendor</th><th>Status</th>
+          <th class="text-end">Score</th><th>Submitted</th><th>Decision</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in responses %}
+        <tr>
+          <td>{{ r.rank|default:'—' }}</td>
+          <td><strong>{{ r.vendor.legal_name }}</strong>
+              <div class="small text-muted">{{ r.vendor.vendor_number }}</div></td>
+          <td>
+            {% if r.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+            {% elif r.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+            {% elif r.status == 'shortlisted' %}<span class="badge badge-soft-success">Shortlisted</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+            {% elif r.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+            {% elif r.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ r.get_status_display }}</span>{% endif %}
+          </td>
+          <td class="text-end">{{ r.overall_score|floatformat:2 }}</td>
+          <td class="small">{{ r.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+          <td class="small">{{ r.decision_reason|truncatechars:60|default:'—' }}</td>
+          <td class="text-end">
+            <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            {% if can_evaluate %}
+            <a href="{% url 'rfx:response_evaluate' event.pk r.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-ruler-line"></i></a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No responses to show.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
