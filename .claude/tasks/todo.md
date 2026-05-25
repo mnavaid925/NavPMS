@@ -1,3 +1,411 @@
+# Module 6 — Sourcing & Tendering
+
+**Created:** 2026-05-25
+**Scope:** New Django app `apps/sourcing/` implementing the 5 PMS sub-modules of Module 6.
+Internal buyer-side surface at `/sourcing/`, vendor-side bid submission integrated into
+the existing `/vendor-portal/` namespace (no second portal shell).
+
+| Sub-module | Implementation |
+|------------|----------------|
+| **Event Creation & Scheduling** | `SourcingEvent` (`SRC-<SLUG>-NNNNN`, type RFQ/RFP/RFT/Tender, publish/close/award-target dates, status `draft → scheduled → open → closed → under_evaluation → awarded`, with `cancelled`). Optional FK to source `Requisition` so an approved REQ can spawn an event with pre-filled lines. Inline `SourcingEventItem` lines (item description, qty, uom, est. unit price, optional `AccountCode`, required date). |
+| **Bid Submission Portal** | `SourcingEventInvitee` (one row per invited vendor: `invited → viewed → submitted / declined / withdrawn`). Bid surface in the existing vendor portal (`/vendor-portal/sourcing/`) — invited vendors see their invitations, open the event read-only, then submit a `Bid` with one `BidLine` per `SourcingEventItem` plus `BidDocument` uploads. **Sealed bids**: bid content is hidden from buyers (and from other vendors) until the event closes. |
+| **Bid Evaluation Matrix** | `SourcingCriterion` (weighted criteria per event, weights sum to 100 — validated at publish time). `BidEvaluation` (one score per `(bid, criterion, evaluator)` — supports panel scoring; multi-evaluator average per criterion). Service computes `overall_score = Σ(weight × avg_score / max_score)`, persisted on `Bid.overall_score`, rank persisted on `Bid.rank`. Side-by-side bid comparison grid on event detail. |
+| **Award Recommendation** | Service `recommend_award(event, vendor, amount, user, justification)` creates a `SourcingAward` (status `recommended`). `finalize_award(event, vendor, user)` flips `Bid.status` → `awarded` for the winner, `rejected` for the rest, sets `event.status='awarded'`, denormalises winning vendor/amount onto the event. Supports `allow_partial_award` (multiple awards per event by item). **No Module 4 routing** — direct admin action per scope decision. |
+| **Sourcing Analytics** | Per-event analytics card (estimated vs awarded, % savings, # invitees / # bids / response rate, cycle time draft→award). Tenant-wide dashboard at `/sourcing/analytics/` with Chart.js: monthly events run, savings $ / %, top categories, top vendors by win rate. |
+
+## Architecture decisions
+- New app `apps/sourcing/` mounted at `/sourcing/`. Vendor-facing bid routes added under the
+  existing `vendor_portal` namespace (`apps/vendors/portal_urls.py`) — no parallel shell.
+- Integration with **Module 3 (Requisitions)**: `SourcingEvent.requisition` (FK nullable) and a
+  service `create_event_from_requisition(req, user)` that copies REQ lines into event items.
+  Requisition detail template gets a "Create Sourcing Event" button shown only for `status='approved'`.
+- Integration with **Module 5 (Vendors)**: invitees are picked from active vendors (excluding
+  `suspended`, `blacklisted`). Active vendors with a portal user receive an in-portal
+  invitation; vendors without a portal user can still be invited (admin can email the bid
+  details manually — out-of-scope automated email).
+- **Sealed-bid enforcement**: a `BidVisibilityMixin` on the service layer (and a guard inside
+  `get_bid_visible_to(user, bid)`) blocks buyers from reading bid lines/docs/total until
+  `event.status in {'closed','under_evaluation','awarded','cancelled'}`. Vendor authors can
+  always read their own bid. Tested.
+- **Event status workflow** (with allowed transitions):
+  - `draft` → `scheduled` (validates: ≥1 item, ≥1 invitee, criteria sum to 100, publish/close set)
+  - `scheduled` → `open` (manual "Open now" or auto via `publish_at` reached — manual only in v1, no celery)
+  - `open` → `closed` (manual or auto via `close_at` reached — manual only in v1)
+  - `closed` → `under_evaluation` (when an evaluator submits the first score)
+  - `under_evaluation` → `awarded` (via `finalize_award`)
+  - any open status → `cancelled`
+- **Bid status workflow**:
+  - `draft` (vendor working) → `submitted` (locks the bid, sets `submitted_at`)
+  - `submitted` → `under_review` (any evaluator opens it post-close)
+  - `under_review` → `shortlisted` / `rejected` (manual decision)
+  - `shortlisted` → `awarded` (via finalize)
+  - `draft`/`submitted` → `withdrawn` (vendor self-withdraw, only while event is `open`)
+- `SourcingAward` is append-only (admin add/delete disabled), mirroring `AuditLog` /
+  `VendorBlacklistEvent`.
+- Reuse `TenantAwareModel` / `TimeStampedModel`. All audit writes via `tenants.services.record_audit`.
+- **Permission gate**: event create/edit/publish/close/award restricted to roles
+  `tenant_admin`, `procurement_manager`, `buyer`. Evaluators are the same set plus `approver`
+  (any user with that role can score). Implemented via a `_can_manage_sourcing(user)` helper
+  + `_can_evaluate(user)` helper in `apps/sourcing/services.py`.
+
+## Models (`apps/sourcing/models.py`)
+
+1. **SourcingEvent**
+   - `tenant` FK, `event_number` (auto `SRC-<SLUG>-NNNNN`, unique per tenant)
+   - `title`, `description`, `event_type` (`rfq`/`rfp`/`rft`/`tender`), `category` FK to
+     `vendors.VendorCategory` (nullable), `currency` (CHAR 3, default `USD`)
+   - `estimated_value` (Decimal 14,2, default 0)
+   - `status` (default `draft`) — choices listed above
+   - `publish_at`, `close_at`, `award_target_at` (DateTimeFields, all nullable until scheduled)
+   - `terms_and_conditions` (TextField)
+   - `allow_partial_award` (bool, default False)
+   - `created_by` FK to `accounts.User`
+   - `requisition` FK to `requisitions.Requisition` (nullable, `on_delete=SET_NULL`)
+   - `awarded_vendor` FK to `vendors.Vendor` (nullable), `awarded_amount` (Decimal), `awarded_at`,
+     `award_notes`
+   - `cancelled_reason` (text, blank), `cancelled_at`, `cancelled_by` FK (nullable)
+   - `unique_together(tenant, event_number)`, ordering `['-created_at']`
+
+2. **SourcingEventItem**
+   - `event` FK (cascade), `line_no` (int), `item_description`, `uom` (default `EA`),
+     `quantity` (Decimal 14,3, `MinValueValidator(0)`), `est_unit_price` (Decimal 14,2,
+     `MinValueValidator(0)`), `account_code` FK to `requisitions.AccountCode` (nullable),
+     `required_date` (Date, nullable), `notes`
+   - `unique_together(event, line_no)`, ordering `['line_no']`
+
+3. **SourcingEventInvitee**
+   - `event` FK (cascade), `vendor` FK to `vendors.Vendor` (cascade)
+   - `invited_at`, `invited_by` FK, `status` (`invited`/`viewed`/`submitted`/`declined`/`withdrawn`,
+     default `invited`), `responded_at` (nullable), `notes`
+   - `unique_together(event, vendor)`, ordering `['-invited_at']`
+
+4. **SourcingCriterion**
+   - `event` FK (cascade), `name`, `description`, `criterion_type` (`price`/`quality`/`delivery`/
+     `compliance`/`experience`/`other`), `weight` (Decimal 5,2, `MinValueValidator(0)` /
+     `MaxValueValidator(100)`), `max_score` (default 100), `order` (default 0)
+   - ordering `['order','id']`
+   - Service-level validator: `sum(event.criteria.weight) == 100` before transitioning to
+     `scheduled` / `open`.
+
+5. **Bid**
+   - `event` FK (cascade), `vendor` FK to `vendors.Vendor` (cascade), `bid_number` (auto
+     `BID-<SLUG>-NNNNN`, unique per tenant — denormalised tenant via event)
+   - `status` (default `draft`) — choices listed above
+   - `submitted_by` FK to `accounts.User` (nullable — vendor portal user), `submitted_at` (null
+     until submit)
+   - `total_amount` (Decimal 14,2, default 0 — computed at submit from lines)
+   - `currency` (CHAR 3 — copied from event at create)
+   - `delivery_lead_time_days` (positive int, nullable), `validity_days` (positive int,
+     nullable), `payment_terms` (text, blank), `notes`
+   - `is_compliant` (bool, default True — flips False if any required line is missing or `0`)
+   - `overall_score` (Decimal 5,2, default 0), `rank` (int, nullable)
+   - `withdrawn_at` (nullable)
+   - `unique_together(event, vendor)`, ordering `['rank','-submitted_at']`
+
+6. **BidLine**
+   - `bid` FK (cascade), `event_item` FK to `SourcingEventItem` (cascade)
+   - `unit_price` (Decimal 14,2, `MinValueValidator(0)`), `quantity_offered` (Decimal 14,3,
+     default = event_item.quantity), `lead_time_days` (positive int, nullable), `notes`
+   - `line_total` property = `unit_price * quantity_offered`
+   - `unique_together(bid, event_item)`
+
+7. **BidDocument**
+   - `bid` FK (cascade), `title`, `file` (`upload_to='bid_docs/'`), `uploaded_at`
+   - Append-only (admin delete disabled); buyer can only read after event close
+   - ordering `['-uploaded_at']`
+
+8. **BidEvaluation**
+   - `bid` FK (cascade), `criterion` FK (cascade), `evaluator` FK to `accounts.User` (cascade)
+   - `score` (Decimal 5,2, validators 0..criterion.max_score), `comment` (text)
+   - `evaluated_at` (auto)
+   - `unique_together(bid, criterion, evaluator)`, ordering `['-evaluated_at']`
+
+9. **SourcingAward** (append-only)
+   - `event` FK (cascade), `vendor` FK (cascade), `bid` FK (cascade)
+   - `award_amount` (Decimal 14,2), `currency` (CHAR 3)
+   - `status` (`recommended`/`approved`/`contracted`/`cancelled`, default `recommended`)
+   - `justification` (text), `awarded_by` FK, `awarded_at` (auto), `notes`
+   - ordering `['-awarded_at']`
+   - Multiple rows allowed if `event.allow_partial_award`; otherwise service enforces one.
+
+## Services (`apps/sourcing/services.py`)
+- `next_event_number(tenant)` — `SRC-<SLUG>-NNNNN`, gap-free per tenant
+- `next_bid_number(tenant)` — `BID-<SLUG>-NNNNN`
+- `create_event_from_requisition(req, user)` — copies REQ lines → SourcingEventItem
+- `validate_event_can_publish(event)` — raises `ValidationError` if items/invitees/criteria sums
+  fail; returns warnings list (e.g. close_at in past)
+- `publish_event(event, user)` — draft → scheduled (or scheduled → open if `publish_at <= now()`)
+- `open_event(event, user)` — scheduled → open
+- `close_event(event, user)` — open → closed (locks all submitted bids; rejects un-submitted drafts)
+- `cancel_event(event, user, reason)` — any open status → cancelled; withdraws bids
+- `invite_vendors(event, vendor_ids, user)` — bulk; records audit
+- `decline_invitation(invitee, user)` — vendor portal action
+- `start_bid(event, vendor, user)` — creates `Bid(draft)` with one `BidLine` per event item,
+  pre-filled qty
+- `submit_bid(bid, user)` — validates every line has a price; sets total, compliance, status
+- `withdraw_bid(bid, user)` — only event.status='open', vendor self-action
+- `record_evaluation(bid, criterion, evaluator, score, comment)` — upserts BidEvaluation,
+  advances bid.status to `under_review` if first, recomputes overall_score
+- `recompute_bid_scores(event)` — recomputes overall_score + rank across all bids in event
+- `recommend_award(event, vendor, amount, user, justification)` — creates SourcingAward
+- `finalize_award(event, vendor_ids, user)` — flips bid statuses, event.status='awarded',
+  denormalises winner; supports list of vendor_ids when partial-award
+- `compute_event_savings(event)` — returns dict {estimated, awarded, savings, savings_pct}
+- `tenant_sourcing_metrics(tenant, period_start, period_end)` — for analytics dashboard
+- `bid_visible_to(user, bid)` — returns True if user is vendor author OR (event.status in
+  closed/eval/awarded/cancelled AND user.is_staff-equiv). Used in views.
+
+## Views (`apps/sourcing/views.py`)
+**Internal (buyer side, all `@login_required` + `_can_manage_sourcing` gate):**
+- `event_list` — search + filter by status/type/category + pagination
+- `event_create` (also accepts `?from_requisition=<id>`)
+- `event_detail` — tabs: Overview / Items / Invitees / Criteria / Bids (sealed-aware) /
+  Evaluation / Awards
+- `event_edit` (draft only)
+- `event_delete` (draft only)
+- `event_publish` (POST), `event_open` (POST), `event_close` (POST), `event_cancel` (POST)
+- `event_item_create`, `event_item_edit`, `event_item_delete` (draft only)
+- `invitee_add` (form with vendor multi-select), `invitee_remove`
+- `criterion_create`, `criterion_edit`, `criterion_delete` (draft/scheduled only)
+- `bid_list_for_event` (only after close)
+- `bid_detail` (only after close; sealed otherwise)
+- `bid_compare` — side-by-side matrix
+- `bid_evaluate` (per criterion, per evaluator)
+- `bid_shortlist`, `bid_reject`
+- `award_recommend`, `award_finalize`
+- `analytics_dashboard` — tenant-wide
+- `analytics_event_report` — per event
+
+**Vendor portal (added to `apps/vendors/views.py` or new `apps/sourcing/portal_views.py`):**
+- `portal_invitations_list` — vendor's invitations across all events
+- `portal_event_detail` — RFQ read-only view (terms, items, criteria with weights, close_at)
+- `portal_bid_start` (POST) — creates draft bid
+- `portal_bid_edit` — fill prices per line, upload docs
+- `portal_bid_submit` (POST)
+- `portal_bid_withdraw` (POST)
+- `portal_bid_list` — vendor's bids
+
+## URLs
+
+**`apps/sourcing/urls.py`** — `app_name = 'sourcing'`:
+```
+events/                          name='event_list'
+events/new/                      name='event_create'
+events/<pk>/                     name='event_detail'
+events/<pk>/edit/                name='event_edit'
+events/<pk>/delete/              name='event_delete'
+events/<pk>/publish/             name='event_publish'
+events/<pk>/open/                name='event_open'
+events/<pk>/close/               name='event_close'
+events/<pk>/cancel/              name='event_cancel'
+events/<pk>/items/add/           name='item_create'
+events/<pk>/items/<lpk>/edit/    name='item_edit'
+events/<pk>/items/<lpk>/delete/  name='item_delete'
+events/<pk>/invitees/add/        name='invitee_add'
+events/<pk>/invitees/<ipk>/remove/  name='invitee_remove'
+events/<pk>/criteria/add/        name='criterion_create'
+events/<pk>/criteria/<cpk>/edit/ name='criterion_edit'
+events/<pk>/criteria/<cpk>/delete/ name='criterion_delete'
+events/<pk>/bids/                name='bid_list'
+events/<pk>/bids/compare/        name='bid_compare'
+events/<pk>/bids/<bpk>/          name='bid_detail'
+events/<pk>/bids/<bpk>/evaluate/ name='bid_evaluate'
+events/<pk>/bids/<bpk>/shortlist/ name='bid_shortlist'
+events/<pk>/bids/<bpk>/reject/   name='bid_reject'
+events/<pk>/awards/recommend/    name='award_recommend'
+events/<pk>/awards/finalize/     name='award_finalize'
+analytics/                       name='analytics_dashboard'
+events/<pk>/analytics/           name='analytics_event_report'
+```
+
+**`apps/vendors/portal_urls.py`** — append to existing `vendor_portal` namespace:
+```
+sourcing/                          name='sourcing_invitations'
+sourcing/<event_pk>/               name='sourcing_event_detail'
+sourcing/<event_pk>/bid/start/     name='sourcing_bid_start'
+sourcing/<event_pk>/bid/<bpk>/     name='sourcing_bid_edit'
+sourcing/<event_pk>/bid/<bpk>/submit/   name='sourcing_bid_submit'
+sourcing/<event_pk>/bid/<bpk>/withdraw/ name='sourcing_bid_withdraw'
+sourcing/bids/                     name='sourcing_my_bids'
+```
+
+## Templates
+
+**Internal `templates/sourcing/`:**
+- `events/list.html`, `events/form.html`, `events/detail.html` (tabbed)
+- `events/cancel.html` (reason form)
+- `items/form.html`
+- `invitees/form.html` (vendor multi-select)
+- `criteria/form.html`
+- `bids/list.html`, `bids/detail.html`, `bids/compare.html`
+- `bids/evaluate.html` (per-criterion score sheet)
+- `awards/recommend.html`, `awards/list.html`
+- `analytics/dashboard.html`, `analytics/event_report.html`
+
+**Vendor portal `templates/vendor_portal/sourcing/`:**
+- `invitations.html`, `event_detail.html`, `bid_form.html`, `my_bids.html`, `bid_detail.html`
+
+## Forms (`apps/sourcing/forms.py`)
+- `SourcingEventForm` (tenant kwarg; `clean_event_number` uniqueness)
+- `SourcingEventItemForm`
+- `SourcingCriterionForm` (form-level weight validation against existing event total)
+- `InviteVendorsForm` (queryset of active vendors, multi-select)
+- `BidForm` (vendor-side header: lead time, validity, payment terms, notes)
+- `BidLineForm` (one per event item; queryset gated)
+- `BidDocumentForm` (file size + extension validator)
+- `BidEvaluationForm` (score bounded by criterion.max_score)
+- `AwardRecommendForm` (amount, justification)
+- `CancelEventForm` (reason text)
+
+## Backend file list (`apps/sourcing/`)
+- [ ] `__init__.py`, `apps.py`
+- [ ] `models.py` — 9 models above
+- [ ] `admin.py` — register all (inlines for items/criteria on event; SourcingAward read-only)
+- [ ] `forms.py` — 10 forms above
+- [ ] `services.py` — service layer + permission helpers + visibility gate
+- [ ] `views.py` — internal buyer views
+- [ ] `portal_views.py` — vendor-portal sourcing views (avoids bloating vendors/views.py)
+- [ ] `urls.py` — buyer namespace `sourcing`
+- [ ] `migrations/__init__.py`
+- [ ] `management/__init__.py`, `management/commands/__init__.py`
+- [ ] `management/commands/seed_sourcing.py` — idempotent
+
+## Modified files
+- [ ] `config/settings.py` — add `'apps.sourcing'`
+- [ ] `config/urls.py` — `path('sourcing/', include('apps.sourcing.urls'))`
+- [ ] `apps/vendors/portal_urls.py` — append 7 sourcing routes
+- [ ] `apps/vendors/views.py` (or new portal_views import) — wire sourcing portal views
+      *(decision: import from `apps.sourcing.portal_views` into `apps.vendors.portal_urls.py`
+      to keep separation clean)*
+- [ ] `templates/partials/sidebar.html` — add "Sourcing" group between Approvals and Vendors
+- [ ] `templates/vendor_portal/base.html` — add "RFx / Sourcing" sidebar link
+- [ ] `templates/requisitions/requisitions/detail.html` — "Create Sourcing Event" button when
+      `requisition.status == 'approved'`
+- [ ] `apps/core/management/commands/seed_data.py` — add `seed_sourcing` after `seed_vendors`
+- [ ] `README.md` — Project Structure, ToC, Module 6 section, Routes table, Management Commands,
+      Seeded Demo Data, Roadmap (Module 6 → Shipped)
+
+## Seed data per tenant
+- 3 events:
+  1. **Draft** — "Office stationery Q2" (RFQ, 3 items, 4 criteria, 2 invitees, no bids)
+  2. **Open** — "Server hardware refresh" (RFP, 4 items, 4 criteria, 3 invitees, 2 draft bids,
+     1 submitted bid)
+  3. **Awarded** — "Janitorial services Q1" (Tender, 2 items, 4 criteria, 3 invitees, 3
+     submitted bids, evaluations done, award finalised to lowest compliant bidder)
+- Criteria template: Price 40 / Quality 25 / Delivery 20 / Compliance 15 (sums to 100)
+- Invitees pulled from the 3 active vendors seeded in Module 5
+- Per the **awarded** event: full evaluation matrix (each criterion scored by `admin_<slug>`),
+  ranks computed, savings recorded (estimated 10k → awarded 8.5k = 15% saving)
+- 1 `SourcingAward` row for the awarded event
+
+## Verification
+- [ ] `python manage.py check` — 0 issues
+- [ ] `makemigrations sourcing` → `0001_initial` (9 models, indexes, unique_togethers); `migrate` clean
+- [ ] `seed_sourcing` (and via `seed_data --flush`) — populated for each tenant; idempotent rerun warns
+- [ ] Smoke test 1 — 18 buyer GET routes return 200 as `admin_acme`
+- [ ] Smoke test 2 — vendor portal 5 routes return 200 as an invited vendor portal user
+- [ ] Multi-tenancy: `admin_globex` 404s on Acme event detail
+- [ ] CRUD: event create/edit/delete (draft only); item/criterion/invitee CRUD
+- [ ] Status workflow: draft → publish → open → close → award; cancel from each
+- [ ] Sealed-bid: while event is `open`, GET buyer bid_detail returns 403 (or banner-blocked
+      page); after `close`, returns 200 with content
+- [ ] Sealed-bid: vendor A cannot read vendor B's bid via direct URL
+- [ ] Evaluation: scoring all criteria recomputes overall_score and rank
+- [ ] Award: finalize sets winner.status=awarded, others=rejected, event.status=awarded,
+      denormalises onto event; savings computed
+- [ ] REQ→RFQ link: from approved REQ, "Create Sourcing Event" pre-fills items
+- [ ] Permission gate: `requester` role cannot reach event_create (redirect / 403)
+- [ ] Portal sandbox middleware still blocks vendor user from `/sourcing/` (internal)
+
+## Open questions to confirm before coding
+1. **Bid line currency** — single `currency` field on the bid (copied from event) is enough,
+   right? Per-line currency would be unusual; if any vendor wants to bid in a different
+   currency, they decline and we run a separate event. *(Assumption: single currency.)*
+2. **Document size cap** — default to 10 MB per file, 5 files max per bid. *(Open to change.)*
+3. **Email notifications on invite** — out of scope for v1 (same posture as Module 5 portal
+   invite which returns a one-time password to the inviter). The invitee will see the new
+   invitation when they next log into the vendor portal.
+
+If the plan looks right, say "go" and I'll start with `apps/sourcing/__init__.py`,
+`apps.py`, `models.py`, and the migrations — committing one file at a time per the CLAUDE.md
+rule.
+
+## Review
+
+**Status: complete & verified (2026-05-25).**
+
+- New app `apps/sourcing/` — 9 models (`SourcingEvent`, `SourcingEventItem`,
+  `SourcingEventInvitee`, `SourcingCriterion`, `Bid`, `BidLine`, `BidDocument`,
+  `BidEvaluation`, `SourcingAward`), full service layer
+  (`next_event_number`, `next_bid_number`, `create_event_from_requisition`,
+  `publish_event` / `open_event` / `close_event` / `cancel_event`, `invite_vendors`,
+  `start_bid` / `submit_bid` / `withdraw_bid`, `record_evaluation` +
+  `recompute_bid_scores`, `shortlist_bid` / `reject_bid`, `recommend_award` /
+  `finalize_award`, `compute_event_savings`, `tenant_sourcing_metrics`,
+  `bid_visible_to` sealed-bid gate, `can_manage_sourcing` / `can_evaluate` perms),
+  full views + portal_views, forms, admin, urls, seed command.
+- 12 internal templates under `templates/sourcing/` + 5 vendor portal templates under
+  `templates/vendor_portal/sourcing/`.
+- Sealed-bid enforcement: `bid_visible_to(user, bid)` blocks buyers from reading bid
+  content while the event is `draft` / `scheduled` / `open`; vendors can only read
+  their own bid via the portal — verified by smoke test (cross-vendor portal read
+  returns 404).
+- Direct admin award per scope decision (no Module 4 routing in this build).
+- REQ → RFQ integration: `Create Sourcing Event` button on approved requisition
+  detail spawns an event with items pre-filled from the requisition lines.
+- Wiring: `INSTALLED_APPS`, `/sourcing/` URL mount, sidebar "Sourcing" group between
+  Approvals and Vendors, vendor-portal sidebar gets "Sourcing > Invitations / My Bids"
+  links, `seed_data` orchestrator extended with `seed_sourcing`. README updated end
+  to end (Module 6 → Shipped, Routes table extended, Seeded Data extended).
+
+**Verification performed:**
+- `manage.py check` — 0 issues.
+- `makemigrations sourcing` → `0001_initial` (9 models, indexes, unique_togethers);
+  `migrate` OK on MySQL.
+- `seed_sourcing` — populated for 3 demo tenants (Acme / Globex / Stark) — each
+  gets a draft, an open event (3 invitees, 1 draft + 1 submitted bid), and a fully
+  awarded event (3 submitted bids, 16 evaluations, 1 finalised award, recorded
+  savings). Idempotent rerun warns + skips; `--flush` re-seeds cleanly.
+- Smoke test 1 (buyer side, admin_acme): **15 GET routes returned 200** — event
+  list / create / detail / edit / analytics dashboard / per-event analytics report /
+  sealed bid list / unsealed bid list / bid compare / bid detail / bid evaluate.
+- Smoke test 2 (vendor portal, invited vendor): **5 routes returned 200** —
+  invitations list, event detail (read-only), my bids, bid edit, bid detail.
+- Smoke test 3 (multi-tenancy): Globex admin GET on Acme event detail → 404. ✓
+- Smoke test 4 (sealed bid): vendor user GET on another vendor's bid → 404. ✓
+- Smoke test 5 (sandbox): vendor user GET on internal `/sourcing/events/` →
+  302 redirect to `/vendor-portal/dashboard/`. ✓
+- Workflow exercised end-to-end by seed: draft → publish (open) → close (auto on
+  seed) → evaluate (16 panel scores) → recompute ranks → recommend award →
+  finalize → winner.status='awarded', losers='rejected', event.status='awarded',
+  savings denormalised.
+
+**Design notes:**
+- `bid_visible_to(user, bid)` is the single source of truth for sealed-bid policy.
+  Buyer views render a placeholder card when the check fails (instead of 403)
+  so the page still loads with helpful context — invitee count, close date.
+- `recompute_bid_scores` re-derives all bid scores + ranks any time an evaluation
+  is recorded. `Bid.overall_score` and `Bid.rank` are denormalised for fast list
+  rendering (mirrors Vendor.risk_level denorm from Module 5).
+- The `_can_manage_sourcing` helper checks `role in (tenant_admin,
+  procurement_manager, buyer)` plus the `is_tenant_admin` flag. Requesters get a
+  redirect with a flash message — verified by inspection of the role gate in
+  every internal view.
+- Vendor portal mounts the bid surface under the existing `vendor_portal`
+  namespace so no second shell exists. The sidebar gets a "Sourcing" section
+  inside the same `vp-sidebar`, keeping the supplier UX coherent.
+- `create_event_from_requisition` creates the event AND its items in a single
+  transaction; the view then redirects to event detail so the user immediately
+  sees the pre-filled lines.
+- `cancel_event` withdraws any in-flight bids (`draft / submitted / under_review`)
+  in the same transaction — keeps the bid ledger consistent.
+- `finalize_award` rejects only non-awarded bids that are not already withdrawn
+  or rejected — so vendors who voluntarily withdrew don't get a "rejected" status.
+
+**Files changed:** 31 new + 9 modified = 40 files.
+
+---
+
 # Module 5 — Vendor Management
 
 **Created:** 2026-05-24
