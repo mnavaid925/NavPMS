@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}RFx Templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>RFx Template Library</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo; Templates
+    </div>
+  </div>
+  <div>
+    {% if can_manage %}
+    <a href="{% url 'rfx:template_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New template
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Search</label>
+        <input type="search" name="q" class="form-control" placeholder="Title, description…" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Type</label>
+        <select name="rfx_type" class="form-select">
+          <option value="">Any</option>
+          {% for value, label in type_choices %}
+            <option value="{{ value }}" {% if request.GET.rfx_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Archived</label>
+        <select name="archived" class="form-select">
+          <option value="">Any</option>
+          <option value="no" {% if request.GET.archived == 'no' %}selected{% endif %}>Active</option>
+          <option value="yes" {% if request.GET.archived == 'yes' %}selected{% endif %}>Archived</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr>
+        <th>Title</th><th>Type</th><th>Sections</th><th>Questions</th><th>Shared</th>
+        <th>Created by</th><th>Updated</th><th class="text-end">Actions</th>
+      </tr></thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td>
+            <a href="{% url 'rfx:template_detail' t.pk %}" class="text-decoration-none">
+              <strong>{{ t.title }}</strong>
+            </a>
+            {% if t.description %}<div class="small text-muted">{{ t.description|truncatechars:80 }}</div>{% endif %}
+            {% if t.archived %}<span class="badge badge-soft-secondary ms-1">Archived</span>{% endif %}
+          </td>
+          <td class="small">{{ t.get_rfx_type_display }}</td>
+          <td class="small">{{ t.sections.count }}</td>
+          <td class="small">{% with sections=t.sections.all %}{% if sections %}{% for s in sections %}{{ s.questions.count }}{% if not forloop.last %}+{% endif %}{% endfor %}{% else %}0{% endif %}{% endwith %}</td>
+          <td>{% if t.is_shared %}<i class="ri-check-line text-success"></i>{% else %}—{% endif %}</td>
+          <td class="small">{{ t.created_by|default:'—' }}</td>
+          <td class="small">{{ t.updated_at|date:'Y-m-d' }}</td>
+          <td class="text-end">
+            <a href="{% url 'rfx:template_detail' t.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            {% if can_manage %}
+            <a href="{% url 'rfx:template_edit' t.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'rfx:template_delete' t.pk %}" class="d-inline"
+                  onsubmit="return confirm('Delete template {{ t.title }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">
+          No templates yet.
+          {% if can_manage %}<a href="{% url 'rfx:template_create' %}">Create one</a>.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
