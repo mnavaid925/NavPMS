@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}RFx Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>RFx Analytics</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo; Analytics
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total events</div>
+    <div class="h4 mb-0">{{ metrics.total_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Open</div>
+    <div class="h4 mb-0 text-warning">{{ metrics.open_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Completed</div>
+    <div class="h4 mb-0 text-success">{{ metrics.completed_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Response rate</div>
+    <div class="h4 mb-0 text-primary">{{ metrics.response_rate }}%</div>
+    <div class="small text-muted">{{ metrics.responded_count }} of {{ metrics.invited_count }} invitations</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Events by status</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody>
+            {% for status, count in metrics.counts_by_status.items %}
+            <tr><td>{{ status|title }}</td><td class="text-end"><strong>{{ count }}</strong></td></tr>
+            {% empty %}
+            <tr><td class="text-center text-muted py-3">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header">Events by type</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody>
+            {% for type, count in metrics.counts_by_type.items %}
+            <tr><td>{{ type|upper }}</td><td class="text-end"><strong>{{ count }}</strong></td></tr>
+            {% empty %}
+            <tr><td class="text-center text-muted py-3">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Top shortlisted vendors</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Vendor</th><th class="text-end">Shortlists</th><th class="text-end">Avg score</th></tr></thead>
+          <tbody>
+            {% for v in top_vendors %}
+            <tr>
+              <td>{{ v.vendor__legal_name }}</td>
+              <td class="text-end">{{ v.shortlists }}</td>
+              <td class="text-end">{{ v.avg_score|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-3">No shortlisted responses yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">Recently completed</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Number</th><th>Title</th><th>Completed</th></tr></thead>
+          <tbody>
+            {% for ev in recent %}
+            <tr>
+              <td><a href="{% url 'rfx:event_detail' ev.pk %}"><code class="small">{{ ev.event_number }}</code></a></td>
+              <td>{{ ev.title|truncatechars:40 }}</td>
+              <td class="small">{{ ev.completed_at|date:'Y-m-d' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-3">Nothing completed yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
