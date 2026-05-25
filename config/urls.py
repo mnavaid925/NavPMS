@@ -14,6 +14,7 @@ urlpatterns = [
     path('approvals/', include('apps.approvals.urls')),
     path('vendors/', include('apps.vendors.urls')),
     path('vendor-portal/', include('apps.vendors.portal_urls')),
+    path('sourcing/', include('apps.sourcing.urls')),
 ]
 
 if settings.DEBUG:
