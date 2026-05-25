@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Event report — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Event report — {{ event.event_number }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'sourcing:event_list' %}">Sourcing Events</a> &rsaquo;
+      <a href="{% url 'sourcing:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      Analytics
+    </div>
+  </div>
+  <a href="{% url 'sourcing:event_detail' event.pk %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to event
+  </a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Invitees</div>
+    <div class="h4 mb-0">{{ invitee_count }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Submitted bids</div>
+    <div class="h4 mb-0">{{ submitted_count }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Response rate</div>
+    <div class="h4 mb-0">{{ response_rate }}%</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Estimated value</div>
+    <div class="h5 mb-0">{{ event.currency }} {{ savings.estimated|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded value</div>
+    <div class="h5 mb-0">{{ event.currency }} {{ savings.awarded|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card border-success"><div class="card-body">
+    <div class="text-muted small">Savings</div>
+    <div class="h5 mb-0 text-success">{{ event.currency }} {{ savings.savings|floatformat:2 }} <span class="small">({{ savings.savings_pct }}%)</span></div>
+  </div></div></div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">Event timeline</div>
+  <div class="card-body">
+    <dl class="row mb-0 small">
+      <dt class="col-md-2 text-muted">Created</dt>
+      <dd class="col-md-10">{{ event.created_at|date:'Y-m-d H:i' }} by {{ event.created_by|default:'—' }}</dd>
+      <dt class="col-md-2 text-muted">Publish at</dt>
+      <dd class="col-md-10">{{ event.publish_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+      <dt class="col-md-2 text-muted">Close at</dt>
+      <dd class="col-md-10">{{ event.close_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+      <dt class="col-md-2 text-muted">Award target</dt>
+      <dd class="col-md-10">{{ event.award_target_at|date:'Y-m-d'|default:'—' }}</dd>
+      {% if event.awarded_at %}
+      <dt class="col-md-2 text-muted">Awarded</dt>
+      <dd class="col-md-10">{{ event.awarded_at|date:'Y-m-d H:i' }} to <strong>{{ event.awarded_vendor.legal_name }}</strong></dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+{% endblock %}
