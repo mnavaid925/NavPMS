@@ -1,0 +1,108 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}Bid {{ bid.bid_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">Bid {{ bid.bid_number }}</h2>
+    <div class="small text-muted">
+      For <strong>{{ event.title }}</strong> · <code>{{ event.event_number }}</code>
+    </div>
+  </div>
+  <a href="{% url 'vendor_portal:sourcing_my_bids' %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to my bids
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if bid.status == 'draft' %}<span class="badge bg-secondary">Draft</span>
+            {% elif bid.status == 'submitted' %}<span class="badge bg-success">Submitted</span>
+            {% elif bid.status == 'under_review' %}<span class="badge bg-warning text-dark">Under review</span>
+            {% elif bid.status == 'shortlisted' %}<span class="badge bg-primary">Shortlisted</span>
+            {% elif bid.status == 'awarded' %}<span class="badge bg-success">Awarded</span>
+            {% elif bid.status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+            {% elif bid.status == 'withdrawn' %}<span class="badge bg-secondary">Withdrawn</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Total</dt>
+          <dd class="col-7"><strong>{{ bid.currency }} {{ bid.total_amount|floatformat:2 }}</strong></dd>
+          <dt class="col-5 text-muted">Submitted</dt>
+          <dd class="col-7">{{ bid.submitted_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Lead time</dt>
+          <dd class="col-7">{{ bid.delivery_lead_time_days|default:'—' }}{% if bid.delivery_lead_time_days %} days{% endif %}</dd>
+          <dt class="col-5 text-muted">Validity</dt>
+          <dd class="col-7">{{ bid.validity_days|default:'—' }}{% if bid.validity_days %} days{% endif %}</dd>
+          <dt class="col-5 text-muted">Payment terms</dt>
+          <dd class="col-7">{{ bid.payment_terms|default:'—' }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    {% if bid.status == 'draft' and event.status == 'open' %}
+    <div class="card mt-3">
+      <div class="card-body">
+        <a href="{% url 'vendor_portal:sourcing_bid_edit' event.pk bid.pk %}" class="btn btn-primary w-100">
+          <i class="ri-edit-line me-1"></i> Continue editing
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">Line items</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>#</th><th>Item</th><th class="text-end">Bid qty</th><th class="text-end">Unit price</th><th class="text-end">Line total</th><th>Lead time</th></tr></thead>
+        <tbody>
+          {% for l in lines %}
+          <tr>
+            <td>{{ l.event_item.line_no }}</td>
+            <td>{{ l.event_item.item_description }}</td>
+            <td class="text-end">{{ l.quantity_offered|floatformat:3 }}</td>
+            <td class="text-end">{{ l.unit_price|floatformat:2 }}</td>
+            <td class="text-end"><strong>{{ l.line_total|floatformat:2 }}</strong></td>
+            <td class="small">{{ l.lead_time_days|default:'—' }}{% if l.lead_time_days %} d{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="4" class="text-end">Total</th>
+            <th class="text-end">{{ bid.currency }} {{ bid.total_amount|floatformat:2 }}</th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>
+
+    {% if documents %}
+    <div class="card mt-3">
+      <div class="card-header">Documents</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Title</th><th>Uploaded</th><th></th></tr></thead>
+        <tbody>
+          {% for d in documents %}
+          <tr>
+            <td>{{ d.title }}</td>
+            <td class="small">{{ d.uploaded_at|date:'Y-m-d H:i' }}</td>
+            <td class="text-end">{% if d.file %}<a class="btn btn-sm btn-outline-primary" href="{{ d.file.url }}" target="_blank" rel="noopener"><i class="ri-download-line"></i></a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
