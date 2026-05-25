@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Sourcing Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Sourcing Analytics</h1>
+    <div class="breadcrumb-trail">Sub-module 5 — Sourcing Analytics &amp; market trends</div>
+  </div>
+  <a href="{% url 'sourcing:event_list' %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to events
+  </a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total events</div>
+    <div class="h4 mb-0">{{ metrics.total_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Open for bids</div>
+    <div class="h4 mb-0 text-warning">{{ metrics.open_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded</div>
+    <div class="h4 mb-0 text-success">{{ metrics.awarded_events }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Response rate</div>
+    <div class="h4 mb-0">{{ metrics.response_rate }}%</div>
+    <div class="small text-muted">{{ metrics.submitted_count }} of {{ metrics.invited_count }} invitations</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total estimated (awarded events)</div>
+    <div class="h5 mb-0">${{ metrics.total_estimated }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total awarded value</div>
+    <div class="h5 mb-0">${{ metrics.total_awarded }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card border-success"><div class="card-body">
+    <div class="text-muted small">Savings achieved</div>
+    <div class="h5 mb-0 text-success">${{ metrics.savings }} <span class="small">({{ metrics.savings_pct }}%)</span></div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Recent awards</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Date</th><th>Event</th><th>Winner</th><th class="text-end">Amount</th></tr></thead>
+        <tbody>
+          {% for ev in recent %}
+          <tr>
+            <td class="small">{{ ev.awarded_at|date:'Y-m-d' }}</td>
+            <td><a href="{% url 'sourcing:event_detail' ev.pk %}" class="text-decoration-none">{{ ev.event_number }}</a> — {{ ev.title|truncatechars:32 }}</td>
+            <td>{{ ev.awarded_vendor.legal_name }}</td>
+            <td class="text-end">{{ ev.currency }} {{ ev.awarded_amount|floatformat:2 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted small py-3">No awarded events yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Top vendors by wins</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Vendor</th><th class="text-end">Wins</th><th class="text-end">Total value</th></tr></thead>
+        <tbody>
+          {% for row in top_vendors %}
+          <tr>
+            <td>{{ row.vendor__legal_name }}</td>
+            <td class="text-end">{{ row.wins }}</td>
+            <td class="text-end">${{ row.value|floatformat:2 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-center text-muted small py-3">No award history yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
