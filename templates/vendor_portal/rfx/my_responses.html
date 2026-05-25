@@ -1,0 +1,59 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}My RFx responses{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">My RFx responses</h2>
+    <div class="small text-muted">All responses you've started, submitted, or withdrawn</div>
+  </div>
+  <a href="{% url 'vendor_portal:rfx_inbox' %}" class="btn btn-outline-primary">
+    <i class="ri-mail-line me-1"></i> Invitations
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Event</th><th>Type</th><th>Status</th>
+          <th>Submitted</th><th class="text-end">Score</th>
+          <th>Rank</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in responses %}
+        <tr>
+          <td>
+            <strong>{{ r.event.title }}</strong>
+            <div class="small text-muted"><code>{{ r.event.event_number }}</code></div>
+          </td>
+          <td class="small">{{ r.event.get_rfx_type_display }}</td>
+          <td>
+            {% if r.status == 'draft' %}<span class="badge bg-secondary">Draft</span>
+            {% elif r.status == 'submitted' %}<span class="badge bg-info">Submitted</span>
+            {% elif r.status == 'under_review' %}<span class="badge bg-warning text-dark">Under review</span>
+            {% elif r.status == 'shortlisted' %}<span class="badge bg-success">Shortlisted</span>
+            {% elif r.status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+            {% elif r.status == 'withdrawn' %}<span class="badge bg-secondary">Withdrawn</span>{% endif %}
+          </td>
+          <td class="small">{{ r.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+          <td class="text-end">{% if r.event.status == 'completed' %}{{ r.overall_score|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td>{% if r.event.status == 'completed' %}{{ r.rank|default:'—' }}{% else %}—{% endif %}</td>
+          <td class="text-end">
+            <a href="{% url 'vendor_portal:rfx_response_edit' r.event.pk r.pk %}" class="btn btn-sm btn-outline-primary">
+              <i class="ri-eye-line"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No responses yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
