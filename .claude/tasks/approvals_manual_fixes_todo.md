@@ -18,9 +18,11 @@ to reflect the new expected behaviour.
 
 ## Discovered during walkthrough (not pre-flagged)
 
-| ID | TC | Severity | Defect | Recommendation |
-|----|----|----------|--------|----------------|
-| D-04 | TC-AUTH-05 | **Medium** | `TenantAdminRequiredMixin` (via inherited `TenantRequiredMixin.handle_no_permission` at [apps/core/mixins.py:12-15](../../apps/core/mixins.py#L12-L15)) redirects an authenticated non-admin tenant user to `/tenants/onboarding/` when they hit an admin-only page. Conflates "no tenant" with "no admin permission" — the non-admin is already fully onboarded; sending them through onboarding is wrong UX. | **Do not fix in this conversation.** The mixin is used by many modules (approvals, sourcing, requisitions, vendors, tenants); a change has cross-module blast radius and deserves its own review. Suggested fix: override `handle_no_permission` on `TenantAdminRequiredMixin` to flash a "Tenant admin required" message and redirect to the dashboard (or return 403). |
+| ID | TC | Severity | Defect | Fix |
+|----|----|----------|--------|-----|
+| D-04 | TC-AUTH-05 | **Medium** | `TenantAdminRequiredMixin` (via inherited `TenantRequiredMixin.handle_no_permission` at [apps/core/mixins.py](../../apps/core/mixins.py)) redirected an authenticated non-admin tenant user to `/tenants/onboarding/` when they hit an admin-only page. Conflated "no tenant" with "no admin permission" — the non-admin was already fully onboarded; sending them through onboarding was wrong UX. | Override `handle_no_permission` on `TenantAdminRequiredMixin`: if user is authenticated AND has a tenant, flash `Tenant admin permission required to access that page.` and redirect to `portal:dashboard`. Otherwise fall through to parent (preserves anonymous → login and no-tenant authenticated → onboarding). Full test suite (355 tests) and HTTP regression sweep pass. |
+
+- [x] D-04 — `TenantAdminRequiredMixin.handle_no_permission` distinguishes "no tenant" from "no admin"
 
 ## Fixes
 
