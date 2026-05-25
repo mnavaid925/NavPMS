@@ -90,6 +90,20 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbRfx" role="button" aria-expanded="false">
+          <i class="ri-questionnaire-line"></i> <span class="flex-grow-1">RFx (RFI/RFP/RFQ)</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbRfx">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'rfx:event_list' %}">All RFx</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'rfx:event_create' %}">New RFx</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'rfx:template_list' %}">Templates</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'rfx:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
