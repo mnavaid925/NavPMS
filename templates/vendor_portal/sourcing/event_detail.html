@@ -1,0 +1,148 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}{{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">{{ event.title }}</h2>
+    <div class="small text-muted">
+      <code>{{ event.event_number }}</code> · {{ event.get_event_type_display }} ·
+      Close: {{ event.close_at|date:'Y-m-d H:i'|default:'no close date' }}
+    </div>
+  </div>
+  <a href="{% url 'vendor_portal:sourcing_invitations' %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to invitations
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-8">
+    {% if event.description %}
+    <div class="card mb-3">
+      <div class="card-header">Description</div>
+      <div class="card-body small">{{ event.description|linebreaksbr }}</div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header">Items requested</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Quantity</th><th>Required by</th></tr></thead>
+        <tbody>
+          {% for it in items %}
+          <tr>
+            <td>{{ it.line_no }}</td>
+            <td>{{ it.item_description }}</td>
+            <td><span class="badge bg-secondary">{{ it.uom }}</span></td>
+            <td class="text-end">{{ it.quantity|floatformat:3 }}</td>
+            <td class="small">{{ it.required_date|date:'Y-m-d'|default:'—' }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted small py-3">No items.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {% if criteria %}
+    <div class="card mb-3">
+      <div class="card-header">Evaluation criteria</div>
+      <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Criterion</th><th>Type</th><th class="text-end">Weight</th></tr></thead>
+        <tbody>
+          {% for c in criteria %}
+          <tr>
+            <td>
+              <strong>{{ c.name }}</strong>
+              {% if c.description %}<div class="small text-muted">{{ c.description }}</div>{% endif %}
+            </td>
+            <td class="small">{{ c.get_criterion_type_display }}</td>
+            <td class="text-end">{{ c.weight }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if event.terms_and_conditions %}
+    <div class="card">
+      <div class="card-header">Terms &amp; conditions</div>
+      <div class="card-body small">{{ event.terms_and_conditions|linebreaksbr }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-header">Your submission</div>
+      <div class="card-body">
+        {% if my_bid %}
+          <div class="small text-muted">Current bid</div>
+          <div class="h5"><code>{{ my_bid.bid_number }}</code></div>
+          <div>
+            {% if my_bid.status == 'draft' %}<span class="badge bg-secondary">Draft</span>
+            {% elif my_bid.status == 'submitted' %}<span class="badge bg-success">Submitted</span>
+            {% elif my_bid.status == 'under_review' %}<span class="badge bg-warning text-dark">Under review</span>
+            {% elif my_bid.status == 'shortlisted' %}<span class="badge bg-primary">Shortlisted</span>
+            {% elif my_bid.status == 'awarded' %}<span class="badge bg-success">Awarded</span>
+            {% elif my_bid.status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+            {% elif my_bid.status == 'withdrawn' %}<span class="badge bg-secondary">Withdrawn</span>{% endif %}
+          </div>
+          <div class="mt-2 d-grid gap-2">
+            {% if my_bid.status == 'draft' and event.status == 'open' %}
+            <a href="{% url 'vendor_portal:sourcing_bid_edit' event.pk my_bid.pk %}" class="btn btn-primary">
+              <i class="ri-edit-line me-1"></i> Continue editing
+            </a>
+            {% else %}
+            <a href="{% url 'vendor_portal:sourcing_bid_detail' event.pk my_bid.pk %}" class="btn btn-outline-primary">
+              <i class="ri-eye-line me-1"></i> View bid
+            </a>
+            {% endif %}
+          </div>
+        {% else %}
+          {% if event.status == 'open' %}
+            <form method="post" action="{% url 'vendor_portal:sourcing_bid_start' event.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-primary w-100">
+                <i class="ri-add-line me-1"></i> Start a bid
+              </button>
+            </form>
+            <p class="small text-muted mt-2 mb-0">
+              Creates a draft bid with one line per requested item, pre-filled with the buyer's quantities.
+            </p>
+          {% elif event.status == 'closed' or event.status == 'under_evaluation' %}
+            <p class="text-muted small mb-0">Bidding for this event has closed.</p>
+          {% elif event.status == 'awarded' %}
+            <p class="text-muted small mb-0">This event has been awarded.</p>
+          {% elif event.status == 'cancelled' %}
+            <p class="text-muted small mb-0">This event was cancelled.</p>
+          {% else %}
+            <p class="text-muted small mb-0">Bidding has not opened yet.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Event details</div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5 text-muted">Currency</dt>
+          <dd class="col-7">{{ event.currency }}</dd>
+          <dt class="col-5 text-muted">Estimated value</dt>
+          <dd class="col-7">{{ event.estimated_value|floatformat:2 }}</dd>
+          <dt class="col-5 text-muted">Publish</dt>
+          <dd class="col-7">{{ event.publish_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Close</dt>
+          <dd class="col-7">{{ event.close_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
