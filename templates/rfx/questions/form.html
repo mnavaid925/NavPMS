@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Edit question — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Edit question</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      {{ section.title }} &rsaquo; Q{{ question.position }}
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">{{ form|crispy }}</div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'rfx:event_detail' event.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save question</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
