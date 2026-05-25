@@ -16,7 +16,9 @@ Escalation Management, Mobile Approval Interface), **Module 5 — Vendor Managem
 (all five sub-modules: Vendor Onboarding, Vendor Portal, Vendor Classification &
 Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension), and
 **Module 6 — Sourcing & Tendering** (all five sub-modules: Event Creation & Scheduling,
-Bid Submission Portal, Bid Evaluation Matrix, Award Recommendation, Sourcing Analytics).
+Bid Submission Portal, Bid Evaluation Matrix, Award Recommendation, Sourcing Analytics),
+and **Module 7 — RFx Management** (all five sub-modules: Questionnaire Builder,
+Response Collection, Side-by-Side Comparison, Scoring & Weighting, RFx Template Library).
 
 ---
 
@@ -35,7 +37,8 @@ Bid Submission Portal, Bid Evaluation Matrix, Award Recommendation, Sourcing Ana
 12. [Module 4 — Approval Workflow Engine](#module-4--approval-workflow-engine)
 13. [Module 5 — Vendor Management](#module-5--vendor-management)
 14. [Module 6 — Sourcing & Tendering](#module-6--sourcing--tendering)
-15. [Routes / UI Tour](#routes--ui-tour)
+15. [Module 7 — RFx Management](#module-7--rfx-management)
+16. [Routes / UI Tour](#routes--ui-tour)
 16. [Multi-tenancy Model](#multi-tenancy-model)
 17. [Payment Gateway](#payment-gateway)
 18. [Browser Compatibility](#browser-compatibility)
@@ -78,9 +81,12 @@ NavPMS/
 │   │                         # VendorContact, VendorDocument, VendorBankAccount,
 │   │                         # VendorOnboardingApplication, VendorRiskAssessment,
 │   │                         # VendorBlacklistEvent (+ vendor portal sandbox)
-│   └── sourcing/             # Module 6: SourcingEvent(+Item), SourcingEventInvitee,
-│                             # SourcingCriterion, Bid(+Line +Document), BidEvaluation,
-│                             # SourcingAward (append-only)
+│   ├── sourcing/             # Module 6: SourcingEvent(+Item), SourcingEventInvitee,
+│   │                         # SourcingCriterion, Bid(+Line +Document), BidEvaluation,
+│   │                         # SourcingAward (append-only)
+│   └── rfx/                  # Module 7: RfxEvent (+Section +Question), RfxInvitee,
+│                             # RfxResponse (+Answer), RfxEvaluation, RfxDocument,
+│                             # RfxTemplate (+Section +Question)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -99,8 +105,10 @@ NavPMS/
 │   ├── approvals/{rules,delegations,requests}/ + inbox, task_detail, history
 │   ├── vendors/{vendors,categories,segments,risk,onboarding,blacklist}/
 │   ├── sourcing/{events,items,criteria,bids,awards,analytics}/
+│   ├── rfx/{events,sections,questions,responses,templates,analytics}/
 │   └── vendor_portal/        # Separate shell for supplier self-service
-│       └── sourcing/         # Vendor-side bid submission + invitations
+│       ├── sourcing/         # Vendor-side bid submission + invitations
+│       └── rfx/              # Vendor-side RFx invitations + response form
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -181,7 +189,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -190,6 +198,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_approvals` | Creates approval rules, steps and a delegation, and routes submitted requisitions through the engine. |
 | `python manage.py seed_vendors` | Creates vendor categories, segments, 8 vendors across every status, contacts/docs/banks, risk assessments, 3 onboarding applications and blacklist history. |
 | `python manage.py seed_sourcing` | Creates 3 sourcing events per tenant (draft / open with 2 bids / awarded with full evaluation matrix + finalised award + savings). |
+| `python manage.py seed_rfx` | Creates 2 RFx templates and 3 events per tenant (draft RFI / open RFP with responses / completed RFQ with full panel evaluation + shortlist). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
@@ -211,7 +220,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/) — Modules 1–4, **253 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/) — **355 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -266,6 +275,14 @@ covering every status (3 active, 1 pending verification, 1 suspended, 1 blacklis
 drafts plus an approved onboarding conversion = 9 total), contacts/documents/bank accounts
 on each vendor, risk assessments on the active ones, and 3 onboarding applications
 (submitted / under review / approved-and-converted).
+
+### RFx data
+Each tenant gets:
+- **2 templates** — "Standard supplier RFI" (3 sections, 8 questions) and "IT services RFP" (4 sections, 11 questions, scored weights summing to 100).
+- **3 events**:
+  - **Draft RFI** — "Strategic supplier capability survey" (built from the RFI template, no invitees).
+  - **Open RFP** — "ERP system selection 2026" (built from the RFP template, 3 invitees, 1 submitted response + 1 draft response).
+  - **Completed RFQ** — "Office cleaning services quote" (4 scored questions, 3 submitted responses, full panel evaluation, ranked, top response shortlisted).
 
 ### Sourcing data
 Each tenant gets 3 sourcing events:
@@ -446,6 +463,51 @@ see invitations directly; vendors without a portal user are still recorded as in
 
 ---
 
+## Module 7 — RFx Management
+
+A questionnaire-driven RFI / RFP / RFQ surface ([apps/rfx/](apps/rfx/)) — buyers build
+structured questionnaires, invite vendors to respond, score responses against weighted
+criteria, and shortlist top performers. Distinct from Module 6 (which is **price-driven**),
+Module 7 is **information-driven**: no priced line items, no award workflow, no savings
+calculation — the lifecycle ends at "shortlist". All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Questionnaire Builder** | `RfxEvent` (`RFX-<SLUG>-NNNNN`, type RFI/RFP/RFQ) + `RfxSection` (named blocks) + `RfxQuestion` (9 types: `text`, `longtext`, `number`, `single_choice`, `multi_choice`, `yes_no`, `scale`, `date`, `file`). Per-question `weight` (0-100, scored weights must sum to 100 at publish), `max_score` for `scale`, `is_required`, `is_scored`, `choices` (JSON list). Up/down arrows reorder sections + questions in-place. |
+| **Response Collection** | `RfxInvitee` (vendor → event, status `invited → viewed → responded / declined / withdrawn`). Vendor portal route `/vendor-portal/rfx/` lists invitations; vendors "start response" which creates a draft `RfxResponse` with one blank `RfxAnswer` per question. Per-answer file upload (`value_file`, 5 MB cap) supported on `file` questions. **Sealed responses**: buyer cannot see contents until the event closes. |
+| **Side-by-Side Comparison** | `/rfx/events/<pk>/responses/compare/` — table with vendors as columns, questions as rows. Sealed gate enforced before render. Scored cells show per-evaluator-averaged scores; free-text cells render the raw answer. |
+| **Scoring & Weighting** | `RfxEvaluation` is one score per `(response, question, evaluator)` — supports panel scoring (multi-evaluator average per question). Service `compute_overall_score(response) = Σ(question.weight × avg_evaluator_score / question.max_score)` for scored questions only. Overall scores persisted on `RfxResponse.overall_score`; `rank` (1 = highest) computed at `complete_event` time. |
+| **RFx Template Library** | `RfxTemplate` (tenant, title, rfx_type, `is_shared`, `archived`) with `RfxTemplateSection` + `RfxTemplateQuestion` mirroring the event schema. `create_event_from_template(template, user)` clones the structure into a fresh draft event. `save_event_as_template(event, user)` snapshots an event's questionnaire into a new template. Library at `/rfx/templates/`. |
+
+**Status workflow:** `draft → published → open → closed → under_evaluation → completed`
+plus `cancelled`. Publish validation requires ≥1 section, ≥1 question, ≥1 invitee, a
+`close_at` date, and scored question weights summing to 100. Recording the first evaluation
+auto-advances `closed → under_evaluation`. `complete_event` finalises ranks.
+
+**Sealed-response gate:** [`response_visible_to(user, response)`](apps/rfx/services.py)
+returns True iff (a) the user is the vendor portal user who owns the response, or (b)
+the user has manage/evaluate role AND `event.status ∈ {closed, under_evaluation, completed, cancelled}`.
+The [`response_detail`](apps/rfx/views.py) and [`response_list`](apps/rfx/views.py) views
+render a sealed banner instead of leaking content when this check fails.
+
+**Permission gate:** event create / edit / publish / close / complete / shortlist /
+reject is restricted to roles `tenant_admin`, `procurement_manager`, `buyer` (plus
+Django superuser). Evaluators include those plus `approver` — any of them can score a
+response. Helpers [`can_manage_rfx`](apps/rfx/services.py) and
+[`can_evaluate`](apps/rfx/services.py) encapsulate the check.
+
+**Integration with Module 5 (Vendors):** only `active` vendors can be invited; the form
+queryset excludes `suspended`, `blacklisted`, `inactive`. Vendors with a portal user see
+invitations in their `/vendor-portal/rfx/` inbox.
+
+**Why not Module 6?** Module 6 (Sourcing) handles priced bids on line items — win on
+lowest weighted cost. Module 7 (RFx) handles questionnaire responses — win on highest
+weighted score. They share the same actors (buyer/vendor) and portal shells but the
+data model differs fundamentally. The natural hand-off (RFx → Sourcing using shortlisted
+vendors as invitees) is a planned follow-up; for now they're parallel surfaces.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -498,12 +560,25 @@ see invitations directly; vendors without a portal user are still recorded as in
 | `/sourcing/events/<id>/awards/recommend/` | Recommend an award; `finalize` from the event page |
 | `/sourcing/analytics/` | Tenant-wide sourcing analytics dashboard |
 | `/sourcing/events/<id>/analytics/` | Per-event savings + response-rate report |
+| `/rfx/events/` | RFx events — search + status/type/category filters |
+| `/rfx/events/new/` | New RFx event (or from `/rfx/templates/<id>/use/`) |
+| `/rfx/events/<id>/` | Event detail (tabs: questionnaire, invitees, documents, responses) + lifecycle actions |
+| `/rfx/events/<id>/responses/` | Response list (sealed until close) |
+| `/rfx/events/<id>/responses/compare/` | Side-by-side response comparison matrix |
+| `/rfx/events/<id>/responses/<r>/evaluate/` | Score a response against the scored questions |
+| `/rfx/templates/` | RFx template library — list, create, edit, use |
+| `/rfx/analytics/` | Tenant-wide RFx analytics dashboard |
+| `/rfx/events/<id>/analytics/` | Per-event response-rate + final ranking report |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
 | `/vendor-portal/sourcing/<event>/` | RFQ read-only view (items, criteria, terms) |
 | `/vendor-portal/sourcing/<event>/bid/<bid>/` | Bid form (prices per line, lead time, documents) |
 | `/vendor-portal/sourcing/bids/` | All bids the vendor has started or submitted |
+| `/vendor-portal/rfx/` | Vendor's RFx invitations inbox |
+| `/vendor-portal/rfx/<event>/` | RFx event read-only view |
+| `/vendor-portal/rfx/<event>/response/<r>/` | Answer form (one field per question) — draft + submit |
+| `/vendor-portal/rfx/responses/` | All RFx responses the vendor has started or submitted |
 | `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
@@ -543,7 +618,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–6 ship. Modules 7–21 from the PMS spec are not yet implemented:
+Modules 1–7 ship. Modules 8–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -553,7 +628,7 @@ Modules 1–6 ship. Modules 7–21 from the PMS spec are not yet implemented:
 | 4 | Approval Workflow Engine | Shipped |
 | 5 | Vendor Management | Shipped |
 | 6 | Sourcing & Tendering | Shipped |
-| 7 | RFx Management | Planned |
+| 7 | RFx Management | Shipped |
 | 8 | E-Auction Management | Planned |
 | 9 | Contract Management | Planned |
 | 10 | Catalog Management | Planned |
