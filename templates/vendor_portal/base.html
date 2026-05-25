@@ -40,6 +40,12 @@
        href="{% url 'vendor_portal:contacts' %}"><i class="ri-contacts-line"></i> Contacts</a>
     <a class="nav-link {% if request.resolver_match.url_name == 'documents' %}active{% endif %}"
        href="{% url 'vendor_portal:documents' %}"><i class="ri-file-line"></i> Documents</a>
+    <div class="small-label">Sourcing</div>
+    <a class="nav-link {% if 'sourcing_invitations' in request.resolver_match.url_name|default:'' or request.resolver_match.url_name == 'sourcing_event_detail' %}active{% endif %}"
+       href="{% url 'vendor_portal:sourcing_invitations' %}"><i class="ri-mail-line"></i> Invitations</a>
+    <a class="nav-link {% if 'sourcing_my_bids' in request.resolver_match.url_name|default:'' or request.resolver_match.url_name == 'sourcing_bid_edit' or request.resolver_match.url_name == 'sourcing_bid_detail' %}active{% endif %}"
+       href="{% url 'vendor_portal:sourcing_my_bids' %}"><i class="ri-auction-line"></i> My Bids</a>
+    <div class="small-label">Orders &amp; Payments</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
        href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
     <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}"
