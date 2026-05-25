@@ -16,6 +16,12 @@ to reflect the new expected behaviour.
 - TC-NEG-08 (out-of-order step approval): `act_on_task` correctly re-activates the next pending task by `order` after each action; admins acting on step 2 first does not skip step 1. Verified in [apps/approvals/services.py:156-159](../../apps/approvals/services.py#L156-L159). No fix.
 - TC-NEG-05 (double-click rapid submit): generic UX concern, not approvals-specific. No fix in this pass.
 
+## Discovered during walkthrough (not pre-flagged)
+
+| ID | TC | Severity | Defect | Recommendation |
+|----|----|----------|--------|----------------|
+| D-04 | TC-AUTH-05 | **Medium** | `TenantAdminRequiredMixin` (via inherited `TenantRequiredMixin.handle_no_permission` at [apps/core/mixins.py:12-15](../../apps/core/mixins.py#L12-L15)) redirects an authenticated non-admin tenant user to `/tenants/onboarding/` when they hit an admin-only page. Conflates "no tenant" with "no admin permission" — the non-admin is already fully onboarded; sending them through onboarding is wrong UX. | **Do not fix in this conversation.** The mixin is used by many modules (approvals, sourcing, requisitions, vendors, tenants); a change has cross-module blast radius and deserves its own review. Suggested fix: override `handle_no_permission` on `TenantAdminRequiredMixin` to flash a "Tenant admin required" message and redirect to the dashboard (or return 403). |
+
 ## Fixes
 
 - [x] D-01 — add `clean_min_amount` / `clean_max_amount` to `ApprovalRuleForm` (reject negatives)
