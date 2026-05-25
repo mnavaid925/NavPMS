@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags rfx_tags %}
+{% block title %}Response — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Response — {{ response.vendor.legal_name }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      <a href="{% url 'rfx:response_list' event.pk %}">Responses</a> &rsaquo;
+      {{ response.vendor.legal_name }}
+    </div>
+  </div>
+  <div>
+    {% if not sealed and can_evaluate %}
+    <a href="{% url 'rfx:response_evaluate' event.pk response.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-pencil-ruler-line me-1"></i> Score this response
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if sealed %}
+  <div class="alert alert-info">
+    <i class="ri-lock-line me-1"></i>
+    <strong>This response is sealed.</strong> Contents become visible after the event closes.
+  </div>
+{% else %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Response summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Vendor</dt>
+          <dd class="col-7"><strong>{{ response.vendor.legal_name }}</strong>
+              <div class="small text-muted">{{ response.vendor.vendor_number }}</div></dd>
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if response.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+            {% elif response.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+            {% elif response.status == 'shortlisted' %}<span class="badge badge-soft-success">Shortlisted</span>
+            {% elif response.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+            {% elif response.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+            {% elif response.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+            {% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Submitted</dt>
+          <dd class="col-7">{{ response.submitted_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Overall score</dt>
+          <dd class="col-7"><strong>{{ response.overall_score|floatformat:2 }}</strong></dd>
+          <dt class="col-5 text-muted">Rank</dt>
+          <dd class="col-7">{{ response.rank|default:'—' }}</dd>
+          {% if response.decision_reason %}
+          <dt class="col-5 text-muted">Decision</dt>
+          <dd class="col-7">{{ response.decision_reason }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {% if can_manage and response.status == 'submitted' or response.status == 'under_review' %}
+    <div class="card mb-3">
+      <div class="card-header">Decision</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'rfx:response_shortlist' event.pk response.pk %}" novalidate class="mb-2">
+          {% csrf_token %}
+          {{ decision_form|crispy }}
+          <button class="btn btn-success w-100" type="submit"><i class="ri-check-line me-1"></i> Shortlist</button>
+        </form>
+        <form method="post" action="{% url 'rfx:response_reject' event.pk response.pk %}" novalidate
+              onsubmit="return confirm('Reject this response?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger w-100" type="submit"><i class="ri-close-line me-1"></i> Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    {% for section in sections %}
+    <div class="card mb-2">
+      <div class="card-header">
+        <strong>{{ section.position }}. {{ section.title }}</strong>
+      </div>
+      <div class="card-body p-3">
+        {% for q in section.questions.all %}
+        <div class="mb-3 pb-2 border-bottom">
+          <div class="small text-muted">Q{{ q.position }}{% if q.is_scored %} · scored ({{ q.weight }}%){% endif %}{% if q.is_required %} · required{% endif %}</div>
+          <div class="fw-semibold">{{ q.prompt }}</div>
+          <div class="mt-1">
+            {% with ans=answers|get_item:q.pk %}
+              {% if ans and ans.is_answered %}
+                {% if q.question_type == 'text' or q.question_type == 'longtext' or q.question_type == 'yes_no' %}
+                  <span>{{ ans.value_text|linebreaksbr }}</span>
+                {% elif q.question_type == 'number' or q.question_type == 'scale' %}
+                  <span>{{ ans.value_number|floatformat }}</span>
+                {% elif q.question_type == 'single_choice' or q.question_type == 'multi_choice' %}
+                  <span>{{ ans.value_choices|join:', ' }}</span>
+                {% elif q.question_type == 'date' %}
+                  <span>{{ ans.value_date|date:'Y-m-d' }}</span>
+                {% elif q.question_type == 'file' %}
+                  {% if ans.value_file %}<a href="{{ ans.value_file.url }}" target="_blank">{{ ans.value_file.name }}</a>{% else %}<em class="text-muted">No file uploaded</em>{% endif %}
+                {% endif %}
+              {% else %}
+                <em class="text-muted">— No answer —</em>
+              {% endif %}
+            {% endwith %}
+          </div>
+          {% if q.is_scored %}
+          <div class="small text-muted mt-1">
+            Panel avg: <strong>{{ panel_avg|get_item:q.pk|default:'—'|floatformat:2 }}</strong> / {{ q.max_score }}
+            {% with my=my_scores|get_item:q.pk %}
+              {% if my %}· Your score: <strong>{{ my.score|floatformat:2 }}</strong>{% endif %}
+            {% endwith %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
