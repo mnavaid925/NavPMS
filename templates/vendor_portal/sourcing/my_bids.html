@@ -1,0 +1,64 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}My Bids{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">My bids</h2>
+    <div class="small text-muted">All bids you've started or submitted</div>
+  </div>
+  <a href="{% url 'vendor_portal:sourcing_invitations' %}" class="btn btn-outline-primary">
+    <i class="ri-mail-line me-1"></i> Invitations
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Bid</th><th>Event</th><th>Status</th>
+          <th class="text-end">Total</th><th>Submitted</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bids %}
+          <tr>
+            <td><code class="small">{{ b.bid_number }}</code></td>
+            <td>
+              <a href="{% url 'vendor_portal:sourcing_event_detail' b.event.pk %}" class="text-decoration-none">{{ b.event.title }}</a>
+              <div class="small text-muted"><code>{{ b.event.event_number }}</code></div>
+            </td>
+            <td>
+              {% if b.status == 'draft' %}<span class="badge bg-secondary">Draft</span>
+              {% elif b.status == 'submitted' %}<span class="badge bg-success">Submitted</span>
+              {% elif b.status == 'under_review' %}<span class="badge bg-warning text-dark">Under review</span>
+              {% elif b.status == 'shortlisted' %}<span class="badge bg-primary">Shortlisted</span>
+              {% elif b.status == 'awarded' %}<span class="badge bg-success">Awarded</span>
+              {% elif b.status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+              {% elif b.status == 'withdrawn' %}<span class="badge bg-secondary">Withdrawn</span>{% endif %}
+            </td>
+            <td class="text-end">{{ b.currency }} {{ b.total_amount|floatformat:2 }}</td>
+            <td class="small">{{ b.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td class="text-end">
+              {% if b.status == 'draft' and b.event.status == 'open' %}
+              <a href="{% url 'vendor_portal:sourcing_bid_edit' b.event.pk b.pk %}" class="btn btn-sm btn-primary">
+                <i class="ri-edit-line"></i> Edit
+              </a>
+              {% else %}
+              <a href="{% url 'vendor_portal:sourcing_bid_detail' b.event.pk b.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="ri-eye-line"></i> View
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No bids yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
