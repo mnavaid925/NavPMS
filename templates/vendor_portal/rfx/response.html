@@ -1,0 +1,144 @@
+{% extends 'vendor_portal/base.html' %}
+{% load rfx_tags %}
+{% block title %}Response — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <div class="small text-muted">
+      <a href="{% url 'vendor_portal:rfx_event' event.pk %}">&larr; Back to {{ event.event_number }}</a>
+    </div>
+    <h2 class="mb-1">Your response — {{ event.title }}</h2>
+    <div class="small text-muted">
+      Status:
+      {% if response.status == 'draft' %}<span class="badge bg-secondary">Draft</span>
+      {% elif response.status == 'submitted' %}<span class="badge bg-info">Submitted</span>
+      {% elif response.status == 'under_review' %}<span class="badge bg-warning text-dark">Under review</span>
+      {% elif response.status == 'shortlisted' %}<span class="badge bg-success">Shortlisted</span>
+      {% elif response.status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+      {% elif response.status == 'withdrawn' %}<span class="badge bg-secondary">Withdrawn</span>{% endif %}
+      · Close at: {{ event.close_at|date:'Y-m-d H:i'|default:'—' }}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if response.status == 'draft' or response.status == 'submitted' %}{% if event.status == 'open' %}
+    <form method="post" action="{% url 'vendor_portal:rfx_response_withdraw' event.pk response.pk %}"
+          onsubmit="return confirm('Withdraw your response? This cannot be undone.');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger"><i class="ri-close-circle-line me-1"></i> Withdraw</button>
+    </form>
+    {% endif %}{% endif %}
+  </div>
+</div>
+
+{% if locked %}
+<div class="alert alert-info">
+  <i class="ri-lock-line me-1"></i>
+  This response is locked. You can no longer edit it.
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% for section in sections %}
+  <div class="card mb-3">
+    <div class="card-header">{{ section.position }}. {{ section.title }}
+      {% if section.description %}<div class="small text-muted">{{ section.description }}</div>{% endif %}
+    </div>
+    <div class="card-body">
+      {% for q in section.questions.all %}
+      {% with ans=answers|get_item:q.pk %}
+      <div class="mb-3 pb-3 border-bottom">
+        <label class="form-label fw-semibold mb-1">
+          Q{{ q.position }}. {{ q.prompt }}
+          {% if q.is_required %}<span class="text-danger">*</span>{% endif %}
+        </label>
+        {% if q.help_text %}<div class="small text-muted mb-1">{{ q.help_text }}</div>{% endif %}
+
+        {% if q.question_type == 'text' %}
+          <input type="text" class="form-control" name="answer_{{ q.pk }}_text"
+                 value="{{ ans.value_text|default_if_none:'' }}" {% if locked %}disabled{% endif %}>
+        {% elif q.question_type == 'longtext' %}
+          <textarea class="form-control" rows="4" name="answer_{{ q.pk }}_text"
+                    {% if locked %}disabled{% endif %}>{{ ans.value_text|default_if_none:'' }}</textarea>
+        {% elif q.question_type == 'number' %}
+          <input type="number" step="any" class="form-control" name="answer_{{ q.pk }}_number"
+                 value="{% if ans.value_number is not None %}{{ ans.value_number|floatformat }}{% endif %}"
+                 {% if locked %}disabled{% endif %}>
+        {% elif q.question_type == 'scale' %}
+          <input type="number" min="0" max="{{ q.max_score }}" step="1" class="form-control" name="answer_{{ q.pk }}_number"
+                 value="{% if ans.value_number is not None %}{{ ans.value_number|floatformat }}{% endif %}"
+                 {% if locked %}disabled{% endif %}>
+          <div class="form-text">0 – {{ q.max_score }}</div>
+        {% elif q.question_type == 'date' %}
+          <input type="date" class="form-control" name="answer_{{ q.pk }}_date"
+                 value="{{ ans.value_date|date:'Y-m-d' }}" {% if locked %}disabled{% endif %}>
+        {% elif q.question_type == 'yes_no' %}
+          <select class="form-select" name="answer_{{ q.pk }}_text" {% if locked %}disabled{% endif %}>
+            <option value="">—</option>
+            <option value="yes" {% if ans.value_text == 'yes' %}selected{% endif %}>Yes</option>
+            <option value="no" {% if ans.value_text == 'no' %}selected{% endif %}>No</option>
+          </select>
+        {% elif q.question_type == 'single_choice' %}
+          {% for opt in q.choices %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="answer_{{ q.pk }}_choices" value="{{ opt }}"
+                   id="ans-{{ q.pk }}-{{ forloop.counter }}"
+                   {% if ans.value_choices and opt in ans.value_choices %}checked{% endif %}
+                   {% if locked %}disabled{% endif %}>
+            <label class="form-check-label" for="ans-{{ q.pk }}-{{ forloop.counter }}">{{ opt }}</label>
+          </div>
+          {% endfor %}
+        {% elif q.question_type == 'multi_choice' %}
+          {% for opt in q.choices %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="answer_{{ q.pk }}_choices" value="{{ opt }}"
+                   id="ans-{{ q.pk }}-{{ forloop.counter }}"
+                   {% if ans.value_choices and opt in ans.value_choices %}checked{% endif %}
+                   {% if locked %}disabled{% endif %}>
+            <label class="form-check-label" for="ans-{{ q.pk }}-{{ forloop.counter }}">{{ opt }}</label>
+          </div>
+          {% endfor %}
+        {% elif q.question_type == 'file' %}
+          {% if ans.value_file %}
+            <div class="small mb-1">
+              Current: <a href="{{ ans.value_file.url }}" target="_blank">{{ ans.value_file.name }}</a>
+              {% if not locked %}
+              <label class="ms-2 small">
+                <input type="checkbox" name="answer_{{ q.pk }}_clear" value="yes"> Remove
+              </label>
+              {% endif %}
+            </div>
+          {% endif %}
+          {% if not locked %}
+          <input type="file" class="form-control" name="answer_{{ q.pk }}_file">
+          <div class="form-text">Max 5 MB.</div>
+          {% endif %}
+        {% endif %}
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not locked %}
+  <div class="card">
+    <div class="card-body d-flex justify-content-between">
+      <a href="{% url 'vendor_portal:rfx_event' event.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" type="submit"><i class="ri-save-line me-1"></i> Save draft</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+{% if not locked and response.status == 'draft' %}
+<form method="post" action="{% url 'vendor_portal:rfx_response_submit' event.pk response.pk %}" class="mt-3"
+      onsubmit="return confirm('Submit your final response? You will not be able to edit it after this.');">
+  {% csrf_token %}
+  <button class="btn btn-success btn-lg w-100"><i class="ri-send-plane-line me-1"></i> Submit final response</button>
+</form>
+{% endif %}
+{% endblock %}
