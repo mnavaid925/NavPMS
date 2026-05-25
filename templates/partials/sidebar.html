@@ -77,6 +77,19 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbSourcing" role="button" aria-expanded="false">
+          <i class="ri-auction-line"></i> <span class="flex-grow-1">Sourcing</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbSourcing">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'sourcing:event_list' %}">All Events</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sourcing:event_create' %}">New Event</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sourcing:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
