@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load rfx_tags %}
+{% block title %}Evaluate — {{ response.vendor.legal_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Evaluate response</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <a href="{% url 'rfx:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      <a href="{% url 'rfx:response_detail' event.pk response.pk %}">{{ response.vendor.legal_name }}</a> &rsaquo; Evaluate
+    </div>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-header">
+      Score each scored question for <strong>{{ response.vendor.legal_name }}</strong>.
+      Leave blank to keep an existing score unchanged.
+    </div>
+    <div class="card-body">
+      {% for q in scored_questions %}
+      <div class="mb-3 pb-3 border-bottom">
+        <div class="small text-muted">{{ q.section.title }} · Q{{ q.position }} · weight {{ q.weight }}% · max {{ q.max_score }}</div>
+        <div class="fw-semibold mb-1">{{ q.prompt }}</div>
+        <div class="mb-2 small">
+          <strong>Their answer:</strong>
+          {% with ans=answers|get_item:q.pk %}
+            {% if ans and ans.is_answered %}
+              {% if q.question_type == 'text' or q.question_type == 'longtext' or q.question_type == 'yes_no' %}{{ ans.value_text|linebreaksbr }}
+              {% elif q.question_type == 'number' or q.question_type == 'scale' %}{{ ans.value_number|floatformat }}
+              {% elif q.question_type == 'single_choice' or q.question_type == 'multi_choice' %}{{ ans.value_choices|join:', ' }}
+              {% elif q.question_type == 'date' %}{{ ans.value_date|date:'Y-m-d' }}
+              {% elif q.question_type == 'file' %}{% if ans.value_file %}<a href="{{ ans.value_file.url }}" target="_blank">file</a>{% else %}—{% endif %}
+              {% endif %}
+            {% else %}<em class="text-muted">— No answer —</em>{% endif %}
+          {% endwith %}
+        </div>
+        <div class="row g-2 align-items-center">
+          <div class="col-md-2">
+            <label class="form-label small">Score (0–{{ q.max_score }})</label>
+            <input type="number" min="0" max="{{ q.max_score }}" step="0.01"
+                   name="score_{{ q.pk }}" class="form-control form-control-sm"
+                   value="{% with my=existing|get_item:q.pk %}{% if my %}{{ my.score|floatformat:2 }}{% endif %}{% endwith %}">
+          </div>
+          <div class="col-md-10">
+            <label class="form-label small">Comment (optional)</label>
+            <input type="text" name="comment_{{ q.pk }}" class="form-control form-control-sm"
+                   value="{% with my=existing|get_item:q.pk %}{% if my %}{{ my.comment }}{% endif %}{% endwith %}">
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="text-muted text-center py-3">No scored questions on this event.</div>
+      {% endfor %}
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'rfx:response_detail' event.pk response.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      <button class="btn btn-primary" type="submit"><i class="ri-save-line me-1"></i> Save evaluation</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
