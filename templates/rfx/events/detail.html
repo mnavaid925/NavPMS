@@ -1,0 +1,473 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ event.event_number }} — {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ event.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo;
+      <code>{{ event.event_number }}</code>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage and event.is_editable %}
+      <a href="{% url 'rfx:event_edit' event.pk %}" class="btn btn-outline-primary">
+        <i class="ri-pencil-line me-1"></i> Edit
+      </a>
+    {% endif %}
+    <a href="{% url 'rfx:analytics_event_report' event.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-bar-chart-line me-1"></i> Analytics
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if event.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+            {% elif event.status == 'published' %}<span class="badge badge-soft-info">Published</span>
+            {% elif event.status == 'open' %}<span class="badge badge-soft-warning">Open for responses</span>
+            {% elif event.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+            {% elif event.status == 'under_evaluation' %}<span class="badge badge-soft-primary">Under evaluation</span>
+            {% elif event.status == 'completed' %}<span class="badge badge-soft-success">Completed</span>
+            {% elif event.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ event.get_status_display }}</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ event.get_rfx_type_display }}</dd>
+          <dt class="col-5 text-muted">Category</dt><dd class="col-7">{{ event.category.name|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Currency</dt><dd class="col-7">{{ event.currency }}</dd>
+          <dt class="col-5 text-muted">Publish</dt>
+          <dd class="col-7">{{ event.publish_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Close</dt>
+          <dd class="col-7">{{ event.close_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Created by</dt><dd class="col-7">{{ event.created_by|default:'—' }}</dd>
+          {% if event.source_requisition %}
+          <dt class="col-5 text-muted">From REQ</dt>
+          <dd class="col-7"><a href="{% url 'requisitions:requisition_detail' event.source_requisition.pk %}">{{ event.source_requisition.number }}</a></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {% if event.status == 'completed' %}
+    <div class="card mb-3">
+      <div class="card-header">Outcome</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Top vendor</dt>
+          <dd class="col-7"><strong>{{ metrics.top_vendor|default:'—' }}</strong></dd>
+          <dt class="col-5 text-muted">Top score</dt>
+          <dd class="col-7">{{ metrics.top_score|floatformat:2 }}</dd>
+          <dt class="col-5 text-muted">Shortlisted</dt>
+          <dd class="col-7">{{ metrics.shortlisted }}</dd>
+          <dt class="col-5 text-muted">Cycle</dt>
+          <dd class="col-7">{{ metrics.cycle_days|default:'—' }} day(s)</dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if event.status == 'draft' %}
+          {% if publish_errors %}
+            <div class="alert alert-warning small mb-2">
+              <strong>Before publishing:</strong>
+              <ul class="mb-0 ps-3">
+                {% for err in publish_errors %}<li>{{ err }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          <form method="post" action="{% url 'rfx:event_publish' event.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100" {% if publish_errors %}disabled{% endif %}>
+              <i class="ri-send-plane-line me-1"></i> Publish event
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'published' %}
+          <form method="post" action="{% url 'rfx:event_open' event.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-warning w-100">
+              <i class="ri-play-circle-line me-1"></i> Open for responses now
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'open' %}
+          <form method="post" action="{% url 'rfx:event_close' event.pk %}"
+                onsubmit="return confirm('Close {{ event.event_number }}? Responses will become visible for evaluation.');">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100">
+              <i class="ri-stop-circle-line me-1"></i> Close responses
+            </button>
+          </form>
+        {% endif %}
+        {% if event.status == 'closed' or event.status == 'under_evaluation' %}
+          <form method="post" action="{% url 'rfx:event_complete' event.pk %}"
+                onsubmit="return confirm('Mark {{ event.event_number }} as completed? Ranks will be finalised.');">
+            {% csrf_token %}
+            <button class="btn btn-success w-100">
+              <i class="ri-check-double-line me-1"></i> Complete &amp; finalise ranks
+            </button>
+          </form>
+        {% endif %}
+        <a href="{% url 'rfx:response_list' event.pk %}" class="btn btn-outline-primary">
+          <i class="ri-file-list-line me-1"></i> Responses ({{ responses.count }})
+        </a>
+        {% if event.is_editable or event.status == 'completed' %}
+          <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#saveTplForm">
+            <i class="ri-save-3-line me-1"></i> Save as template
+          </button>
+        {% endif %}
+        {% if event.can_cancel %}
+          <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#cancelForm">
+            <i class="ri-close-circle-line me-1"></i> Cancel event
+          </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="collapse mb-3" id="saveTplForm">
+      <div class="card">
+        <div class="card-header">Save as template</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'rfx:event_save_as_template' event.pk %}" novalidate>
+            {% csrf_token %}
+            {{ save_template_form|crispy }}
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="ri-save-line me-1"></i> Save template
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% if event.can_cancel %}
+    <div class="collapse mb-3" id="cancelForm">
+      <div class="card">
+        <div class="card-header">Cancel event</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'rfx:event_cancel' event.pk %}" novalidate>
+            {% csrf_token %}
+            {{ cancel_form|crispy }}
+            <button class="btn btn-danger w-100" type="submit">
+              <i class="ri-alert-line me-1"></i> Cancel this event
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Main content tabs -->
+  <div class="col-lg-8">
+    {% if event.description %}
+    <div class="card mb-3"><div class="card-body"><p class="mb-0">{{ event.description|linebreaksbr }}</p></div></div>
+    {% endif %}
+
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-questions">Questionnaire ({{ sections|length }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-invitees">Invitees ({{ invitees.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documents">Documents ({{ documents.count }})</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-responses">Responses ({{ responses.count }})</button></li>
+      {% if event.terms_and_conditions %}
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-terms">Terms</button></li>
+      {% endif %}
+    </ul>
+    <div class="tab-content border border-top-0 p-3">
+
+      <!-- Questionnaire (sections + questions) -->
+      <div class="tab-pane fade show active" id="tab-questions">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">
+            Sections &amp; questions
+            <span class="small text-muted ms-2">
+              (scored weight total: <strong>{{ scored_weight_total }}%</strong>{% if scored_weight_total != 100 %} — must reach 100% to publish{% endif %})
+            </span>
+          </h6>
+          {% if can_manage and event.is_editable %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#sectionForm">
+            <i class="ri-add-line"></i> Add section
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage and event.is_editable %}
+        <div class="collapse mb-3" id="sectionForm">
+          <form method="post" action="{% url 'rfx:section_create' event.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ section_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Save section</button>
+          </form>
+        </div>
+        {% endif %}
+
+        {% for section in sections %}
+        <div class="card mb-2">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ section.position }}. {{ section.title }}</strong>
+              {% if section.description %}<div class="small text-muted">{{ section.description }}</div>{% endif %}
+            </div>
+            {% if can_manage and event.is_editable %}
+            <div class="d-flex gap-1">
+              <form method="post" action="{% url 'rfx:section_move' event.pk section.pk 'up' %}" class="d-inline">
+                {% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="Move up"><i class="ri-arrow-up-line"></i></button>
+              </form>
+              <form method="post" action="{% url 'rfx:section_move' event.pk section.pk 'down' %}" class="d-inline">
+                {% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="Move down"><i class="ri-arrow-down-line"></i></button>
+              </form>
+              <a href="{% url 'rfx:section_edit' event.pk section.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+              <form method="post" action="{% url 'rfx:section_delete' event.pk section.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete section &quot;{{ section.title }}&quot; and all its questions?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+          <div class="card-body p-2">
+            <div class="table-responsive">
+            <table class="table table-sm table-borderless mb-2">
+              <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Required</th><th>Scored</th><th class="text-end">Weight</th><th></th></tr></thead>
+              <tbody>
+                {% for q in section.questions.all %}
+                <tr>
+                  <td>{{ q.position }}</td>
+                  <td>
+                    <strong>{{ q.prompt }}</strong>
+                    {% if q.help_text %}<div class="small text-muted">{{ q.help_text|truncatechars:80 }}</div>{% endif %}
+                    {% if q.choices %}<div class="small text-muted">{{ q.choices|length }} choice(s): {{ q.choices|join:', '|truncatechars:60 }}</div>{% endif %}
+                  </td>
+                  <td class="small"><span class="badge badge-soft-info">{{ q.get_question_type_display }}</span></td>
+                  <td>{% if q.is_required %}<i class="ri-check-line text-success"></i>{% else %}—{% endif %}</td>
+                  <td>{% if q.is_scored %}<i class="ri-check-line text-success"></i>{% else %}—{% endif %}</td>
+                  <td class="text-end">{{ q.weight }}%</td>
+                  <td class="text-end">
+                    {% if can_manage and event.is_editable %}
+                    <form method="post" action="{% url 'rfx:question_move' event.pk q.pk 'up' %}" class="d-inline">
+                      {% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="Move up"><i class="ri-arrow-up-line"></i></button>
+                    </form>
+                    <form method="post" action="{% url 'rfx:question_move' event.pk q.pk 'down' %}" class="d-inline">
+                      {% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="Move down"><i class="ri-arrow-down-line"></i></button>
+                    </form>
+                    <a href="{% url 'rfx:question_edit' event.pk q.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    <form method="post" action="{% url 'rfx:question_delete' event.pk q.pk %}" class="d-inline"
+                          onsubmit="return confirm('Delete this question?');">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted small py-2">No questions in this section yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            </div>
+            {% if can_manage and event.is_editable %}
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#qForm-{{ section.pk }}">
+              <i class="ri-add-line"></i> Add question
+            </button>
+            <div class="collapse mt-2" id="qForm-{{ section.pk }}">
+              <form method="post" action="{% url 'rfx:question_create' event.pk section.pk %}" novalidate class="border rounded p-3">
+                {% csrf_token %}{{ question_form|crispy }}
+                <button class="btn btn-primary btn-sm" type="submit">Save question</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-3">No sections yet. Add a section to start building the questionnaire.</div>
+        {% endfor %}
+      </div>
+
+      <!-- Invitees -->
+      <div class="tab-pane fade" id="tab-invitees">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Invited vendors</h6>
+          {% if can_manage and event.status != 'completed' and event.status != 'cancelled' %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#inviteForm">
+            <i class="ri-add-line"></i> Invite vendors
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage %}
+        <div class="collapse mb-3" id="inviteForm">
+          <form method="post" action="{% url 'rfx:invitee_add' event.pk %}" novalidate class="border rounded p-3">
+            {% csrf_token %}{{ invitee_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Send invitations</button>
+          </form>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Vendor</th><th>Status</th><th>Invited</th><th>Responded</th><th></th></tr></thead>
+          <tbody>
+            {% for inv in invitees %}
+            <tr>
+              <td>
+                <a href="{% url 'vendors:vendor_detail' inv.vendor.pk %}" class="text-decoration-none">
+                  {{ inv.vendor.legal_name }}
+                </a>
+                <div class="small text-muted">{{ inv.vendor.vendor_number }}</div>
+              </td>
+              <td>
+                {% if inv.status == 'invited' %}<span class="badge badge-soft-secondary">Invited</span>
+                {% elif inv.status == 'viewed' %}<span class="badge badge-soft-info">Viewed</span>
+                {% elif inv.status == 'responded' %}<span class="badge badge-soft-success">Responded</span>
+                {% elif inv.status == 'declined' %}<span class="badge badge-soft-warning">Declined</span>
+                {% elif inv.status == 'withdrawn' %}<span class="badge badge-soft-danger">Withdrawn</span>
+                {% else %}<span class="badge badge-soft-secondary">{{ inv.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="small">{{ inv.invited_at|date:'Y-m-d H:i' }}</td>
+              <td class="small">{{ inv.responded_at|date:'Y-m-d H:i'|default:'—' }}</td>
+              <td class="text-end">
+                {% if can_manage and inv.status != 'responded' %}
+                <form method="post" action="{% url 'rfx:invitee_remove' event.pk inv.pk %}" class="d-inline"
+                      onsubmit="return confirm('Remove this invitation?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted small py-3">No vendors invited yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Documents -->
+      <div class="tab-pane fade" id="tab-documents">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">RFx documents</h6>
+          {% if can_manage %}
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#docForm">
+            <i class="ri-upload-line"></i> Upload document
+          </button>
+          {% endif %}
+        </div>
+        {% if can_manage %}
+        <div class="collapse mb-3" id="docForm">
+          <form method="post" action="{% url 'rfx:document_add' event.pk %}" enctype="multipart/form-data"
+                novalidate class="border rounded p-3">
+            {% csrf_token %}{{ document_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">Upload</button>
+          </form>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Title</th><th>Uploaded</th><th>By</th><th></th><th></th></tr></thead>
+          <tbody>
+            {% for d in documents %}
+            <tr>
+              <td>
+                <strong>{{ d.title }}</strong>
+                {% if d.notes %}<div class="small text-muted">{{ d.notes|truncatechars:80 }}</div>{% endif %}
+              </td>
+              <td class="small">{{ d.uploaded_at|date:'Y-m-d H:i' }}</td>
+              <td class="small">{{ d.uploaded_by|default:'—' }}</td>
+              <td>{% if d.file %}<a href="{{ d.file.url }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="ri-download-line"></i></a>{% endif %}</td>
+              <td class="text-end">
+                {% if can_manage %}
+                <form method="post" action="{% url 'rfx:document_delete' event.pk d.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete document {{ d.title }}?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted small py-3">No documents uploaded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Responses -->
+      <div class="tab-pane fade" id="tab-responses">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Vendor responses</h6>
+          {% if can_view_responses and responses.count > 1 %}
+          <a href="{% url 'rfx:response_compare' event.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="ri-bar-chart-grouped-line"></i> Compare side-by-side
+          </a>
+          {% endif %}
+        </div>
+        {% if not event.responses_are_visible %}
+          <div class="alert alert-info small">
+            <i class="ri-lock-line me-1"></i>
+            <strong>Responses are sealed.</strong> Contents become visible after the event closes
+            ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
+          </div>
+          <div class="small">
+            <strong>{{ responses.count }}</strong> response(s) received from
+            {{ invitees.count }} invitation(s).
+          </div>
+        {% else %}
+          <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Rank</th><th>Vendor</th><th>Status</th><th class="text-end">Score</th><th>Submitted</th><th></th></tr></thead>
+            <tbody>
+              {% for r in responses %}
+              <tr>
+                <td>{{ r.rank|default:'—' }}</td>
+                <td>{{ r.vendor.legal_name }}</td>
+                <td>
+                  {% if r.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+                  {% elif r.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+                  {% elif r.status == 'shortlisted' %}<span class="badge badge-soft-success">Shortlisted</span>
+                  {% elif r.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+                  {% elif r.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+                  {% elif r.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+                  {% else %}<span class="badge badge-soft-secondary">{{ r.get_status_display }}</span>{% endif %}
+                </td>
+                <td class="text-end">{{ r.overall_score|floatformat:2 }}</td>
+                <td class="small">{{ r.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+                <td class="text-end">
+                  <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-center text-muted small py-3">No responses received.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        {% endif %}
+        {% if event.cancelled_reason %}
+        <div class="alert alert-danger mt-3 small">
+          <strong>Cancelled:</strong> {{ event.cancelled_reason }}
+          <div class="text-muted">on {{ event.cancelled_at|date:'Y-m-d H:i' }} by {{ event.cancelled_by|default:'—' }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if event.terms_and_conditions %}
+      <div class="tab-pane fade" id="tab-terms">
+        <h6 class="mb-2">Terms &amp; conditions</h6>
+        <div class="small">{{ event.terms_and_conditions|linebreaksbr }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
