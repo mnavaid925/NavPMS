@@ -63,3 +63,48 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
   `response.templates` are `None` unless `django.test.utils.setup_test_environment()`
   is called first (it connects the `template_rendered` signal). Call it once at the
   top of any ad-hoc harness that asserts on template context.
+
+- **2026-05-26 — `ModelForm` fields for `PositiveIntegerField(default=N)` are
+  required by default at the *form* layer — even when the view auto-fills them.**
+  A `position` field with `default=1` on the model still raises "This field is
+  required" if the user submits an empty value, because `ModelForm` derives
+  `required=True` from `blank=False`. **Why:** the model default kicks in at
+  `INSERT` time, but the form rejects the POST before the view ever gets to
+  apply it. **How to apply:** in the form's `__init__`, set
+  `self.fields['position'].required = False` whenever the view auto-populates a
+  missing value. Verified fix: `RfxSectionForm`, `RfxTemplateSectionForm`, and
+  the shared `_BaseQuestionForm` in [apps/rfx/forms.py](apps/rfx/forms.py).
+
+- **2026-05-26 — Sealed-content leak tests need a canary that *isn't* a value
+  already rendered elsewhere on the page.** A test that asserted `b'Acme' not
+  in resp.content` failed not because of a leak but because the response
+  vendor's `legal_name` was "Acme IT Solutions" and showed in the sidebar /
+  breadcrumb of the sealed page. **Why:** sealed banners typically still
+  render vendor identity (so the buyer knows *who* responded) — only the
+  answer body is hidden. **How to apply:** pick a canary that lives *only*
+  inside the per-question answer markup — e.g. `b'Q1.'`, or a hash unique to
+  the answer content seeded for the test. Verified fix:
+  `test_response_detail_sealed_before_close` in
+  [apps/rfx/tests/test_views.py](apps/rfx/tests/test_views.py).
+
+- **2026-05-26 — Fixture chains that mutate a shared object in place poison
+  filter tests.** An `open_event` fixture built `from draft_event` by setting
+  `draft_event.status = 'open'` and saving — so any test that asked for both
+  fixtures got the *same* event in status `open`, breaking `?status=draft`
+  filter assertions. **Why:** pytest evaluates each fixture once per scope;
+  re-using `draft_event` inside `open_event` mutates the underlying row, not a
+  fresh copy. **How to apply:** either (a) have the dependent fixture
+  `create_event(...)` a brand-new event instead of mutating, or (b) drop the
+  unrelated fixture from the test's parameters. The cleanest fix is to not
+  share state — fixtures should create, not mutate.
+
+- **2026-05-26 — `qs.first().attr = X; qs.first().save()` saves the wrong
+  instance.** Each call to `qs.first()` returns a *different* Python object;
+  the first assignment mutates an instance that's then discarded, and the
+  second `.save()` writes a fresh-from-DB object with the original value.
+  **Why:** Django querysets don't cache `first()` results — every call hits
+  the DB or rebuilds the wrapper. **How to apply:** always bind to a local:
+  `obj = qs.first(); obj.attr = X; obj.save()`. Bit me in a `rank_responses`
+  test where two `r_a.answers.first()` calls saved an answer with
+  `value_number=None`, then `submit_response` rightly failed the required-
+  answer check.
