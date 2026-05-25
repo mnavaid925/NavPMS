@@ -1,0 +1,71 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}Sourcing Invitations{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-0">Sourcing invitations</h2>
+    <div class="small text-muted">Events you've been invited to bid on</div>
+  </div>
+  <a href="{% url 'vendor_portal:sourcing_my_bids' %}" class="btn btn-outline-primary">
+    <i class="ri-file-list-3-line me-1"></i> My bids
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Event</th><th>Type</th><th>Status</th>
+          <th>Close at</th><th>Your status</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invitations %}
+          <tr>
+            <td>
+              <a href="{% url 'vendor_portal:sourcing_event_detail' inv.event.pk %}" class="text-decoration-none">
+                <strong>{{ inv.event.title }}</strong>
+              </a>
+              <div class="small text-muted"><code>{{ inv.event.event_number }}</code></div>
+            </td>
+            <td class="small">{{ inv.event.get_event_type_display }}</td>
+            <td>
+              {% if inv.event.status == 'open' %}<span class="badge bg-warning text-dark">Open for bids</span>
+              {% elif inv.event.status == 'closed' %}<span class="badge bg-secondary">Closed</span>
+              {% elif inv.event.status == 'awarded' %}<span class="badge bg-success">Awarded</span>
+              {% elif inv.event.status == 'cancelled' %}<span class="badge bg-danger">Cancelled</span>
+              {% else %}<span class="badge bg-info">{{ inv.event.get_status_display }}</span>{% endif %}
+            </td>
+            <td class="small">{{ inv.event.close_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td>
+              {% if inv.status == 'invited' %}<span class="badge bg-secondary">Invited</span>
+              {% elif inv.status == 'viewed' %}<span class="badge bg-info">Viewed</span>
+              {% elif inv.status == 'submitted' %}<span class="badge bg-success">Submitted</span>
+              {% elif inv.status == 'declined' %}<span class="badge bg-warning text-dark">Declined</span>
+              {% elif inv.status == 'withdrawn' %}<span class="badge bg-danger">Withdrawn</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'vendor_portal:sourcing_event_detail' inv.event.pk %}" class="btn btn-sm btn-outline-primary">
+                <i class="ri-eye-line"></i>
+              </a>
+              {% if inv.status in 'invited,viewed' and inv.event.status == 'open' %}
+              <form method="post" action="{% url 'vendor_portal:sourcing_invitation_decline' inv.pk %}" class="d-inline"
+                    onsubmit="return confirm('Decline invitation to {{ inv.event.event_number }}?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-warning" title="Decline"><i class="ri-close-line"></i></button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No invitations yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
