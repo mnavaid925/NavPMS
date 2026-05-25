@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Bids — {{ event.event_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Bids</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'sourcing:event_list' %}">Sourcing Events</a> &rsaquo;
+      <a href="{% url 'sourcing:event_detail' event.pk %}">{{ event.event_number }}</a> &rsaquo;
+      Bids
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if not sealed and bids|length > 1 %}
+    <a href="{% url 'sourcing:bid_compare' event.pk %}" class="btn btn-outline-primary">
+      <i class="ri-bar-chart-grouped-line me-1"></i> Compare
+    </a>
+    {% endif %}
+    <a href="{% url 'sourcing:event_detail' event.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line me-1"></i> Back to event
+    </a>
+  </div>
+</div>
+
+{% if sealed %}
+  <div class="card">
+    <div class="card-body text-center py-5">
+      <i class="ri-lock-line h1 text-warning"></i>
+      <h4 class="mt-3">Bids are sealed</h4>
+      <p class="text-muted">
+        Bid details become visible after the event closes
+        ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
+      </p>
+      {% if event.status == 'open' %}
+      <form method="post" action="{% url 'sourcing:event_close' event.pk %}" class="d-inline"
+            onsubmit="return confirm('Close bidding now? Bids will become visible.');">
+        {% csrf_token %}
+        <button class="btn btn-primary">
+          <i class="ri-stop-circle-line me-1"></i> Close bidding now
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Rank</th><th>Bid</th><th>Vendor</th><th>Status</th>
+            <th class="text-end">Total</th><th class="text-end">Score</th>
+            <th>Compliant</th><th>Submitted</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bids %}
+            <tr>
+              <td><strong>{{ b.rank|default:'—' }}</strong></td>
+              <td><code class="small">{{ b.bid_number }}</code></td>
+              <td>
+                <a href="{% url 'vendors:vendor_detail' b.vendor.pk %}" class="text-decoration-none">
+                  {{ b.vendor.legal_name }}
+                </a>
+              </td>
+              <td>
+                {% if b.status == 'submitted' %}<span class="badge badge-soft-info">Submitted</span>
+                {% elif b.status == 'under_review' %}<span class="badge badge-soft-warning">Under review</span>
+                {% elif b.status == 'shortlisted' %}<span class="badge badge-soft-primary">Shortlisted</span>
+                {% elif b.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+                {% elif b.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+                {% elif b.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
+                {% else %}<span class="badge badge-soft-secondary">{{ b.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="text-end">{{ b.currency }} {{ b.total_amount|floatformat:2 }}</td>
+              <td class="text-end">{{ b.overall_score|floatformat:2 }}</td>
+              <td>{% if b.is_compliant %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}</td>
+              <td class="small">{{ b.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+              <td class="text-end">
+                <a href="{% url 'sourcing:bid_detail' event.pk b.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                {% if can_evaluate %}
+                <a href="{% url 'sourcing:bid_evaluate' event.pk b.pk %}" class="btn btn-sm btn-outline-success" title="Score this bid"><i class="ri-edit-line"></i></a>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="9" class="text-center text-muted py-4">No bids received.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
