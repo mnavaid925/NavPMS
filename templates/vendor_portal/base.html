@@ -45,6 +45,11 @@
        href="{% url 'vendor_portal:sourcing_invitations' %}"><i class="ri-mail-line"></i> Invitations</a>
     <a class="nav-link {% if 'sourcing_my_bids' in request.resolver_match.url_name|default:'' or request.resolver_match.url_name == 'sourcing_bid_edit' or request.resolver_match.url_name == 'sourcing_bid_detail' %}active{% endif %}"
        href="{% url 'vendor_portal:sourcing_my_bids' %}"><i class="ri-auction-line"></i> My Bids</a>
+    <div class="small-label">RFx</div>
+    <a class="nav-link {% if request.resolver_match.url_name == 'rfx_inbox' or request.resolver_match.url_name == 'rfx_event' %}active{% endif %}"
+       href="{% url 'vendor_portal:rfx_inbox' %}"><i class="ri-questionnaire-line"></i> RFx Invitations</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'rfx_my_responses' or request.resolver_match.url_name == 'rfx_response_edit' %}active{% endif %}"
+       href="{% url 'vendor_portal:rfx_my_responses' %}"><i class="ri-file-list-3-line"></i> My Responses</a>
     <div class="small-label">Orders &amp; Payments</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
        href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
