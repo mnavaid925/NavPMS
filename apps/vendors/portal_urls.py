@@ -7,6 +7,7 @@ from django.urls import path
 
 from . import views
 from apps.sourcing import portal_views as sourcing_portal
+from apps.rfx import portal_views as rfx_portal
 
 app_name = 'vendor_portal'
 
@@ -38,4 +39,19 @@ urlpatterns = [
          sourcing_portal.portal_invitation_decline,
          name='sourcing_invitation_decline'),
     path('sourcing/bids/', sourcing_portal.portal_my_bids, name='sourcing_my_bids'),
+
+    # Module 7 — RFx Management (vendor-side)
+    path('rfx/', rfx_portal.portal_invitations, name='rfx_inbox'),
+    path('rfx/<int:event_pk>/', rfx_portal.portal_event_view, name='rfx_event'),
+    path('rfx/<int:event_pk>/response/start/',
+         rfx_portal.portal_response_start, name='rfx_response_start'),
+    path('rfx/<int:event_pk>/response/<int:rpk>/',
+         rfx_portal.portal_response_edit, name='rfx_response_edit'),
+    path('rfx/<int:event_pk>/response/<int:rpk>/submit/',
+         rfx_portal.portal_response_submit, name='rfx_response_submit'),
+    path('rfx/<int:event_pk>/response/<int:rpk>/withdraw/',
+         rfx_portal.portal_response_withdraw, name='rfx_response_withdraw'),
+    path('rfx/invitations/<int:ipk>/decline/',
+         rfx_portal.portal_invitation_decline, name='rfx_invitation_decline'),
+    path('rfx/responses/', rfx_portal.portal_my_responses, name='rfx_my_responses'),
 ]
