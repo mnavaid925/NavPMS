@@ -235,6 +235,14 @@
           </form>
         {% endif %}
 
+        {% if req.status == 'approved' %}
+          <a href="{% url 'sourcing:event_create' %}?from_requisition={{ req.pk }}"
+             class="btn btn-outline-primary"
+             onclick="return confirm('Create a sourcing event (RFQ) from this requisition? Items will be pre-filled.');">
+            <i class="ri-auction-line me-1"></i> Create Sourcing Event
+          </a>
+        {% endif %}
+
         {% if req.can_amend and can_modify %}
           <form method="post" action="{% url 'requisitions:requisition_amend' req.pk %}"
                 onsubmit="return confirm('Reopen {{ req.number }} as a draft for amendment?');">
