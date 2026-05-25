@@ -91,7 +91,7 @@
           <form method="post" action="{% url 'approvals:task_act' task.pk %}">
             {% csrf_token %}
             <label class="form-label small">Comment (optional)</label>
-            <textarea name="comment" class="form-control mb-3" rows="3"
+            <textarea name="comment" class="form-control mb-3" rows="3" maxlength="255"
                       placeholder="Add a note with your decision…"></textarea>
             <div class="d-grid gap-2">
               <button name="decision" value="approve" class="btn btn-success btn-lg">
@@ -124,7 +124,7 @@
       <div class="card-body">
         <form method="post" action="{% url 'approvals:task_comment' task.pk %}">
           {% csrf_token %}
-          <textarea name="comment" class="form-control mb-2" rows="2"
+          <textarea name="comment" class="form-control mb-2" rows="2" maxlength="255"
                     placeholder="Leave a comment without deciding…"></textarea>
           <button class="btn btn-outline-secondary btn-sm w-100">
             <i class="ri-chat-1-line me-1"></i> Post comment
