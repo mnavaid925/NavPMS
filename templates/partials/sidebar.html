@@ -104,6 +104,19 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbAuctions" role="button" aria-expanded="false">
+          <i class="ri-hammer-line"></i> <span class="flex-grow-1">E-Auctions</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbAuctions">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'auctions:auction_list' %}">All Auctions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'auctions:auction_create' %}">New Auction</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'auctions:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
