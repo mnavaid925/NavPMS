@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Analytics — {{ auction.auction_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Auction Analytics</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'auctions:auction_list' %}">E-Auctions</a> &rsaquo;
+      <a href="{% url 'auctions:auction_detail' auction.pk %}"><code>{{ auction.auction_number }}</code></a> &rsaquo;
+      Analytics
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'auctions:auction_detail' auction.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line me-1"></i> Back to auction
+    </a>
+    <a href="{% url 'auctions:results' auction.pk %}" class="btn btn-outline-primary">
+      <i class="ri-trophy-line me-1"></i> Results
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Participants</div>
+    <div class="h4 mb-0">{{ analytics.participant_count }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Active bidders</div>
+    <div class="h4 mb-0">{{ analytics.bidder_count }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total bids</div>
+    <div class="h4 mb-0">{{ analytics.bid_count }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Anti-snipe extensions</div>
+    <div class="h4 mb-0">{{ analytics.extension_count }}</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Baseline</div>
+    <div class="h5 mb-0">{{ auction.currency }} {{ savings.baseline|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded</div>
+    <div class="h5 mb-0">{{ auction.currency }} {{ savings.awarded|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card border-success"><div class="card-body">
+    <div class="text-muted small">Savings</div>
+    <div class="h5 mb-0 text-success">{{ auction.currency }} {{ savings.savings|floatformat:2 }} <span class="small">({{ savings.savings_pct }}%)</span></div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Duration</div>
+    <div class="h5 mb-0">{% if analytics.duration_seconds is not None %}{{ analytics.duration_seconds }}s{% else %}—{% endif %}</div>
+  </div></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">Price-drop curve (leading price over time)</div>
+  <div class="card-body">
+    {% if analytics.price_drop_curve %}
+    <canvas id="priceChart" height="120"></canvas>
+    {% else %}
+    <p class="text-muted small mb-0">No bids were placed — no price curve to plot.</p>
+    {% endif %}
+  </div>
+</div>
+
+{{ analytics.price_drop_curve|json_script:"priceCurveData" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var curve = JSON.parse(document.getElementById('priceCurveData').textContent || '[]');
+  var canvas = document.getElementById('priceChart');
+  if (!canvas || !curve.length) return;
+  var labels = curve.map(function (pt) {
+    var d = new Date(pt.t);
+    return isNaN(d.getTime()) ? (pt.t || '') : d.toLocaleTimeString();
+  });
+  var data = curve.map(function (pt) { return parseFloat(pt.price); });
+  new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Leading price ({{ auction.currency }})',
+        data: data,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13,110,253,0.1)',
+        fill: true,
+        tension: 0.2,
+        stepped: true
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+})();
+</script>
+{% endblock %}
