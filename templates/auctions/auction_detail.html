@@ -1,0 +1,404 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ auction.auction_number }} — {{ auction.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ auction.title }}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'auctions:auction_list' %}">E-Auctions</a> &rsaquo;
+      <code>{{ auction.auction_number }}</code>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if auction.is_live or auction.status == 'scheduled' %}
+      <a href="{% url 'auctions:console' auction.pk %}" class="btn btn-outline-success">
+        <i class="ri-broadcast-line me-1"></i> Open console
+      </a>
+    {% endif %}
+    <a href="{% url 'auctions:auction_analytics' auction.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-bar-chart-line me-1"></i> Analytics
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Main content -->
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Overview</span>
+        {% if auction.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+        {% elif auction.status == 'scheduled' %}<span class="badge badge-soft-info">Scheduled</span>
+        {% elif auction.status == 'live' %}<span class="badge badge-soft-success">Live</span>
+        {% elif auction.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+        {% elif auction.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+        {% elif auction.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+        {% else %}<span class="badge badge-soft-secondary">{{ auction.get_status_display }}</span>{% endif %}
+      </div>
+      <div class="card-body">
+        {% if auction.description %}
+          <p class="mb-3">{{ auction.description|linebreaksbr }}</p>
+        {% else %}
+          <p class="text-muted mb-3">No description provided.</p>
+        {% endif %}
+        <div class="row g-3">
+          <div class="col-sm-4">
+            <div class="text-muted small">Starting price</div>
+            <div class="h5 mb-0">{{ auction.currency }} {{ auction.starting_price|floatformat:2 }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="text-muted small">Current best</div>
+            <div class="h5 mb-0 text-success">{% if current_best is not None %}{{ auction.currency }} {{ current_best|floatformat:2 }}{% else %}—{% endif %}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="text-muted small">Bidders</div>
+            <div class="h5 mb-0">{{ participants|length }}</div>
+          </div>
+        </div>
+        {% if auction.status == 'awarded' %}
+        <div class="alert alert-success mt-3 mb-0 small">
+          <i class="ri-award-line me-1"></i>
+          Awarded to <strong>{{ auction.awarded_vendor.legal_name }}</strong>
+          for <strong>{{ auction.currency }} {{ auction.awarded_amount|floatformat:2 }}</strong>
+          {% if auction.awarded_at %}on {{ auction.awarded_at|date:'Y-m-d H:i' }}{% endif %}.
+        </div>
+        {% endif %}
+        {% if auction.status == 'cancelled' and auction.cancelled_reason %}
+        <div class="alert alert-danger mt-3 mb-0 small">
+          <i class="ri-close-circle-line me-1"></i>
+          <strong>Cancelled:</strong> {{ auction.cancelled_reason }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Lots -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Lots ({{ lots|length }})</span>
+        {% if can_manage and auction.is_editable %}
+        <a href="{% url 'auctions:lot_create' auction.pk %}" class="btn btn-sm btn-outline-primary">
+          <i class="ri-add-line"></i> Add lot
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Qty</th><th class="text-end">Est. price</th><th class="text-end">Est. total</th><th class="text-end"></th></tr></thead>
+          <tbody>
+            {% for lot in lots %}
+            <tr>
+              <td>{{ lot.lot_no }}</td>
+              <td>
+                {% if lot.title %}<strong>{{ lot.title }}</strong><div class="small text-muted">{{ lot.item_description }}</div>
+                {% else %}{{ lot.item_description }}{% endif %}
+              </td>
+              <td><span class="badge badge-soft-secondary">{{ lot.uom|default:'—' }}</span></td>
+              <td class="text-end">{{ lot.quantity|floatformat:3 }}</td>
+              <td class="text-end">{{ lot.est_unit_price|floatformat:2 }}</td>
+              <td class="text-end">{{ lot.estimated_line_total|floatformat:2 }}</td>
+              <td class="text-end">
+                {% if can_manage and auction.is_editable %}
+                <a href="{% url 'auctions:lot_edit' auction.pk lot.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'auctions:lot_delete' auction.pk lot.pk %}" class="d-inline"
+                      onsubmit="return confirm('Delete lot #{{ lot.lot_no }}?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted small py-3">No lots defined.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Participants -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Participants ({{ participants|length }})</span>
+        {% if can_manage and auction.is_editable %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#inviteForm">
+          <i class="ri-user-add-line"></i> Invite vendors
+        </button>
+        {% endif %}
+      </div>
+      {% if can_manage and auction.is_editable %}
+      <div class="collapse" id="inviteForm">
+        <div class="card-body border-bottom">
+          <form method="post" action="{% url 'auctions:participant_add' auction.pk %}" novalidate>
+            {% csrf_token %}
+            {{ invite_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">
+              <i class="ri-send-plane-line me-1"></i> Send invitations
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Vendor</th><th>Status</th><th class="text-end">Current bid</th><th class="text-end">Rank</th><th class="text-end">Bids</th><th></th></tr></thead>
+          <tbody>
+            {% for p in participants %}
+            <tr>
+              <td>
+                <strong>{{ p.vendor.legal_name }}</strong>
+                {% if p.is_winner %}<span class="badge badge-soft-success ms-1">Winner</span>{% endif %}
+                <div class="small text-muted">{{ p.vendor.vendor_number }}</div>
+              </td>
+              <td>
+                {% if p.status == 'invited' %}<span class="badge badge-soft-secondary">Invited</span>
+                {% elif p.status == 'accepted' %}<span class="badge badge-soft-info">Accepted</span>
+                {% elif p.status == 'declined' %}<span class="badge badge-soft-warning">Declined</span>
+                {% elif p.status == 'won' %}<span class="badge badge-soft-success">Won</span>
+                {% elif p.status == 'lost' %}<span class="badge badge-soft-secondary">Lost</span>
+                {% elif p.status == 'withdrawn' %}<span class="badge badge-soft-danger">Withdrawn</span>
+                {% else %}<span class="badge badge-soft-secondary">{{ p.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="text-end">{% if p.current_bid_amount is not None %}{{ auction.currency }} {{ p.current_bid_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+              <td class="text-end">{{ p.current_rank|default:'—' }}</td>
+              <td class="text-end">{{ p.bid_count }}</td>
+              <td class="text-end">
+                {% if can_manage and auction.is_editable %}
+                <form method="post" action="{% url 'auctions:participant_remove' auction.pk p.pk %}" class="d-inline"
+                      onsubmit="return confirm('Remove {{ p.vendor.legal_name }} from this auction?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted small py-3">No participants invited yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documents -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Documents ({{ documents|length }})</span>
+        {% if can_manage %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#documentForm">
+          <i class="ri-upload-2-line"></i> Add document
+        </button>
+        {% endif %}
+      </div>
+      {% if can_manage %}
+      <div class="collapse" id="documentForm">
+        <div class="card-body border-bottom">
+          <form method="post" action="{% url 'auctions:document_add' auction.pk %}" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            {{ document_form|crispy }}
+            <button class="btn btn-primary btn-sm" type="submit">
+              <i class="ri-upload-2-line me-1"></i> Upload document
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      <div class="list-group list-group-flush">
+        {% for doc in documents %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <i class="ri-file-text-line me-1"></i>
+            {% if doc.file %}
+              <a href="{{ doc.file.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ doc.title }}</a>
+            {% else %}
+              {{ doc.title }}
+            {% endif %}
+            <div class="small text-muted">{{ doc.uploaded_at|date:'Y-m-d H:i' }}</div>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{% url 'auctions:document_delete' auction.pk doc.pk %}" class="d-inline"
+                onsubmit="return confirm('Delete document {{ doc.title }}?');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+          </form>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="list-group-item text-center text-muted small py-3">No documents uploaded.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recent bids -->
+    <div class="card mb-3">
+      <div class="card-header">Recent bids</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Vendor</th><th class="text-end">Amount</th><th>Placed</th><th></th></tr></thead>
+          <tbody>
+            {% for bid in recent_bids %}
+            <tr>
+              <td>{{ bid.vendor.legal_name }}</td>
+              <td class="text-end">{{ auction.currency }} {{ bid.amount|floatformat:2 }}</td>
+              <td class="small">{{ bid.placed_at|date:'Y-m-d H:i:s' }}</td>
+              <td>
+                {% if bid.was_leading %}<span class="badge badge-soft-success">Leading</span>{% endif %}
+                {% if bid.triggered_extension %}<span class="badge badge-soft-warning">Extended</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted small py-3">No bids placed yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar: actions + details -->
+  <div class="col-lg-4">
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if auction.is_editable %}
+          <a href="{% url 'auctions:auction_edit' auction.pk %}" class="btn btn-outline-primary">
+            <i class="ri-pencil-line me-1"></i> Edit auction
+          </a>
+          <form method="post" action="{% url 'auctions:auction_publish' auction.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100">
+              <i class="ri-send-plane-line me-1"></i> Publish
+            </button>
+          </form>
+        {% endif %}
+        {% if auction.status == 'scheduled' %}
+          <form method="post" action="{% url 'auctions:auction_start' auction.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-success w-100">
+              <i class="ri-play-circle-line me-1"></i> Start auction
+            </button>
+          </form>
+        {% endif %}
+        {% if auction.status == 'scheduled' or auction.is_live %}
+          <a href="{% url 'auctions:console' auction.pk %}" class="btn btn-outline-success">
+            <i class="ri-broadcast-line me-1"></i> Open console
+          </a>
+        {% endif %}
+        {% if auction.is_live %}
+          <form method="post" action="{% url 'auctions:auction_close' auction.pk %}"
+                onsubmit="return confirm('Close auction {{ auction.auction_number }}? Bidding will stop.');">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100">
+              <i class="ri-stop-circle-line me-1"></i> Close auction
+            </button>
+          </form>
+        {% endif %}
+        {% if auction.status == 'closed' or auction.status == 'awarded' %}
+          <a href="{% url 'auctions:results' auction.pk %}" class="btn btn-success">
+            <i class="ri-trophy-line me-1"></i> View results
+          </a>
+        {% endif %}
+        {% if auction.can_cancel %}
+          <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+            <i class="ri-close-circle-line me-1"></i> Cancel auction
+          </button>
+        {% endif %}
+        {% if auction.is_editable %}
+          <form method="post" action="{% url 'auctions:auction_delete' auction.pk %}"
+                onsubmit="return confirm('Delete auction {{ auction.auction_number }}? This cannot be undone.');">
+            {% csrf_token %}
+            <button class="btn btn-outline-danger w-100">
+              <i class="ri-delete-bin-line me-1"></i> Delete
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header">Details</div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Type</span><span>{{ auction.get_auction_type_display }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Currency</span><span>{{ auction.currency }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Category</span><span>{{ auction.category.name|default:'—' }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Starting price</span><span>{{ auction.currency }} {{ auction.starting_price|floatformat:2 }}</span>
+        </li>
+        {% if can_manage %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Reserve price</span><span>{% if auction.reserve_price is not None %}{{ auction.currency }} {{ auction.reserve_price|floatformat:2 }}{% else %}—{% endif %}</span>
+        </li>
+        {% endif %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Decrement</span>
+          <span>{{ auction.decrement_value|floatformat:2 }} ({{ auction.get_decrement_type_display }})</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Start</span><span>{{ auction.start_at|date:'Y-m-d H:i'|default:'—' }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">End</span><span>{{ auction.end_at|date:'Y-m-d H:i'|default:'—' }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Anti-snipe</span><span>{{ auction.anti_snipe_seconds }}s</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Rank visibility</span><span>{{ auction.get_rank_visibility_display }}</span>
+        </li>
+        {% if auction.status == 'awarded' %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Awarded to</span><span><strong>{{ auction.awarded_vendor.legal_name }}</strong></span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Awarded amount</span><span class="text-success"><strong>{{ auction.currency }} {{ auction.awarded_amount|floatformat:2 }}</strong></span>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if can_manage and auction.can_cancel %}
+<!-- Cancel modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'auctions:auction_cancel' auction.pk %}" novalidate>
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="cancelModalLabel">Cancel auction</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">Cancelling will end this auction. Provide a reason for the record.</p>
+          {{ cancel_form|crispy }}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep auction</button>
+          <button type="submit" class="btn btn-danger">
+            <i class="ri-close-circle-line me-1"></i> Cancel auction
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
