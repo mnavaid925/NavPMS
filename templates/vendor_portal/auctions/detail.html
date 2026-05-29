@@ -1,0 +1,160 @@
+{% extends 'vendor_portal/base.html' %}
+
+{% block title %}{{ auction.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">{{ auction.title }}</h4>
+    <div class="text-muted small">{{ auction.auction_number }}</div>
+  </div>
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{% url 'vendor_portal:auction_invitations' %}">
+    <i class="ri-arrow-left-line"></i> Back to auctions
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">Overview</span>
+        {% if auction.status == 'draft' %}<span class="badge text-bg-secondary">{{ auction.get_status_display }}</span>
+        {% elif auction.status == 'scheduled' %}<span class="badge text-bg-info">{{ auction.get_status_display }}</span>
+        {% elif auction.status == 'live' %}<span class="badge text-bg-success">{{ auction.get_status_display }}</span>
+        {% elif auction.status == 'closed' %}<span class="badge text-bg-primary">{{ auction.get_status_display }}</span>
+        {% elif auction.status == 'awarded' %}<span class="badge text-bg-success">{{ auction.get_status_display }}</span>
+        {% elif auction.status == 'cancelled' %}<span class="badge text-bg-danger">{{ auction.get_status_display }}</span>
+        {% else %}<span class="badge text-bg-light border">{{ auction.get_status_display }}</span>{% endif %}
+      </div>
+      <div class="card-body">
+        {% if auction.description %}
+        <p class="mb-3">{{ auction.description|linebreaksbr }}</p>
+        {% else %}
+        <p class="text-muted mb-3">No description provided.</p>
+        {% endif %}
+
+        {% if auction.terms_and_conditions %}
+        <h6 class="text-muted text-uppercase small">Terms &amp; conditions</h6>
+        <p class="mb-0">{{ auction.terms_and_conditions|linebreaksbr }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold">Lots</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Item</th>
+                <th>UoM</th>
+                <th class="text-end">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lot in lots %}
+              <tr>
+                <td>{{ lot.lot_no }}</td>
+                <td>
+                  {% if lot.title %}<div class="fw-semibold">{{ lot.title }}</div>{% endif %}
+                  {{ lot.item_description }}
+                </td>
+                <td>{{ lot.uom }}</td>
+                <td class="text-end">{{ lot.quantity }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-center text-muted py-3">No lots listed.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold">Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if participant.status == 'invited' %}
+        <form method="post" action="{% url 'vendor_portal:auction_accept' auction.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success w-100">
+            <i class="ri-check-line"></i> Accept invitation
+          </button>
+        </form>
+        <form method="post" action="{% url 'vendor_portal:auction_decline' auction.pk %}"
+              onsubmit="return confirm('Decline this invitation?');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger w-100">
+            <i class="ri-close-line"></i> Decline invitation
+          </button>
+        </form>
+        {% endif %}
+
+        {% if auction.is_live and participant.status == 'invited' or auction.is_live and participant.status == 'accepted' %}
+        <a class="btn btn-success w-100"
+           href="{% url 'vendor_portal:auction_bidding' auction.pk %}">
+          <i class="ri-flashlight-line"></i> Enter live auction
+        </a>
+        {% endif %}
+
+        {% if participant.status == 'accepted' and not auction.is_finished %}
+        <form method="post" action="{% url 'vendor_portal:auction_withdraw' auction.pk %}"
+              onsubmit="return confirm('Withdraw from this auction? You will no longer be able to bid.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-secondary w-100">
+            <i class="ri-logout-circle-line"></i> Withdraw
+          </button>
+        </form>
+        {% endif %}
+
+        {% if participant.status == 'declined' %}
+        <div class="text-muted small">You declined this invitation.</div>
+        {% elif participant.status == 'withdrawn' %}
+        <div class="text-muted small">You withdrew from this auction.</div>
+        {% elif auction.is_finished %}
+        <div class="text-muted small">This auction has ended.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold">Details</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Type</span><span>{{ auction.get_auction_type_display }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Currency</span><span>{{ auction.currency }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Starting price</span><span>{{ auction.currency }} {{ auction.starting_price }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Starts</span><span>{{ auction.start_at|date:"d M Y H:i"|default:"—" }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Ends</span><span>{{ auction.end_at|date:"d M Y H:i"|default:"—" }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">My status</span><span>{{ participant.get_status_display }}</span>
+        </li>
+        {% if participant.current_rank %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">My rank</span><span>#{{ participant.current_rank }}</span>
+        </li>
+        {% endif %}
+        {% if participant.current_bid_amount is not None %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">My bid</span><span>{{ auction.currency }} {{ participant.current_bid_amount }}</span>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
