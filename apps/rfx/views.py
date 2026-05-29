@@ -27,6 +27,7 @@ from .forms import (
     UseTemplateForm,
 )
 from .models import (
+    EVENT_EVALUABLE_STATUSES,
     EVENT_STATUS_CHOICES,
     RFX_TYPE_CHOICES,
     RfxAnswer,
@@ -55,9 +56,7 @@ from .services import (
     move_section,
     open_event,
     publish_event,
-    rank_responses,
     record_evaluation,
-    recompute_response_scores,
     reject_response,
     response_visible_to,
     save_event_as_template,
@@ -80,6 +79,17 @@ def _require_manage(request):
         messages.error(request, 'You do not have permission to manage RFx events.')
         return redirect('rfx:event_list')
     return None
+
+
+def _can_view_responses(user):
+    """Buyers who may see response content: managers + evaluation panel.
+
+    This is the role half of the sealed gate; the status half
+    (`responses_are_visible`) is checked separately. Mirrors `response_detail`'s
+    use of `response_visible_to` so the list/compare/analytics surfaces are not
+    readable by low-privilege tenant users (SQA defects D-01, D-02).
+    """
+    return can_manage_rfx(user) or can_evaluate(user)
 
 
 # ---------- Event CRUD ----------
@@ -632,6 +642,9 @@ def response_list(request, pk):
     if (r := _require_tenant(request)):
         return r
     event = get_object_or_404(RfxEvent, pk=pk, tenant=request.tenant)
+    if not _can_view_responses(request.user):
+        messages.error(request, 'You do not have permission to view responses.')
+        return redirect('rfx:event_detail', pk=event.pk)
     if not event.responses_are_visible:
         return render(request, 'rfx/responses/list.html', {
             'event': event, 'sealed': True, 'responses': [],
@@ -653,6 +666,9 @@ def response_compare(request, pk):
     if (r := _require_tenant(request)):
         return r
     event = get_object_or_404(RfxEvent, pk=pk, tenant=request.tenant)
+    if not _can_view_responses(request.user):
+        messages.error(request, 'You do not have permission to view responses.')
+        return redirect('rfx:event_detail', pk=event.pk)
     if not event.responses_are_visible:
         messages.warning(request, 'Responses are sealed until the event closes.')
         return redirect('rfx:event_detail', pk=event.pk)
@@ -663,18 +679,33 @@ def response_compare(request, pk):
     )
     sections = list(event.sections.prefetch_related('questions').all())
 
+    # Bulk-load answers and per-(response, question) average scores so the
+    # matrix build is O(1) queries instead of O(questions × responses) — the
+    # per-cell .filter().first() / .aggregate() pattern was the N+1 in D-09.
+    response_ids = [r.pk for r in responses]
+    answers_by_rq = {
+        (a.response_id, a.question_id): a
+        # select_related('question'): the template reads ans.is_answered / ans.value,
+        # which touch ans.question.question_type — without this each cell lazy-loads
+        # the question FK, re-introducing the N+1 (D-09).
+        for a in RfxAnswer.objects.filter(
+            response_id__in=response_ids,
+        ).select_related('question')
+    }
+    avg_by_rq = {
+        (row['response_id'], row['question_id']): row['a']
+        for row in RfxEvaluation.objects.filter(response_id__in=response_ids)
+        .values('response_id', 'question_id').annotate(a=Avg('score'))
+    }
+
     # Build the matrix: rows are questions; columns are responses; cell = answer.
     matrix = []
     for section in sections:
         for question in section.questions.all():
             row = {'section': section, 'question': question, 'cells': []}
             for response in responses:
-                answer = response.answers.filter(question=question).first()
-                avg = None
-                if question.is_scored:
-                    avg = response.evaluations.filter(question=question).aggregate(
-                        a=Avg('score'),
-                    )['a']
+                answer = answers_by_rq.get((response.pk, question.pk))
+                avg = avg_by_rq.get((response.pk, question.pk)) if question.is_scored else None
                 row['cells'].append({'answer': answer, 'avg_score': avg})
             matrix.append(row)
 
@@ -732,8 +763,12 @@ def response_evaluate(request, pk, rpk):
     response = get_object_or_404(
         RfxResponse, pk=rpk, event=event, tenant=request.tenant,
     )
-    if not event.responses_are_visible:
-        messages.error(request, 'Responses are sealed until the event closes.')
+    if event.status not in EVENT_EVALUABLE_STATUSES:
+        messages.error(
+            request,
+            'Responses can only be evaluated while the event is closed or '
+            'under evaluation.',
+        )
         return redirect('rfx:event_detail', pk=event.pk)
 
     scored_questions = list(
@@ -1078,6 +1113,9 @@ def template_question_delete(request, pk, qpk):
 def analytics_dashboard(request):
     if (r := _require_tenant(request)):
         return r
+    if not _can_view_responses(request.user):
+        messages.error(request, 'You do not have permission to view RFx analytics.')
+        return redirect('rfx:event_list')
     metrics = tenant_rfx_metrics(request.tenant)
     recent = RfxEvent.objects.filter(
         tenant=request.tenant, status='completed',
@@ -1101,6 +1139,9 @@ def analytics_event_report(request, pk):
     if (r := _require_tenant(request)):
         return r
     event = get_object_or_404(RfxEvent, pk=pk, tenant=request.tenant)
+    if not _can_view_responses(request.user):
+        messages.error(request, 'You do not have permission to view this report.')
+        return redirect('rfx:event_detail', pk=event.pk)
     metrics = event_metrics(event)
     ranked = (
         event.responses.exclude(status='withdrawn').select_related('vendor')
