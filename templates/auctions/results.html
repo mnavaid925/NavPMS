@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Results — {{ auction.auction_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Auction Results</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'auctions:auction_list' %}">E-Auctions</a> &rsaquo;
+      <a href="{% url 'auctions:auction_detail' auction.pk %}"><code>{{ auction.auction_number }}</code></a> &rsaquo;
+      Results
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'auctions:auction_detail' auction.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line me-1"></i> Back to auction
+    </a>
+    <a href="{% url 'auctions:auction_analytics' auction.pk %}" class="btn btn-outline-primary">
+      <i class="ri-bar-chart-line me-1"></i> Analytics
+    </a>
+  </div>
+</div>
+
+{% if auction.status == 'awarded' %}
+<div class="card border-success mb-3">
+  <div class="card-body d-flex align-items-center">
+    <i class="ri-trophy-line text-success" style="font-size:2rem;"></i>
+    <div class="ms-3">
+      <div class="text-muted small">Awarded to</div>
+      <div class="h4 mb-0">{{ auction.awarded_vendor.legal_name|default:auction.awarded_vendor }}</div>
+      <div class="text-success"><strong>{{ auction.currency }} {{ auction.awarded_amount|floatformat:2 }}</strong>
+        &middot; {{ auction.awarded_at|date:'Y-m-d H:i' }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Baseline (budget)</div>
+    <div class="h5 mb-0">{{ auction.currency }} {{ savings.baseline|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded amount</div>
+    <div class="h5 mb-0">{{ auction.currency }} {{ savings.awarded|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card border-success"><div class="card-body">
+    <div class="text-muted small">Savings</div>
+    <div class="h5 mb-0 text-success">{{ auction.currency }} {{ savings.savings|floatformat:2 }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Savings %</div>
+    <div class="h5 mb-0 text-success">{{ savings.savings_pct }}%</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header">Final ranking</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Rank</th><th>Vendor</th>
+                <th class="text-end">Best bid</th>
+                <th class="text-end">Bids</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in participants %}
+              <tr {% if p.is_winner %}class="table-success"{% endif %}>
+                <td>{{ p.current_rank|default:'—' }}</td>
+                <td>
+                  {{ p.vendor.legal_name|default:p.vendor }}
+                  {% if p.is_winner %}<span class="badge badge-soft-success ms-1">Winner</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if p.current_bid_amount is not None %}{{ auction.currency }} {{ p.current_bid_amount|floatformat:2 }}{% else %}—{% endif %}
+                </td>
+                <td class="text-end">{{ p.bid_count }}</td>
+                <td>
+                  {% if p.status == 'won' %}<span class="badge badge-soft-success">Won</span>
+                  {% elif p.status == 'lost' %}<span class="badge badge-soft-secondary">Lost</span>
+                  {% elif p.status == 'accepted' %}<span class="badge badge-soft-info">Accepted</span>
+                  {% elif p.status == 'invited' %}<span class="badge badge-soft-secondary">Invited</span>
+                  {% elif p.status == 'declined' %}<span class="badge badge-soft-warning">Declined</span>
+                  {% elif p.status == 'withdrawn' %}<span class="badge badge-soft-danger">Withdrawn</span>
+                  {% else %}<span class="badge badge-soft-secondary">{{ p.get_status_display }}</span>{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted small py-3">No participants.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Bid timeline</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Time</th><th>Vendor</th>
+                <th class="text-end">Amount</th><th>Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in auction.bids.all %}
+              <tr>
+                <td class="small">{{ b.placed_at|date:'Y-m-d H:i:s' }}</td>
+                <td>{{ b.vendor.legal_name|default:b.vendor }}</td>
+                <td class="text-end">{{ auction.currency }} {{ b.amount|floatformat:2 }}</td>
+                <td>
+                  {% if b.was_leading %}<span class="badge badge-soft-success">Lead</span>{% endif %}
+                  {% if b.triggered_extension %}<span class="badge badge-soft-info">Ext</span>{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-center text-muted small py-3">No bids were placed.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if can_manage and auction.status == 'closed' %}
+    <div class="card mb-3">
+      <div class="card-header">Finalize award</div>
+      <div class="card-body">
+        <p class="small text-muted">
+          Leave the vendor blank to award the lowest valid bid automatically, or pick a
+          specific vendor for compliance.
+        </p>
+        <form method="post" action="{% url 'auctions:award_finalize' auction.pk %}" novalidate
+              onsubmit="return confirm('Finalize award on {{ auction.auction_number }}? Winner will be marked won; others lost.');">
+          {% csrf_token %}
+          {{ finalize_form|crispy }}
+          <button class="btn btn-success w-100" type="submit">
+            <i class="ri-award-line me-1"></i> Finalize award
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">Summary</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if auction.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+            {% elif auction.status == 'scheduled' %}<span class="badge badge-soft-info">Scheduled</span>
+            {% elif auction.status == 'live' %}<span class="badge badge-soft-success">Live</span>
+            {% elif auction.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+            {% elif auction.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+            {% elif auction.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+            {% else %}<span class="badge badge-soft-secondary">{{ auction.get_status_display }}</span>{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ auction.get_auction_type_display }}</dd>
+          <dt class="col-5 text-muted">Starting</dt><dd class="col-7">{{ auction.currency }} {{ auction.starting_price|floatformat:2 }}</dd>
+          {% if can_manage and auction.reserve_price is not None %}
+          <dt class="col-5 text-muted">Reserve</dt><dd class="col-7">{{ auction.currency }} {{ auction.reserve_price|floatformat:2 }}</dd>
+          {% endif %}
+          <dt class="col-5 text-muted">Started</dt><dd class="col-7">{{ auction.start_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Ended</dt><dd class="col-7">{{ auction.end_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+          <dt class="col-5 text-muted">Extensions</dt><dd class="col-7">{{ auction.extension_count }}</dd>
+        </dl>
+        {% if auction.award_notes %}
+        <hr>
+        <div class="small"><strong>Award notes:</strong><br>{{ auction.award_notes|linebreaksbr }}</div>
+        {% endif %}
+        {% if auction.status == 'cancelled' and auction.cancelled_reason %}
+        <hr>
+        <div class="alert alert-danger small mb-0">
+          <strong>Cancelled:</strong> {{ auction.cancelled_reason }}
+          <div class="text-muted">on {{ auction.cancelled_at|date:'Y-m-d H:i' }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
