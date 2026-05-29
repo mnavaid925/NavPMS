@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Console — {{ auction.auction_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Live Console</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'auctions:auction_list' %}">E-Auctions</a> &rsaquo;
+      <a href="{% url 'auctions:auction_detail' auction.pk %}"><code>{{ auction.auction_number }}</code></a> &rsaquo;
+      Console
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'auctions:auction_detail' auction.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line me-1"></i> Back to auction
+    </a>
+    <a href="{% url 'auctions:results' auction.pk %}" class="btn btn-outline-primary">
+      <i class="ri-trophy-line me-1"></i> Results
+    </a>
+  </div>
+</div>
+
+<div id="auctionRoot"
+     data-state-url="{% url 'auctions:console_state' auction.pk %}"
+     data-results-url="{% url 'auctions:results' auction.pk %}"
+     data-poll-ms="3000">
+
+  <div id="endedNotice" class="alert alert-warning d-none">
+    <i class="ri-time-line me-1"></i>
+    <strong>Auction has ended.</strong>
+    <a id="resultsLink" href="{% url 'auctions:results' auction.pk %}" class="alert-link d-none ms-1">View results &rsaquo;</a>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body">
+      <div class="text-muted small">Time remaining</div>
+      <div class="h4 mb-0" id="countdown">{{ auction.seconds_remaining }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+      <div class="text-muted small">Leading price</div>
+      <div class="h4 mb-0 text-success" id="leadingPrice">—</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+      <div class="text-muted small">Active bidders</div>
+      <div class="h4 mb-0"><span id="bidderCount">0</span> / <span id="participantCount">0</span></div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+      <div class="text-muted small">Total bids</div>
+      <div class="h4 mb-0" id="bidCount">0</div>
+    </div></div></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Live leaderboard</span>
+          <span>
+            <span class="badge badge-soft-info">Ext: <span id="extensionCount">{{ auction.extension_count }}</span></span>
+            <span class="badge badge-soft-secondary text-capitalize ms-1" id="statusBadge">{{ auction.get_status_display }}</span>
+          </span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Rank</th><th>Vendor</th>
+                  <th class="text-end">Current bid</th>
+                  <th class="text-end">Bids</th>
+                  <th>Last bid</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody">
+                <tr><td colspan="6" class="text-center text-muted small py-3">Loading live standing…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header">Auction</div>
+        <div class="card-body">
+          <dl class="row mb-0 small">
+            <dt class="col-5 text-muted">Number</dt><dd class="col-7"><code>{{ auction.auction_number }}</code></dd>
+            <dt class="col-5 text-muted">Title</dt><dd class="col-7">{{ auction.title }}</dd>
+            <dt class="col-5 text-muted">Currency</dt><dd class="col-7">{{ auction.currency }}</dd>
+            <dt class="col-5 text-muted">Starting</dt><dd class="col-7">{{ auction.currency }} {{ auction.starting_price|floatformat:2 }}</dd>
+            <dt class="col-5 text-muted">Ends</dt><dd class="col-7">{{ auction.end_at|date:'Y-m-d H:i'|default:'—' }}</dd>
+            <dt class="col-5 text-muted">Visibility</dt><dd class="col-7">{{ auction.get_rank_visibility_display }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      {% if can_manage %}
+      <div class="card mb-3">
+        <div class="card-header">Actions</div>
+        <div class="card-body d-grid gap-2">
+          {% if auction.is_live %}
+          <form method="post" action="{% url 'auctions:auction_close' auction.pk %}"
+                onsubmit="return confirm('Close bidding on {{ auction.auction_number }} now?');">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="ri-stop-circle-line me-1"></i> Close bidding
+            </button>
+          </form>
+          {% endif %}
+          {% if auction.can_cancel %}
+          <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+            <i class="ri-close-circle-line me-1"></i> Cancel auction
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if can_manage and auction.can_cancel %}
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'auctions:auction_cancel' auction.pk %}" novalidate>
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Cancel auction</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          {{ cancel_form|crispy }}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back</button>
+          <button type="submit" class="btn btn-danger">
+            <i class="ri-alert-line me-1"></i> Cancel this auction
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/auction.js' %}"></script>
+{% endblock %}
