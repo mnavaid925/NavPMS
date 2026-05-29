@@ -98,6 +98,71 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
   unrelated fixture from the test's parameters. The cleanest fix is to not
   share state — fixtures should create, not mutate.
 
+- **2026-05-29 — An access gate is only as good as its least-guarded sibling
+  view.** RFx `response_detail` correctly gated sealed bids via
+  `response_visible_to` (role + post-close), but `response_list`,
+  `response_compare`, and both analytics views shipped with only a
+  `_require_tenant` check — so any tenant user (e.g. `role='requester'`) read
+  the full competitor bid set after close (SQA D-01/D-02). **Why:** the gate
+  was added per-view as each was written, not derived from "what data does this
+  expose?". **How to apply:** when one view protects a class of data, grep every
+  sibling view that touches the *same* models/queryset and apply the *same*
+  predicate. Extract it (`_can_view_responses`) so the rule has one home.
+  Verified fix: [apps/rfx/views.py](apps/rfx/views.py); guard tests in
+  `apps/rfx/tests/test_access_control.py`.
+
+- **2026-05-29 — To retry on a unique-constraint collision, catch
+  `IntegrityError` *outside* a per-attempt `with transaction.atomic()` block —
+  never inside one wrapped by `@transaction.atomic`.** Count-based numbering
+  (`RFX-<SLUG>-NNNNN`) races: two concurrent creates compute the same number and
+  the second INSERT 500s on `unique_together` (SQA D-05). The fix loops, each
+  iteration in its own `atomic()` (a savepoint when nested inside
+  `create_event_from_template`), and catches `IntegrityError` after the block so
+  the savepoint has already rolled back cleanly and any enclosing transaction
+  stays usable. Catching inside an atomic that's still marked-for-rollback raises
+  `TransactionManagementError` on the next query. Verified fix:
+  `create_event` in [apps/rfx/services.py](apps/rfx/services.py).
+
+- **2026-05-29 — A view computing an authorization flag is worthless if the
+  template gates on something else.** `event_detail` correctly computed
+  `can_view_responses = responses_are_visible AND (manage OR evaluate)` and
+  passed it to the template — but the Responses tab rendered the scored
+  rank/score table whenever `responses_are_visible` (status only), ignoring the
+  flag. So gating `response_list`/`compare`/analytics at the view layer (D-01)
+  still left the same sealed scores readable on the event page. An adversarial
+  review caught it; my own access-control tests had not. **How to apply:** when
+  a view passes a permission flag to a template, grep the template for every
+  render of the protected data and gate each on *that flag*, not on a status
+  property that merely correlates. Add a paired test: privileged user SEES the
+  value, low-privilege user does NOT (same fixture, different role). Verified
+  fix: [templates/rfx/events/detail.html](templates/rfx/events/detail.html).
+
+- **2026-05-29 — A fixed-ceiling query-count test can pass with the exact N+1 it
+  was written to catch; assert N-independence instead.** `django_assert_max_num_queries(25)`
+  passed both the bulk-loaded compare (19 queries) and a reverted per-cell N+1
+  (25) — the head-room absorbed the regression. The robust guard builds a small
+  and a large fixture and asserts the query count is *equal*. That hardened test
+  then exposed a real residual N+1 I'd missed: bulk-loading `RfxAnswer` without
+  `select_related('question')` let the template's `ans.is_answered`/`ans.value`
+  lazy-load the question FK once per cell. **How to apply:** never trust an
+  absolute query ceiling as an N+1 guard — assert count is independent of row
+  count; and when bulk-loading objects, `select_related` every FK that a
+  template or model property will dereference. Verified:
+  [apps/rfx/tests/test_performance.py](apps/rfx/tests/test_performance.py),
+  [apps/rfx/views.py](apps/rfx/views.py) `response_compare`.
+
+- **2026-05-29 — File-upload validation belongs in a shared helper, applied at
+  every intake — not just the ModelForm.** RFx accepted uploads via two paths:
+  `RfxDocumentForm.clean_file` *and* a non-form vendor handler
+  (`_save_answer_from_post`). Size was checked in both but type in neither (SQA
+  D-04). Fix: one `upload_error(f, max_bytes)` helper with a **whitelist**
+  (`ALLOWED_UPLOAD_EXTENSIONS`, not a blacklist) — rejecting `.svg`/`.html`/`.js`
+  that become stored XSS when Apache serves MEDIA inline — called by both. **How
+  to apply:** whenever a model has a `FileField`, find *all* request handlers
+  that populate it (forms AND raw `request.FILES` parsers) and route every one
+  through the same validator. Verified fix:
+  [apps/rfx/forms.py](apps/rfx/forms.py) + [apps/rfx/portal_views.py](apps/rfx/portal_views.py).
+
 - **2026-05-26 — `qs.first().attr = X; qs.first().save()` saves the wrong
   instance.** Each call to `qs.first()` returns a *different* Python object;
   the first assignment mutates an instance that's then discarded, and the
