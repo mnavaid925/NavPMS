@@ -5,3 +5,9 @@
 pytest==8.3.4
 pytest-django==4.9.0
 pytest-cov==6.0.0
+
+# Security tooling (SQA report §5.2)
+#   bandit -r apps/           # SAST: flags insecure code patterns
+#   pip-audit -r requirements.txt   # dependency CVE scan (OWASP A06)
+bandit==1.8.0
+pip-audit==2.7.3
