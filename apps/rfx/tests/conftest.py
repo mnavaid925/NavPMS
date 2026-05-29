@@ -45,6 +45,15 @@ def buyer_user(db, tenant):
 
 
 @pytest.fixture
+def procurement_manager(db, tenant):
+    """Manage-role user WITHOUT is_tenant_admin, so the MANAGE_ROLES membership
+    branch of can_manage_rfx is exercised (not the is_tenant_admin short-circuit)."""
+    return User.objects.create_user(
+        username='pmgr', password='x', tenant=tenant, role='procurement_manager',
+    )
+
+
+@pytest.fixture
 def evaluator(db, tenant):
     return User.objects.create_user(
         username='approver_user', password='x', tenant=tenant, role='approver',
