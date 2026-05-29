@@ -7,14 +7,16 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Avg, Sum
+from django.db import IntegrityError, transaction
+from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
+from apps.core.models import Tenant
 from apps.tenants.services import record_audit
 
 from .models import (
     DEFAULT_SCORED_TYPES,
+    EVENT_EVALUABLE_STATUSES,
     EVENT_POST_CLOSE_STATUSES,
     RfxAnswer,
     RfxEvaluation,
@@ -88,23 +90,51 @@ def next_rfx_number(tenant) -> str:
 
 # ---------- Event create ----------
 
-@transaction.atomic
 def create_event(*, tenant, user, **fields) -> RfxEvent:
-    """Create a draft RfxEvent with an auto-assigned number."""
-    event = RfxEvent.all_objects.create(
-        tenant=tenant,
-        event_number=next_rfx_number(tenant),
-        status='draft',
-        created_by=user,
-        **fields,
-    )
-    record_audit(
-        tenant=tenant, user=user,
-        action='rfx.event_created',
-        target_type='RfxEvent', target_id=event.pk,
-        message=f'{event.event_number}: {event.title}',
-    )
-    return event
+    """Create a draft RfxEvent with an auto-assigned number.
+
+    `next_rfx_number` is count-based, so two concurrent creates can compute the
+    same number and the second INSERT would violate
+    ``unique_together(tenant, event_number)`` (SQA defect D-05). Two defences:
+
+    1. A ``select_for_update`` row lock on the tenant serialises numbering, so
+       concurrent creates for the same tenant cannot read the same ``count()``.
+       It is a real lock on MySQL/InnoDB and a harmless no-op on SQLite (tests).
+    2. Each attempt runs in its own ``atomic`` block; a unique-constraint
+       collision is retried with a freshly recomputed number. Catching
+       ``IntegrityError`` *outside* the inner ``atomic`` keeps any enclosing
+       transaction (e.g. ``create_event_from_template``) usable via savepoint
+       rollback.
+
+    Residual risk: when called inside an outer ``atomic`` under MySQL
+    REPEATABLE READ, all attempts share one read snapshot, so the lock+retry
+    mitigates but does not fully eliminate the race on that nested path. A
+    dedicated per-tenant sequence row (atomic ``F()`` increment) would close it
+    entirely; deferred as it needs a model + migration.
+    """
+    last_exc = None
+    for _attempt in range(5):
+        try:
+            with transaction.atomic():
+                # Serialise per-tenant number generation (no-op on SQLite).
+                Tenant.objects.select_for_update().get(pk=tenant.pk)
+                event = RfxEvent.all_objects.create(
+                    tenant=tenant,
+                    event_number=next_rfx_number(tenant),
+                    status='draft',
+                    created_by=user,
+                    **fields,
+                )
+                record_audit(
+                    tenant=tenant, user=user,
+                    action='rfx.event_created',
+                    target_type='RfxEvent', target_id=event.pk,
+                    message=f'{event.event_number}: {event.title}',
+                )
+            return event
+        except IntegrityError as exc:
+            last_exc = exc
+    raise last_exc
 
 
 # ---------- Event publish validation ----------
@@ -421,8 +451,11 @@ def record_evaluation(response: RfxResponse, question: RfxQuestion, evaluator,
         raise ValidationError('Question does not belong to this event.')
     if not question.is_scored:
         raise ValidationError('This question is not scored.')
-    if response.event.status not in EVENT_POST_CLOSE_STATUSES:
-        raise ValidationError('Responses cannot be evaluated until the event closes.')
+    if response.event.status not in EVENT_EVALUABLE_STATUSES:
+        raise ValidationError(
+            'Responses can only be evaluated while the event is closed or '
+            'under evaluation.'
+        )
     score_d = Decimal(str(score))
     max_score = Decimal(question.max_score or 5)
     if score_d < Decimal('0') or score_d > max_score:
@@ -711,10 +744,10 @@ def tenant_rfx_metrics(tenant, period_start=None, period_end=None) -> dict:
         qs = qs.filter(created_at__lte=period_end)
 
     counts_by_status = defaultdict(int)
-    for row in qs.values('status').annotate(c=Sum('id') * 0 + 1):
+    for row in qs.values('status').annotate(c=Count('id')):
         counts_by_status[row['status']] = row['c']
     counts_by_type = defaultdict(int)
-    for row in qs.values('rfx_type').annotate(c=Sum('id') * 0 + 1):
+    for row in qs.values('rfx_type').annotate(c=Count('id')):
         counts_by_type[row['rfx_type']] = row['c']
 
     invited = RfxInvitee.all_objects.filter(event__in=qs).count()
