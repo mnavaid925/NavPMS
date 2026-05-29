@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from apps.vendors.decorators import vendor_required
 
-from .forms import MAX_ANSWER_FILE_BYTES
+from .forms import MAX_ANSWER_FILE_BYTES, upload_error
 from .models import (
     CHOICE_QUESTION_TYPES,
     RfxAnswer,
@@ -138,8 +138,9 @@ def _save_answer_from_post(answer: RfxAnswer, question: RfxQuestion,
     elif qtype == 'file':
         uploaded = files.get(prefix + 'file')
         if uploaded:
-            if uploaded.size > MAX_ANSWER_FILE_BYTES:
-                return f'Q{question.position}: file too large (5 MB max).'
+            err = upload_error(uploaded, MAX_ANSWER_FILE_BYTES)
+            if err:
+                return f'Q{question.position}: {err}'
             answer.value_file = uploaded
         if post.get(prefix + 'clear') == 'yes':
             answer.value_file = None
