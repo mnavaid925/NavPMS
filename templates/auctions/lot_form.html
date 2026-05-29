@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit lot{% else %}Add lot{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{% if is_edit %}Edit lot{% else %}Add lot{% endif %}</h1>
+    <div class="breadcrumb-trail">
+      <a href="{% url 'auctions:auction_list' %}">E-Auctions</a> &rsaquo;
+      <a href="{% url 'auctions:auction_detail' auction.pk %}"><code>{{ auction.auction_number }}</code></a> &rsaquo;
+      {% if is_edit %}Edit lot #{{ lot.lot_no }}{% else %}New lot{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        {% if is_edit %}
+        <form method="post" action="{% url 'auctions:lot_edit' auction.pk lot.pk %}" novalidate>
+        {% else %}
+        <form method="post" action="{% url 'auctions:lot_create' auction.pk %}" novalidate>
+        {% endif %}
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="ri-save-line me-1"></i> {% if is_edit %}Save changes{% else %}Add lot{% endif %}
+            </button>
+            <a href="{% url 'auctions:auction_detail' auction.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
