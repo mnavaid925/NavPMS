@@ -50,6 +50,9 @@
        href="{% url 'vendor_portal:rfx_inbox' %}"><i class="ri-questionnaire-line"></i> RFx Invitations</a>
     <a class="nav-link {% if request.resolver_match.url_name == 'rfx_my_responses' or request.resolver_match.url_name == 'rfx_response_edit' %}active{% endif %}"
        href="{% url 'vendor_portal:rfx_my_responses' %}"><i class="ri-file-list-3-line"></i> My Responses</a>
+    <div class="small-label">Live Auctions</div>
+    <a class="nav-link {% if request.resolver_match.url_name == 'auction_invitations' or request.resolver_match.url_name == 'auction_event_detail' or request.resolver_match.url_name == 'auction_bidding' %}active{% endif %}"
+       href="{% url 'vendor_portal:auction_invitations' %}"><i class="ri-auction-line"></i> Auctions</a>
     <div class="small-label">Orders &amp; Payments</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
        href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
