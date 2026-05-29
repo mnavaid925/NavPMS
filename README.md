@@ -18,7 +18,10 @@ Segmentation, Vendor Risk Profiling, Vendor Blacklisting/Suspension), and
 **Module 6 — Sourcing & Tendering** (all five sub-modules: Event Creation & Scheduling,
 Bid Submission Portal, Bid Evaluation Matrix, Award Recommendation, Sourcing Analytics),
 and **Module 7 — RFx Management** (all five sub-modules: Questionnaire Builder,
-Response Collection, Side-by-Side Comparison, Scoring & Weighting, RFx Template Library).
+Response Collection, Side-by-Side Comparison, Scoring & Weighting, RFx Template Library),
+and **Module 8 — E-Auction Management** (all five sub-modules: Auction Setup &
+Configuration, Live Bidding Interface, Bid Extension & Rule Enforcement, Auction Monitoring
+Console, Post-Auction Results).
 
 ---
 
@@ -38,11 +41,12 @@ Response Collection, Side-by-Side Comparison, Scoring & Weighting, RFx Template 
 13. [Module 5 — Vendor Management](#module-5--vendor-management)
 14. [Module 6 — Sourcing & Tendering](#module-6--sourcing--tendering)
 15. [Module 7 — RFx Management](#module-7--rfx-management)
-16. [Routes / UI Tour](#routes--ui-tour)
-16. [Multi-tenancy Model](#multi-tenancy-model)
-17. [Payment Gateway](#payment-gateway)
-18. [Browser Compatibility](#browser-compatibility)
-19. [Roadmap](#roadmap)
+16. [Module 8 — E-Auction Management](#module-8--e-auction-management)
+17. [Routes / UI Tour](#routes--ui-tour)
+18. [Multi-tenancy Model](#multi-tenancy-model)
+19. [Payment Gateway](#payment-gateway)
+20. [Browser Compatibility](#browser-compatibility)
+21. [Roadmap](#roadmap)
 
 ---
 
@@ -84,13 +88,15 @@ NavPMS/
 │   ├── sourcing/             # Module 6: SourcingEvent(+Item), SourcingEventInvitee,
 │   │                         # SourcingCriterion, Bid(+Line +Document), BidEvaluation,
 │   │                         # SourcingAward (append-only)
-│   └── rfx/                  # Module 7: RfxEvent (+Section +Question), RfxInvitee,
-│                             # RfxResponse (+Answer), RfxEvaluation, RfxDocument,
-│                             # RfxTemplate (+Section +Question)
+│   ├── rfx/                  # Module 7: RfxEvent (+Section +Question), RfxInvitee,
+│   │                         # RfxResponse (+Answer), RfxEvaluation, RfxDocument,
+│   │                         # RfxTemplate (+Section +Question)
+│   └── auctions/             # Module 8: Auction (+Lot), AuctionParticipant,
+│                             # AuctionBid (append-only ledger), AuctionDocument
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
-│   ├── js/   app.js (theme manager), auth.js
+│   ├── js/   app.js (theme manager), auth.js, auction.js (live-bidding poll engine)
 │   └── images/ logo.svg, logo-dark.svg, favicon.svg
 ├── templates/
 │   ├── base.html             # App shell (sidebar/topbar/footer + theme settings)
@@ -106,9 +112,11 @@ NavPMS/
 │   ├── vendors/{vendors,categories,segments,risk,onboarding,blacklist}/
 │   ├── sourcing/{events,items,criteria,bids,awards,analytics}/
 │   ├── rfx/{events,sections,questions,responses,templates,analytics}/
+│   ├── auctions/             # list, form, detail, lot_form, console, results, analytics
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
-│       └── rfx/              # Vendor-side RFx invitations + response form
+│       ├── rfx/              # Vendor-side RFx invitations + response form
+│       └── auctions/         # Vendor-side auction invitations + live bidding
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -189,7 +197,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -199,7 +207,9 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_vendors` | Creates vendor categories, segments, 8 vendors across every status, contacts/docs/banks, risk assessments, 3 onboarding applications and blacklist history. |
 | `python manage.py seed_sourcing` | Creates 3 sourcing events per tenant (draft / open with 2 bids / awarded with full evaluation matrix + finalised award + savings). |
 | `python manage.py seed_rfx` | Creates 2 RFx templates and 3 events per tenant (draft RFI / open RFP with responses / completed RFQ with full panel evaluation + shortlist). |
+| `python manage.py seed_auctions` | Creates 3 e-auctions per tenant (draft / scheduled with invitees / awarded with a full live bid ledger, anti-snipe extension + recorded savings). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
+| `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -220,7 +230,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/) — **355 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/) — **553 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -291,6 +301,17 @@ Each tenant gets 3 sourcing events:
 - **Awarded** — "Janitorial services Q1" (Tender, 2 items, 4 criteria, 3 submitted bids, full panel evaluation, lowest weighted-cost compliant winner, recorded savings)
 
 Criteria template: Price 40 / Quality 25 / Delivery 20 / Compliance 15 (sums to 100).
+
+### E-Auction data
+Each tenant gets 3 reverse auctions:
+- **Draft** — "Office laptops reverse auction Q3" (3 lots, no participants yet)
+- **Scheduled** — "Bulk steel quarterly buy" (2 lots, 3 invitees, starts in +1 day)
+- **Awarded** — "Inbound logistics reverse auction" (1 lot, 3 invitees, a full live bid
+  ledger of declining bids driven through the real `place_bid` service — one anti-snipe
+  extension fired, ranks computed, lowest valid bid awarded, savings recorded)
+
+Auction defaults: `amount` decrement, 120 s anti-snipe window, blind `rank_and_leading`
+visibility (vendors see their own rank + the leading price, never competitor identities).
 
 ---
 
@@ -508,6 +529,56 @@ vendors as invitees) is a planned follow-up; for now they're parallel surfaces.
 
 ---
 
+## Module 8 — E-Auction Management
+
+A live, time-bound **reverse-auction** surface ([apps/auctions/](apps/auctions/)) — buyers
+configure a reverse auction, invite vendors, and watch a real-time leaderboard while
+suppliers submit successively lower bids from the vendor portal. Distinct from Module 6
+(sealed, one bid per vendor) and Module 7 (questionnaire scoring), Module 8 is **price-and-time
+driven**: many bids per vendor, won on the lowest valid price, with a live console instead of
+a back-office evaluation. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Auction Setup & Configuration** | `Auction` (`AUC-<SLUG>-NNNNN`, type reverse/forward) holds the reverse-auction parameters: `starting_price` (ceiling), hidden `reserve_price` (floor), `decrement_type` (amount/percent) + `decrement_value`, `start_at`/`end_at`, `rank_visibility`, and the anti-snipe knobs. `AuctionLot` rows describe the basket. Full CRUD + a publish validation (≥1 lot, ≥1 participant, start<end, price>0, decrement>0, reserve≤starting). |
+| **Live Bidding Interface** | Vendors bid from `/vendor-portal/auctions/<id>/bidding/` — a live screen with a client-side countdown, the current leading price, their own rank, and the next valid maximum. Bids POST to a JSON endpoint; the screen **AJAX-polls** a state endpoint every ~3 s (vanilla [`static/js/auction.js`](static/js/auction.js), no websockets). `place_bid()` validates the lowering + decrement + ceiling rules atomically under `select_for_update`. |
+| **Bid Extension & Rule Enforcement** | Anti-snipe is enforced **server-side** in `place_bid()`: a valid bid landing within `anti_snipe_seconds` of `end_at` (while `extension_count < max_extensions`) pushes `end_at` out by `anti_snipe_extension_seconds`. The decrement rule (beat the current best by ≥ the configured amount/percent) and ceiling rule (≤ `starting_price`) are enforced in the same transaction, each with a clear error message. |
+| **Auction Monitoring Console** | Buyers watch `/auctions/events/<id>/console/` — a live leaderboard (vendor, current bid, rank, last-bid time), participation counters, time remaining and extension count, all refreshed by polling a buyer JSON endpoint. The buyer sees full identities; vendors get a blind view (own rank + leading price) per `rank_visibility`. |
+| **Post-Auction Results** | `/auctions/events/<id>/results/` shows the final ranking, savings (baseline vs winning bid, $ and %), the full append-only `AuctionBid` timeline, and the **award decision** (`finalize_auction`, lowest valid bid by default, buyer-overridable). Per-auction (price-drop curve) and tenant-wide analytics dashboards round it out. |
+
+**Status workflow:** `draft → scheduled → live → closed → awarded` plus `cancelled`. Publish
+moves draft → scheduled; the clock then flips scheduled → live (at `start_at`) and live →
+closed (at `end_at`) **lazily** on console/poll/bid access — no celery — backed by the
+cron-friendly `run_auction_clock` command. `finalize_auction` awards the lowest valid bid and
+denormalises the winner onto the auction.
+
+**Append-only bid ledger:** `AuctionBid` records one row per placement (amount, rank-at-placement,
+`was_leading`, `triggered_extension`); the live standing (`current_bid_amount`, `current_rank`,
+`bid_count`) is denormalised onto `AuctionParticipant` for fast leaderboard rendering. Admin
+add/change/delete is disabled on the ledger (mirrors `AuditLog` / `SourcingAward`).
+
+**Blind-bidding gate:** [`auction_state_for(user, auction)`](apps/auctions/services.py) returns
+`'full'` for a buyer/monitor, `'self'` for a vendor participant, or `None` for an outsider;
+[`live_payload(user, auction)`](apps/auctions/services.py) builds the JSON each poll returns —
+a full leaderboard for buyers, but for vendors only their own rank/bid + the leading price,
+never a competitor's identity.
+
+**Permission gate:** create / configure / run / award is restricted to roles `tenant_admin`,
+`procurement_manager`, `buyer` (plus Django superuser); the monitoring console additionally
+allows `approver`. Helpers [`can_manage_auction`](apps/auctions/services.py) and
+[`can_monitor_auction`](apps/auctions/services.py) encapsulate the check.
+
+**Integration with Module 5 (Vendors):** only `active` vendors can be invited (the form
+excludes `suspended` / `blacklisted` / `inactive`); invited vendors with a portal user see the
+auction in their `/vendor-portal/auctions/` inbox. A nullable `Auction.sourcing_event` FK is in
+place as a cheap hook for a future Sourcing → E-Auction hand-off.
+
+**Concurrency:** `place_bid()` and `finalize_auction()` take a `select_for_update()` lock on the
+auction row inside `@transaction.atomic`, so simultaneous bids are serialised and two vendors
+cannot both "beat" the same best price.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -569,6 +640,12 @@ vendors as invitees) is a planned follow-up; for now they're parallel surfaces.
 | `/rfx/templates/` | RFx template library — list, create, edit, use |
 | `/rfx/analytics/` | Tenant-wide RFx analytics dashboard |
 | `/rfx/events/<id>/analytics/` | Per-event response-rate + final ranking report |
+| `/auctions/events/` | E-Auctions — search + status/type/category filters |
+| `/auctions/events/<id>/` | Auction detail (lots, participants, documents, bids) + lifecycle actions |
+| `/auctions/events/<id>/console/` | Live bidding console (auto-polling leaderboard + countdown) |
+| `/auctions/events/<id>/results/` | Post-auction ranking, savings + finalize award |
+| `/auctions/analytics/` | Tenant-wide e-auction analytics dashboard |
+| `/auctions/events/<id>/analytics/` | Per-auction savings + price-drop curve |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -579,6 +656,9 @@ vendors as invitees) is a planned follow-up; for now they're parallel surfaces.
 | `/vendor-portal/rfx/<event>/` | RFx event read-only view |
 | `/vendor-portal/rfx/<event>/response/<r>/` | Answer form (one field per question) — draft + submit |
 | `/vendor-portal/rfx/responses/` | All RFx responses the vendor has started or submitted |
+| `/vendor-portal/auctions/` | Vendor's auction invitations |
+| `/vendor-portal/auctions/<id>/` | Auction read-only view + accept/decline |
+| `/vendor-portal/auctions/<id>/bidding/` | Live bidding screen (countdown, own rank, place bid) |
 | `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
@@ -618,7 +698,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–7 ship. Modules 8–21 from the PMS spec are not yet implemented:
+Modules 1–8 ship. Modules 9–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -629,7 +709,7 @@ Modules 1–7 ship. Modules 8–21 from the PMS spec are not yet implemented:
 | 5 | Vendor Management | Shipped |
 | 6 | Sourcing & Tendering | Shipped |
 | 7 | RFx Management | Shipped |
-| 8 | E-Auction Management | Planned |
+| 8 | E-Auction Management | Shipped |
 | 9 | Contract Management | Planned |
 | 10 | Catalog Management | Planned |
 | 11 | Purchase Order Management | Planned |
