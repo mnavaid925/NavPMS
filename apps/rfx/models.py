@@ -42,6 +42,10 @@ EVENT_OPEN_STATUSES = (
 EVENT_POST_CLOSE_STATUSES = (
     'closed', 'under_evaluation', 'completed', 'cancelled',
 )
+# Statuses during which evaluators may score responses. Deliberately excludes
+# `completed` and `cancelled`: once an event is finalised its ranks are frozen,
+# so a late evaluation must not silently mutate overall_score (SQA defect D-03).
+EVENT_EVALUABLE_STATUSES = ('closed', 'under_evaluation')
 
 INVITEE_STATUS_CHOICES = [
     ('invited', 'Invited'),
