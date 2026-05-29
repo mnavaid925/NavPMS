@@ -1,5 +1,6 @@
 """Module 7 forms: events, sections, questions, invitees, documents,
 shortlist/reject decisions, templates and template clone."""
+import os
 from decimal import Decimal
 
 from django import forms
@@ -204,6 +205,34 @@ class InviteVendorsForm(forms.Form):
 MAX_DOCUMENT_BYTES = 10 * 1024 * 1024  # 10 MB — buyer brief / spec sheets
 MAX_ANSWER_FILE_BYTES = 5 * 1024 * 1024  # 5 MB — vendor per-answer uploads
 
+# Extension allow-list for both buyer documents and vendor answer files
+# (SQA defect D-04). Whitelist, not blacklist: anything not listed — notably
+# .svg / .html / .htm / .js / .exe — is rejected, since MEDIA may be served
+# inline by Apache in production and active content would be stored XSS.
+ALLOWED_UPLOAD_EXTENSIONS = frozenset({
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.csv', '.txt', '.png', '.jpg', '.jpeg', '.gif', '.zip',
+})
+
+
+def upload_error(f, max_bytes):
+    """Validate an uploaded file; return an error message, or '' if acceptable.
+
+    Used both by ``RfxDocumentForm.clean_file`` (which re-raises) and by the
+    vendor-portal answer handler (which collects message strings).
+    """
+    if not f:
+        return ''
+    if f.size > max_bytes:
+        return f'File size must be {max_bytes // (1024 * 1024)} MB or less.'
+    ext = os.path.splitext((f.name or '').lower())[1]
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        return (
+            f'File type "{ext or "unknown"}" is not allowed. '
+            f'Permitted: {", ".join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}.'
+        )
+    return ''
+
 
 class RfxDocumentForm(forms.ModelForm):
     class Meta:
@@ -213,8 +242,9 @@ class RfxDocumentForm(forms.ModelForm):
 
     def clean_file(self):
         f = self.cleaned_data.get('file')
-        if f and f.size > MAX_DOCUMENT_BYTES:
-            raise forms.ValidationError('File size must be 10 MB or less.')
+        err = upload_error(f, MAX_DOCUMENT_BYTES)
+        if err:
+            raise forms.ValidationError(err)
         return f
 
 
