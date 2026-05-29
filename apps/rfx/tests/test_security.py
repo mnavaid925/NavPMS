@@ -190,6 +190,38 @@ def test_document_form_accepts_small_file():
     assert form.is_valid()
 
 
+@pytest.mark.parametrize('filename,content_type', [
+    ('logo.svg', 'image/svg+xml'),     # SVG can carry <script>
+    ('brief.html', 'text/html'),       # stored HTML -> XSS if served inline
+    ('macro.docm', 'application/vnd.ms-word.document.macroEnabled.12'),
+    ('payload.exe', 'application/octet-stream'),
+])
+def test_document_form_rejects_active_content(filename, content_type):
+    """D-04: uploads outside the extension allow-list are rejected, so a buyer
+    cannot stash active content under MEDIA (which Apache may serve inline)."""
+    upload = SimpleUploadedFile(filename, b'<svg onload=alert(1)>', content_type=content_type)
+    form = RfxDocumentForm(data={'title': 'x'}, files={'file': upload})
+    assert not form.is_valid()
+    assert 'file' in form.errors
+
+
+def test_document_form_rejects_uppercase_extension():
+    """D-04: the whitelist check lowercases the name, so EVIL.SVG is still rejected
+    (a naive splitext check would let an uppercase extension slip)."""
+    upload = SimpleUploadedFile('EVIL.SVG', b'<svg/>', content_type='image/svg+xml')
+    form = RfxDocumentForm(data={'title': 'x'}, files={'file': upload})
+    assert not form.is_valid()
+    assert 'file' in form.errors
+
+
+def test_document_form_accepts_uppercase_allowed_extension():
+    """And a legitimately uppercase allowed extension (SPEC.PDF) is accepted —
+    pins the .lower() normalization so dropping it would fail this test."""
+    upload = SimpleUploadedFile('SPEC.PDF', b'content', content_type='application/pdf')
+    form = RfxDocumentForm(data={'title': 'ok'}, files={'file': upload})
+    assert form.is_valid()
+
+
 def test_answer_file_upload_size_cap_is_5mb():
     """Vendor-side per-answer uploads are capped at 5 MB."""
     assert MAX_ANSWER_FILE_BYTES == 5 * 1024 * 1024
