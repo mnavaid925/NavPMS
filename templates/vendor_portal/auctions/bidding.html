@@ -1,0 +1,125 @@
+{% extends 'vendor_portal/base.html' %}
+{% load static %}
+
+{% block title %}Live bidding · {{ auction.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">{{ auction.title }}</h4>
+    <div class="text-muted small">{{ auction.auction_number }} · Reverse auction (lowest price wins)</div>
+  </div>
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{% url 'vendor_portal:auction_event_detail' auction.pk %}">
+    <i class="ri-arrow-left-line"></i> Back
+  </a>
+</div>
+
+<div id="auctionRoot"
+     data-state-url="{% url 'vendor_portal:auction_state' auction.pk %}"
+     data-place-bid-url="{% url 'vendor_portal:auction_place_bid' auction.pk %}"
+     data-csrf="{{ csrf_token }}"
+     data-poll-ms="3000">
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="text-muted text-uppercase small">Time remaining</div>
+          <div id="countdown" class="fs-3 fw-bold">—</div>
+          <div class="small text-muted">
+            Status: <span id="statusBadge">{{ auction.get_status_display }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="text-muted text-uppercase small">My rank</div>
+          <div id="yourRank" class="fs-3 fw-bold">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="text-muted text-uppercase small">My current bid</div>
+          <div id="yourBid" class="fs-4 fw-bold">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center">
+          <div class="text-muted text-uppercase small">Leading price</div>
+          <div id="leadingPrice" class="fs-4 fw-bold">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Place a bid</div>
+        <div class="card-body">
+          <div id="endedNotice" class="alert alert-secondary d-none">
+            <i class="ri-time-line"></i> This auction has ended. Bidding is closed.
+            <a id="resultsLink" href="#" class="alert-link d-none ms-1">View results</a>
+          </div>
+
+          <p class="text-muted small">
+            Highest acceptable next bid:
+            <strong id="nextMax">{{ auction.currency }} {{ auction.starting_price }}</strong>.
+            You must beat the current leading price by the configured decrement.
+          </p>
+
+          <form id="placeBidForm" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-sm-7">
+              <label for="bidAmount" class="form-label">Your bid ({{ auction.currency }})</label>
+              <input type="number" step="0.01" min="0.01" class="form-control form-control-lg"
+                     id="bidAmount" name="amount" placeholder="0.00">
+            </div>
+            <div class="col-sm-5 d-grid">
+              <button type="submit" id="bidSubmit" class="btn btn-success btn-lg">
+                <i class="ri-arrow-down-line"></i> Submit bid
+              </button>
+            </div>
+          </form>
+          <div id="bidError" class="text-danger small mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Auction status</div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between">
+            <span class="text-muted">Participants</span>
+            <span id="participantCount">{{ auction.participants.count }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span class="text-muted">Active bidders</span>
+            <span id="bidderCount">0</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span class="text-muted">Extensions</span>
+            <span id="extensionCount">{{ auction.extension_count }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span class="text-muted">Starting price</span>
+            <span>{{ auction.currency }} {{ auction.starting_price }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/auction.js' %}"></script>
+{% endblock %}
