@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}E-Auction Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>E-Auction Analytics</h1>
+    <div class="breadcrumb-trail">Module 8 — auctions, savings &amp; participation</div>
+  </div>
+  <a href="{% url 'auctions:auction_list' %}" class="btn btn-outline-secondary">
+    <i class="ri-arrow-left-line me-1"></i> Back to auctions
+  </a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total auctions</div>
+    <div class="h4 mb-0">{{ metrics.total_auctions }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Live</div>
+    <div class="h4 mb-0 text-success">{{ metrics.live }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Scheduled</div>
+    <div class="h4 mb-0 text-info">{{ metrics.scheduled }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Awarded</div>
+    <div class="h4 mb-0 text-success">{{ metrics.awarded }}</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total baseline (awarded)</div>
+    <div class="h5 mb-0">${{ metrics.total_baseline }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total awarded value</div>
+    <div class="h5 mb-0">${{ metrics.total_awarded }}</div>
+  </div></div></div>
+  <div class="col-md-4"><div class="card border-success"><div class="card-body">
+    <div class="text-muted small">Savings achieved</div>
+    <div class="h5 mb-0 text-success">${{ metrics.total_savings }} <span class="small">({{ metrics.savings_pct }}%)</span></div>
+  </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total participants</div>
+    <div class="h4 mb-0">{{ metrics.total_participants }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Total bids</div>
+    <div class="h4 mb-0">{{ metrics.total_bids }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Avg participants / auction</div>
+    <div class="h4 mb-0">{{ metrics.avg_participants }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body">
+    <div class="text-muted small">Draft / Cancelled</div>
+    <div class="h4 mb-0">{{ metrics.draft }} / <span class="text-danger">{{ metrics.cancelled }}</span></div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Auctions by status</div>
+      <div class="card-body">
+        <canvas id="statusChart" height="240"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Recent auctions</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Number</th><th>Title</th><th>Status</th>
+                <th class="text-end">Awarded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in recent_auctions %}
+              <tr>
+                <td><a href="{% url 'auctions:auction_detail' a.pk %}" class="text-decoration-none"><code>{{ a.auction_number }}</code></a></td>
+                <td>{{ a.title|truncatechars:36 }}</td>
+                <td>
+                  {% if a.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+                  {% elif a.status == 'scheduled' %}<span class="badge badge-soft-info">Scheduled</span>
+                  {% elif a.status == 'live' %}<span class="badge badge-soft-success">Live</span>
+                  {% elif a.status == 'closed' %}<span class="badge badge-soft-primary">Closed</span>
+                  {% elif a.status == 'awarded' %}<span class="badge badge-soft-success">Awarded</span>
+                  {% elif a.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
+                  {% else %}<span class="badge badge-soft-secondary">{{ a.get_status_display }}</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if a.status == 'awarded' %}{{ a.currency }} {{ a.awarded_amount|floatformat:2 }}{% else %}—{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-center text-muted small py-3">No auctions yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ metrics.by_status|json_script:"byStatusData" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var raw = JSON.parse(document.getElementById('byStatusData').textContent || '{}');
+  var labels = Object.keys(raw);
+  var values = labels.map(function (k) { return raw[k]; });
+  var canvas = document.getElementById('statusChart');
+  if (!canvas || !labels.length) return;
+  new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: ['#6c757d', '#0dcaf0', '#198754', '#0d6efd', '#20c997', '#dc3545', '#ffc107']
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+})();
+</script>
+{% endblock %}
