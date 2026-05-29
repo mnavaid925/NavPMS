@@ -8,6 +8,7 @@ from django.urls import path
 from . import views
 from apps.sourcing import portal_views as sourcing_portal
 from apps.rfx import portal_views as rfx_portal
+from apps.auctions import portal_views as auctions_portal
 
 app_name = 'vendor_portal'
 
@@ -54,4 +55,22 @@ urlpatterns = [
     path('rfx/invitations/<int:ipk>/decline/',
          rfx_portal.portal_invitation_decline, name='rfx_invitation_decline'),
     path('rfx/responses/', rfx_portal.portal_my_responses, name='rfx_my_responses'),
+
+    # Module 8 — E-Auction Management (vendor-side)
+    path('auctions/', auctions_portal.portal_auction_list,
+         name='auction_invitations'),
+    path('auctions/<int:pk>/', auctions_portal.portal_auction_detail,
+         name='auction_event_detail'),
+    path('auctions/<int:pk>/accept/', auctions_portal.portal_accept,
+         name='auction_accept'),
+    path('auctions/<int:pk>/decline/', auctions_portal.portal_decline,
+         name='auction_decline'),
+    path('auctions/<int:pk>/withdraw/', auctions_portal.portal_withdraw,
+         name='auction_withdraw'),
+    path('auctions/<int:pk>/bidding/', auctions_portal.portal_bidding,
+         name='auction_bidding'),
+    path('auctions/<int:pk>/state/', auctions_portal.portal_state,
+         name='auction_state'),
+    path('auctions/<int:pk>/place-bid/', auctions_portal.portal_place_bid,
+         name='auction_place_bid'),
 ]
