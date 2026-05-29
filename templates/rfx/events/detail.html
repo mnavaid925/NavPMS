@@ -57,7 +57,7 @@
       </div>
     </div>
 
-    {% if event.status == 'completed' %}
+    {% if event.status == 'completed' and can_view_responses %}
     <div class="card mb-3">
       <div class="card-header">Outcome</div>
       <div class="card-body">
@@ -412,17 +412,10 @@
           </a>
           {% endif %}
         </div>
-        {% if not event.responses_are_visible %}
-          <div class="alert alert-info small">
-            <i class="ri-lock-line me-1"></i>
-            <strong>Responses are sealed.</strong> Contents become visible after the event closes
-            ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
-          </div>
-          <div class="small">
-            <strong>{{ responses.count }}</strong> response(s) received from
-            {{ invitees.count }} invitation(s).
-          </div>
-        {% else %}
+        {# Sealed gate: the scored table (rank/score/decision) is sealed competitive
+           content — render it only when can_view_responses is true (post-close AND
+           manage/evaluate role). Everyone else gets a notice + benign counts (D-01). #}
+        {% if can_view_responses %}
           <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead><tr><th>Rank</th><th>Vendor</th><th>Status</th><th class="text-end">Score</th><th>Submitted</th><th></th></tr></thead>
@@ -451,6 +444,21 @@
               {% endfor %}
             </tbody>
           </table>
+          </div>
+        {% else %}
+          <div class="alert alert-info small">
+            <i class="ri-lock-line me-1"></i>
+            {% if event.responses_are_visible %}
+              <strong>Responses are restricted.</strong> Only buyers and the evaluation
+              panel can view response details for this event.
+            {% else %}
+              <strong>Responses are sealed.</strong> Contents become visible after the event closes
+              ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
+            {% endif %}
+          </div>
+          <div class="small">
+            <strong>{{ responses.count }}</strong> response(s) received from
+            {{ invitees.count }} invitation(s).
           </div>
         {% endif %}
         {% if event.cancelled_reason %}
