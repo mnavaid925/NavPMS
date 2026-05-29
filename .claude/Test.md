@@ -421,16 +421,20 @@ Severity scale: Critical / High / Medium / Low / Info. **Verified** = reproduced
 | Regression escape rate | 0 | — | >0 |
 | Dependency CVEs (pip-audit) | 0 | low only | any High |
 
-### 7.3 Release Exit Gate — all must hold
+### 7.3 Release Exit Gate — remediation status (updated 2026-05-29)
 
-- [ ] **D-01 fixed** and guarded by `test_requester_cannot_list_sealed_responses` + `…_compare` (both green).
-- [ ] **D-02 fixed** — analytics gated; `test_requester_cannot_open_analytics` green.
-- [ ] **D-03 fixed** — evaluation frozen post-completion; `test_cannot_evaluate_completed_event` green.
-- [ ] **D-04 fixed** — upload extension/content whitelist on both buyer doc and vendor answer files.
-- [ ] **D-05 fixed** — numbering race handled (retry or lock).
-- [ ] Full RFx suite green (≥102 existing + new gap tests) with 0 Critical/High defects open.
-- [ ] `bandit` + `pip-audit` clean of High findings.
-- [ ] Coverage targets in §7.1 met for `services.py` and `views.py`.
+> Fixes landed this session; full plan & per-file commits in [.claude/tasks/rfx_defects_todo.md](tasks/rfx_defects_todo.md). RFx suite **143 passing** (was 102); full project suite **396 passing**.
+
+- [x] **D-01 fixed** — `_can_view_responses` gate on `response_list` + `response_compare`; guarded by `test_access_control.py`.
+- [x] **D-02 fixed** — analytics views gated; `test_requester_cannot_open_analytics_dashboard`/`_event_report` green.
+- [x] **D-14 fixed (found by adversarial review)** — `event_detail` template leaked the scored rank/score table + Outcome card to low-privilege users (gated on status, not on the computed `can_view_responses` flag); now gated. Guarded by `test_event_detail_hides_scores_from_requester` (verified fail-when-reverted) + `_shows_scores_to_manager`.
+- [x] **D-03 fixed** — evaluation frozen to `EVENT_EVALUABLE_STATUSES`; `test_cannot_evaluate_completed_event`/`_cancelled_event` + view-gate tests green.
+- [x] **D-04 fixed** — shared `upload_error` extension whitelist on buyer doc + vendor answer files; svg/html/exe + uppercase-extension reject tested.
+- [x] **D-05 mitigated** — `select_for_update(Tenant)` serialization + retry-on-`IntegrityError`; retry-count and outer-atomic savepoint tests green. *Residual:* full race-proofing under MySQL REPEATABLE READ in a nested transaction needs a dedicated per-tenant sequence row (model + migration) — deferred.
+- [x] **D-09 fixed** — compare matrix bulk-loaded with `select_related('question')`; N-independence perf guard green (caught a residual N+1 during this work).
+- [x] Full RFx suite green (143) with 0 open Critical/High defects.
+- [ ] `bandit` + `pip-audit` pinned in `requirements-dev.txt`; **not yet executed** (install `requirements-dev.txt` then `bandit -r apps/` / `pip-audit -r requirements.txt`).
+- [~] Coverage: `services.py` ~83%, `models.py` ~91% (defect-relevant paths covered); view CRUD breadth still below the §7.1 target.
 
 ---
 
