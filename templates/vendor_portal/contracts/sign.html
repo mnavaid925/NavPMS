@@ -1,0 +1,40 @@
+{% extends 'vendor_portal/base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Sign {{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <h4 class="mb-1">{{ contract.title }}</h4>
+  <div class="small text-muted">{{ contract.contract_number }} · Signing as {{ signatory.name }}</div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-file-text-line"></i> Contract</div>
+  <div class="card-body" style="max-height:340px; overflow:auto; white-space:pre-wrap">{{ contract.body|default:"(No body text provided.)" }}</div>
+</div>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-quill-pen-line"></i> Sign</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <button type="submit" class="btn btn-success"><i class="ri-check-line"></i> Sign contract</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="ri-close-circle-line"></i> Decline</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'vendor_portal:contract_sign_decline' signatory.sign_token %}">
+          {% csrf_token %}
+          <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Reason for declining" required></textarea>
+          <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Decline to sign this contract?');">Decline</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
