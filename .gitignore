@@ -61,6 +61,9 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Django user-uploaded media (MEDIA_ROOT) — runtime artifacts, not source
+media/
+
 # Flask stuff:
 instance/
 .webassets-cache
