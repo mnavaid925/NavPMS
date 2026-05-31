@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Author {{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">Author Contract</h1>
+      <p class="page-subtitle">{{ contract.contract_number }} — {{ contract.title }}</p>
+    </div>
+    <a href="{% url 'contracts:contract_detail' contract.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back to contract
+    </a>
+  </div>
+</div>
+
+{% if not contract.is_editable %}
+<div class="alert alert-info">This contract is no longer a draft, so its clauses are locked.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-file-text-line"></i> Clauses ({{ clause_lines|length }})</span>
+        {% if contract.is_editable %}
+        <a href="{% url 'contracts:clause_line_add' contract.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add clause</a>
+        {% endif %}
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for line in clause_lines %}
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between">
+            <strong>{{ line.sort_order }}. {{ line.heading }}</strong>
+            {% if contract.is_editable %}
+            <span>
+              <a href="{% url 'contracts:clause_line_edit' contract.pk line.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-edit-line"></i></a>
+              <form method="post" action="{% url 'contracts:clause_line_delete' contract.pk line.pk %}" class="d-inline" onsubmit="return confirm('Remove clause?');">
+                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </span>
+            {% endif %}
+          </div>
+          <p class="mb-0 text-muted" style="white-space:pre-wrap">{{ line.body }}</p>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No clauses yet. Add one or pull from the library.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if contract.is_editable %}
+    <div class="card">
+      <div class="card-header"><i class="ri-book-2-line"></i> Add from clause library</div>
+      <div class="card-body">
+        {% if has_library %}
+        <form method="post" action="{% url 'contracts:clause_line_add_from_library' contract.pk %}">
+          {% csrf_token %}
+          <select name="clause" class="form-select mb-2" required>
+            <option value="">Choose a clause…</option>
+            {% for c in add_library_form.fields.clause.queryset %}
+            <option value="{{ c.pk }}">{{ c.title }} ({{ c.get_category_display }})</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-outline-primary w-100"><i class="ri-add-line"></i> Add clause</button>
+        </form>
+        {% else %}
+        <p class="text-muted mb-0">No library clauses yet. <a href="{% url 'contracts:clause_create' %}">Add one</a>.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
