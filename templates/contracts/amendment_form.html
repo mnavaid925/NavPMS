@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Amendment{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">New Amendment</h1>
+  <p class="page-subtitle">{{ contract.contract_number }} — {{ contract.title }} (rev {{ contract.revision }})</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <p class="text-muted">Leave a field blank to keep the current value. Applying the
+        amendment bumps the contract revision and snapshots the previous values.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Draft amendment</button>
+            <a href="{% url 'contracts:contract_detail' contract.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
