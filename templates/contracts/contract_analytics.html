@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ contract.contract_number }} Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">Contract Analytics</h1>
+      <p class="page-subtitle">{{ contract.contract_number }} — {{ contract.title }}</p>
+    </div>
+    <a href="{% url 'contracts:contract_detail' contract.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Signing progress</div>
+      <div class="stat-value">{{ analytics.signature_progress }}%</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Obligation completion</div>
+      <div class="stat-value">{{ analytics.obligation_completion }}%</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Amendments</div>
+      <div class="stat-value">{{ analytics.amendment_count }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Days to expiry</div>
+      <div class="stat-value">{{ analytics.days_to_expiry|default:"—" }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-3 mb-2"><small class="text-muted d-block">Revision</small>{{ analytics.revision }}</div>
+      <div class="col-md-3 mb-2"><small class="text-muted d-block">Value</small>{{ contract.currency }} {{ analytics.value|floatformat:2|intcomma }}</div>
+      <div class="col-md-3 mb-2"><small class="text-muted d-block">Signatories</small>{{ analytics.signed_count }}/{{ analytics.signatory_count }}</div>
+      <div class="col-md-3 mb-2"><small class="text-muted d-block">Obligations</small>{{ analytics.completed_obligations }}/{{ analytics.obligation_count }} done · {{ analytics.overdue_obligations }} overdue</div>
+      <div class="col-md-3 mb-2"><small class="text-muted d-block">Obligation value</small>{{ contract.currency }} {{ analytics.obligation_value|floatformat:2|intcomma }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
