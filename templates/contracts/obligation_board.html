@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Obligations Board{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Obligations &amp; Milestones</h1>
+    <p class="page-subtitle">Deliverables, payment milestones and penalties across all contracts</p>
+  </div>
+  <a href="{% url 'contracts:contract_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All contracts</a>
+</div>
+
+<div class="row g-3">
+  {% for key, title, klass, items in board %}
+  <div class="col-lg-3">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ title }}</span>
+        <span class="badge {{ klass }}">{{ items|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for o in items %}
+        <li class="list-group-item">
+          <div class="fw-semibold">{{ o.title }}</div>
+          <div class="small text-muted">
+            <a href="{% url 'contracts:contract_detail' o.contract.pk %}" class="text-decoration-none">{{ o.contract.contract_number }}</a>
+            · {{ o.contract.vendor.legal_name }}
+          </div>
+          <div class="small">
+            <span class="badge bg-light text-dark">{{ o.get_obligation_type_display }}</span>
+            Due {{ o.due_date|date:"M d, Y"|default:"—" }}
+            {% if o.amount %}· {{ o.amount|floatformat:0|intcomma }}{% endif %}
+          </div>
+          {% if can_manage and o.is_open %}
+          <form method="post" action="{% url 'contracts:obligation_complete' o.contract.pk o.pk %}" class="mt-1">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-success w-100"><i class="ri-check-line"></i> Complete</button>
+          </form>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
