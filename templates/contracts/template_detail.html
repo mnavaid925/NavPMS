@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}{{ template.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{{ template.title }}</h1>
+      <p class="page-subtitle"><span class="badge bg-light text-dark">{{ template.get_contract_type_display }}</span> {{ template.description }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'contracts:template_use' template.pk %}" class="btn btn-primary"><i class="ri-file-add-line"></i> Use template</a>
+      <a href="{% url 'contracts:template_edit' template.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><i class="ri-file-text-line"></i> Clauses ({{ clauses|length }})</div>
+      <ul class="list-group list-group-flush">
+        {% for c in clauses %}
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between">
+            <strong>{{ c.sort_order }}. {{ c.heading }}</strong>
+            <form method="post" action="{% url 'contracts:template_clause_delete' template.pk c.pk %}" onsubmit="return confirm('Remove clause?');">
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+            </form>
+          </div>
+          <p class="mb-0 text-muted" style="white-space:pre-wrap">{{ c.body }}</p>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No clauses yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-book-2-line"></i> Add from library</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'contracts:template_clause_add' template.pk %}">
+          {% csrf_token %}
+          <select name="clause" class="form-select mb-2">
+            <option value="">Choose a clause…</option>
+            {% for lc in add_library_form.fields.clause.queryset %}
+            <option value="{{ lc.pk }}">{{ lc.title }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-outline-primary w-100"><i class="ri-add-line"></i> Add library clause</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="ri-add-box-line"></i> Add custom clause</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'contracts:template_clause_add' template.pk %}">
+          {% csrf_token %}
+          <input type="text" name="heading" class="form-control mb-2" placeholder="Clause heading" required>
+          <textarea name="body" class="form-control mb-2" rows="3" placeholder="Clause body"></textarea>
+          <button class="btn btn-outline-primary w-100"><i class="ri-add-line"></i> Add clause</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
