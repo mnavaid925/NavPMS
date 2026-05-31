@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Sign {{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Sign Contract</h1>
+  <p class="page-subtitle">{{ contract.contract_number }} — {{ contract.title }}</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-file-text-line"></i> Contract preview</div>
+      <div class="card-body" style="max-height:320px; overflow:auto; white-space:pre-wrap">{{ contract.body|default:"(No body text.)" }}</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="ri-quill-pen-line"></i> Signing as {{ signatory.name }}</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-success"><i class="ri-check-line"></i> Sign</button>
+            <a href="{% url 'contracts:contract_detail' contract.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
