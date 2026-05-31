@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'apps.sourcing',
     'apps.rfx',
     'apps.auctions',
+    'apps.contracts',
 ]
 
 MIDDLEWARE = [
