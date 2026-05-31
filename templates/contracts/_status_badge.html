@@ -1,0 +1,7 @@
+{% if status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+{% elif status == 'pending_signature' %}<span class="badge badge-soft-info">Pending Signature</span>
+{% elif status == 'active' %}<span class="badge badge-soft-success">Active</span>
+{% elif status == 'expired' %}<span class="badge badge-soft-warning">Expired</span>
+{% elif status == 'terminated' %}<span class="badge badge-soft-danger">Terminated</span>
+{% elif status == 'renewed' %}<span class="badge badge-soft-primary">Renewed</span>
+{% else %}<span class="badge badge-soft-dark">Cancelled</span>{% endif %}
