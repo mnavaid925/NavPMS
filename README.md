@@ -21,7 +21,9 @@ and **Module 7 — RFx Management** (all five sub-modules: Questionnaire Builder
 Response Collection, Side-by-Side Comparison, Scoring & Weighting, RFx Template Library),
 and **Module 8 — E-Auction Management** (all five sub-modules: Auction Setup &
 Configuration, Live Bidding Interface, Bid Extension & Rule Enforcement, Auction Monitoring
-Console, Post-Auction Results).
+Console, Post-Auction Results), and **Module 9 — Contract Management** (all five sub-modules:
+Contract Authoring & Templating, E-Signature Integration, Renewal & Expiration Alerts,
+Contract Amendment Tracking, Obligation & Milestone Management).
 
 ---
 
@@ -42,11 +44,12 @@ Console, Post-Auction Results).
 14. [Module 6 — Sourcing & Tendering](#module-6--sourcing--tendering)
 15. [Module 7 — RFx Management](#module-7--rfx-management)
 16. [Module 8 — E-Auction Management](#module-8--e-auction-management)
-17. [Routes / UI Tour](#routes--ui-tour)
-18. [Multi-tenancy Model](#multi-tenancy-model)
-19. [Payment Gateway](#payment-gateway)
-20. [Browser Compatibility](#browser-compatibility)
-21. [Roadmap](#roadmap)
+17. [Module 9 — Contract Management](#module-9--contract-management)
+18. [Routes / UI Tour](#routes--ui-tour)
+19. [Multi-tenancy Model](#multi-tenancy-model)
+20. [Payment Gateway](#payment-gateway)
+21. [Browser Compatibility](#browser-compatibility)
+22. [Roadmap](#roadmap)
 
 ---
 
@@ -91,8 +94,12 @@ NavPMS/
 │   ├── rfx/                  # Module 7: RfxEvent (+Section +Question), RfxInvitee,
 │   │                         # RfxResponse (+Answer), RfxEvaluation, RfxDocument,
 │   │                         # RfxTemplate (+Section +Question)
-│   └── auctions/             # Module 8: Auction (+Lot), AuctionParticipant,
-│                             # AuctionBid (append-only ledger), AuctionDocument
+│   ├── auctions/             # Module 8: Auction (+Lot), AuctionParticipant,
+│   │                         # AuctionBid (append-only ledger), AuctionDocument
+│   └── contracts/            # Module 9: ContractClause (library), ContractTemplate
+│                             # (+Clause), Contract (+ClauseLine), ContractSignatory,
+│                             # ContractAmendment, ContractObligation, ContractDocument,
+│                             # ContractStatusEvent (append-only)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -113,10 +120,14 @@ NavPMS/
 │   ├── sourcing/{events,items,criteria,bids,awards,analytics}/
 │   ├── rfx/{events,sections,questions,responses,templates,analytics}/
 │   ├── auctions/             # list, form, detail, lot_form, console, results, analytics
+│   ├── contracts/            # list, form, detail, author, clause/template libraries,
+│   │                         # signatory/amendment/obligation forms, renewals + obligation
+│   │                         # boards, analytics
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
-│       └── auctions/         # Vendor-side auction invitations + live bidding
+│       ├── auctions/         # Vendor-side auction invitations + live bidding
+│       └── contracts/        # Vendor-side contracts + tokenized e-signature
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -197,7 +208,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -208,8 +219,10 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_sourcing` | Creates 3 sourcing events per tenant (draft / open with 2 bids / awarded with full evaluation matrix + finalised award + savings). |
 | `python manage.py seed_rfx` | Creates 2 RFx templates and 3 events per tenant (draft RFI / open RFP with responses / completed RFQ with full panel evaluation + shortlist). |
 | `python manage.py seed_auctions` | Creates 3 e-auctions per tenant (draft / scheduled with invitees / awarded with a full live bid ledger, anti-snipe extension + recorded savings). |
+| `python manage.py seed_contracts` | Creates a clause library, 2 contract templates and 7 contracts per tenant across every status (draft-from-template / pending signature / active with obligations / expiring-soon / auto-renewing / amended / terminated). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
+| `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -230,7 +243,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/) — **553 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/) — **629 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -312,6 +325,18 @@ Each tenant gets 3 reverse auctions:
 
 Auction defaults: `amount` decrement, 120 s anti-snipe window, blind `rank_and_leading`
 visibility (vendors see their own rank + the leading price, never competitor identities).
+
+### Contract data
+Each tenant gets a **clause library** (6 standard clauses across payment / confidentiality /
+liability / termination / IP / SLA), **2 contract templates** (Standard Service Agreement, Mutual
+NDA) and **7 contracts** covering every status:
+- **Draft** — "IT support services 2026" authored from the Service Agreement template.
+- **Pending signature** — "Facilities management agreement" (1 internal + 1 supplier signatory, tokens issued).
+- **Active** — "Cloud hosting master agreement" (fully signed, 4 obligations incl. a payment milestone + penalty).
+- **Expiring-soon** — "Office cleaning contract" (ends in +20 days, inside the renewal-notice window).
+- **Auto-renewing** — "Software subscription" (active, `auto_renew=True`, ends in +15 days).
+- **Amended** — "Logistics framework agreement" (active, one applied amendment → revision 2).
+- **Terminated** — "Catering services agreement".
 
 ---
 
@@ -579,6 +604,44 @@ cannot both "beat" the same best price.
 
 ---
 
+## Module 9 — Contract Management
+
+The post-award contract lifecycle ([apps/contracts/](apps/contracts/)) — author a contract from a
+library of pre-approved clauses, route it for signature, run it through its term while tracking
+deliverables and milestones, and renew, amend or terminate it. Suppliers review and sign from the
+existing vendor portal. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Contract Authoring & Templating** | A reusable `ContractClause` library (categorised, pre-approved legal text) + `ContractTemplate` (+ `ContractTemplateClause`). `create_contract_from_template()` clones a template's clauses into a fresh draft `Contract`; `save_contract_as_template()` snapshots a contract back into a template. The authoring screen assembles ordered `ContractClauseLine` rows (snapshotted, so later library edits never mutate executed text) into `Contract.body`. Auto-numbered `CON-<SLUG>-NNNNN`. |
+| **E-Signature Integration** | `ContractSignatory` (ordered, internal stakeholders **and** suppliers). `send_for_signature()` issues each pending signatory an unguessable `sign_token` (`secrets.token_urlsafe`) and moves the contract `draft → pending_signature`. Internal signers sign in-app; suppliers sign from `/vendor-portal/sign/<token>/` by typing their name. When the last signatory signs, the contract auto-activates. A *mock, pluggable* flow (no external provider) consistent with the mock payment gateway. |
+| **Renewal & Expiration Alerts** | `Contract.end_date` / `auto_renew` / `renewal_term_months` / `renewal_notice_days`. `scan_contract_alerts()` raises a one-time `portal.Notification` to the owner for contracts inside their notice window (idempotent via `renewal_alerted_at`), auto-renews or expires past-due contracts and flags overdue obligations. Driven by the cron-friendly `run_contract_alerts` command **and** a lazy sweep when the renewals board is opened. |
+| **Contract Amendment Tracking** | `ContractAmendment` records a proposed change (value / end-date / body). `apply_amendment()` snapshots the previous values, applies the non-null changes, bumps `Contract.revision`, and is wrapped in `@transaction.atomic`. Applied amendments become an immutable part of the version history (admin change/delete disabled once applied). |
+| **Obligation & Milestone Management** | `ContractObligation` (deliverable / milestone / payment / penalty / SLA / report) with due date, amount, penalty amount, optional `AccountCode` and responsible party. A tenant-wide obligations board groups them by Overdue / Open / Completed / Waived; `mark_overdue_obligations()` flips past-due open obligations to `overdue`. |
+
+**Status workflow:** `draft → pending_signature → active → (expired | terminated | renewed)` plus
+`cancelled`. Sending for signature validates ≥1 clause/body, ≥1 signatory, a vendor and an end date.
+A declined signature drops the contract back to `draft`. `renew_contract()` clones an active/expired
+contract into a fresh draft (linked via `parent_contract`, dates rolled forward, clauses/signatories/
+obligations copied) and marks the predecessor `renewed`. `ContractStatusEvent` is an append-only
+lifecycle timeline (admin add/change/delete disabled, mirroring `AuditLog` / `AuctionBid`).
+
+**Permission gate:** create / author / configure / sign / amend / terminate is restricted to roles
+`tenant_admin`, `procurement_manager`, `buyer` (plus Django superuser); analytics additionally allows
+`approver`. Helpers [`can_manage_contract`](apps/contracts/services.py) and
+[`can_view_contract`](apps/contracts/services.py) encapsulate the check.
+
+**Vendor-side gate:** [`contract_visible_to(user, contract)`](apps/contracts/services.py) lets a vendor
+portal user see only contracts where they are the counterparty; the tokenized signing link is resolved
+by [`signatory_for_token`](apps/contracts/services.py) and re-checked against the signed-in vendor, so
+one supplier can never view or sign another's contract.
+
+**Integration with Module 5 (Vendors):** only `active` vendors can be the counterparty (the form excludes
+`suspended` / `blacklisted` / `inactive`). Nullable `Contract.sourcing_event` / `requisition` FKs are in
+place as cheap provenance hooks for a future Sourcing/Requisition → Contract hand-off.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -646,6 +709,16 @@ cannot both "beat" the same best price.
 | `/auctions/events/<id>/results/` | Post-auction ranking, savings + finalize award |
 | `/auctions/analytics/` | Tenant-wide e-auction analytics dashboard |
 | `/auctions/events/<id>/analytics/` | Per-auction savings + price-drop curve |
+| `/contracts/list/` | Contracts — search + status/type/category filters |
+| `/contracts/new/` | New contract (then author from clauses) |
+| `/contracts/<id>/` | Contract detail (clauses, signatories, obligations, amendments, documents, timeline) + lifecycle actions |
+| `/contracts/<id>/author/` | Authoring screen — assemble clauses (free-form or from the library) |
+| `/contracts/<id>/amendments/new/` | Draft an amendment; apply it from the amendment detail page |
+| `/contracts/renewals/` | Renewals board (active / expiring-soon / expired / renewed) |
+| `/contracts/obligations/` | Obligations board (overdue / open / completed / waived) |
+| `/contracts/clauses/` | Clause library CRUD (tenant admin) |
+| `/contracts/templates/` | Contract template library — list, create, edit, use |
+| `/contracts/analytics/` | Tenant-wide contract analytics dashboard |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -659,6 +732,9 @@ cannot both "beat" the same best price.
 | `/vendor-portal/auctions/` | Vendor's auction invitations |
 | `/vendor-portal/auctions/<id>/` | Auction read-only view + accept/decline |
 | `/vendor-portal/auctions/<id>/bidding/` | Live bidding screen (countdown, own rank, place bid) |
+| `/vendor-portal/contracts/` | Supplier's contracts inbox |
+| `/vendor-portal/contracts/<id>/` | Contract read-only view + sign entry point |
+| `/vendor-portal/sign/<token>/` | Tokenized e-signature page (type name to sign / decline) |
 | `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
@@ -698,7 +774,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–8 ship. Modules 9–21 from the PMS spec are not yet implemented:
+Modules 1–9 ship. Modules 10–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -710,7 +786,7 @@ Modules 1–8 ship. Modules 9–21 from the PMS spec are not yet implemented:
 | 6 | Sourcing & Tendering | Shipped |
 | 7 | RFx Management | Shipped |
 | 8 | E-Auction Management | Shipped |
-| 9 | Contract Management | Planned |
+| 9 | Contract Management | Shipped |
 | 10 | Catalog Management | Planned |
 | 11 | Purchase Order Management | Planned |
 | 12 | Order Fulfillment & Tracking | Planned |
