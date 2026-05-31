@@ -28,6 +28,7 @@ class Command(BaseCommand):
             ('seed_sourcing', 'Sourcing events + invitees + bids + evaluations + awards'),
             ('seed_rfx', 'RFx templates + events + responses + evaluations + shortlist'),
             ('seed_auctions', 'Auctions + lots + participants + live bid ledger + award'),
+            ('seed_contracts', 'Clause library + templates + contracts + signatories + obligations + amendments'),
         ]
 
         for cmd, label in steps:
