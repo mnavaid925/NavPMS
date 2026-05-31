@@ -9,6 +9,7 @@ from . import views
 from apps.sourcing import portal_views as sourcing_portal
 from apps.rfx import portal_views as rfx_portal
 from apps.auctions import portal_views as auctions_portal
+from apps.contracts import portal_views as contracts_portal
 
 app_name = 'vendor_portal'
 
@@ -73,4 +74,14 @@ urlpatterns = [
          name='auction_state'),
     path('auctions/<int:pk>/place-bid/', auctions_portal.portal_place_bid,
          name='auction_place_bid'),
+
+    # Module 9 — Contract Management (vendor-side)
+    path('contracts/', contracts_portal.portal_contract_list,
+         name='contract_inbox'),
+    path('contracts/<int:pk>/', contracts_portal.portal_contract_detail,
+         name='contract_detail'),
+    path('sign/<str:token>/', contracts_portal.portal_sign,
+         name='contract_sign'),
+    path('sign/<str:token>/decline/', contracts_portal.portal_sign_decline,
+         name='contract_sign_decline'),
 ]
