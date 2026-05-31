@@ -1,0 +1,341 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ contract.title }}</h1>
+      <p class="page-subtitle">
+        <span class="badge bg-light text-dark">{{ contract.contract_number }}</span>
+        {% include 'contracts/_status_badge.html' with status=contract.status %}
+        <span class="badge bg-light text-dark">{{ contract.get_contract_type_display }}</span>
+        <span class="text-muted ms-2">Rev {{ contract.revision }}</span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'contracts:contract_analytics' contract.pk %}" class="btn btn-outline-secondary">
+        <i class="ri-bar-chart-box-line"></i> Analytics
+      </a>
+      {% if can_manage and contract.is_editable %}
+      <a href="{% url 'contracts:contract_author' contract.pk %}" class="btn btn-primary">
+        <i class="ri-quill-pen-line"></i> Author
+      </a>
+      <a href="{% url 'contracts:contract_edit' contract.pk %}" class="btn btn-outline-secondary">
+        <i class="ri-edit-line"></i> Edit
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if contract.status == 'terminated' %}
+<div class="alert alert-danger"><i class="ri-close-circle-line"></i> Terminated{% if contract.terminated_reason %}: {{ contract.terminated_reason }}{% endif %} ({{ contract.terminated_at|date:"M d, Y" }})</div>
+{% elif contract.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> Cancelled{% if contract.cancelled_reason %}: {{ contract.cancelled_reason }}{% endif %}</div>
+{% elif contract.status == 'expired' %}
+<div class="alert alert-warning"><i class="ri-time-line"></i> This contract expired on {{ contract.end_date|date:"M d, Y" }}.</div>
+{% elif contract.is_expiring_soon %}
+<div class="alert alert-warning"><i class="ri-alarm-warning-line"></i> Expires in {{ contract.days_to_expiry }} day(s) on {{ contract.end_date|date:"M d, Y" }}{% if contract.auto_renew %} — auto-renews{% endif %}.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+      <div class="card-body">
+        <p>{{ contract.description|default:"No description." }}</p>
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Vendor</small>{{ contract.vendor.legal_name }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Value</small>{{ contract.currency }} {{ contract.value|floatformat:2|intcomma }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Category</small>{{ contract.category.name|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Start</small>{{ contract.start_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">End</small>{{ contract.end_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Auto-renew</small>{{ contract.auto_renew|yesno:"Yes,No" }} ({{ contract.renewal_term_months }} mo)</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Owner</small>{{ contract.owner|default:"—" }}</div>
+          {% if contract.parent_contract %}
+          <div class="col-md-8 mb-2"><small class="text-muted d-block">Renewed from</small>
+            <a href="{% url 'contracts:contract_detail' contract.parent_contract.pk %}">{{ contract.parent_contract.contract_number }}</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Body / clauses -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-file-text-line"></i> Clauses ({{ clause_lines|length }})</span>
+        {% if can_manage and contract.is_editable %}
+        <a href="{% url 'contracts:contract_author' contract.pk %}" class="btn btn-sm btn-outline-primary">Author</a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% for line in clause_lines %}
+        <div class="mb-3">
+          <strong>{{ forloop.counter }}. {{ line.heading }}</strong>
+          <p class="mb-0 text-muted" style="white-space:pre-wrap">{{ line.body }}</p>
+        </div>
+        {% empty %}
+        <p class="text-muted mb-0">No clauses authored yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Signatories -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-quill-pen-line"></i> Signatories ({{ contract.signed_count }}/{{ contract.signatory_count }} signed)</span>
+        {% if can_manage and contract.is_editable %}
+        <a href="{% url 'contracts:signatory_add' contract.pk %}" class="btn btn-sm btn-outline-primary">Add</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>#</th><th>Name</th><th>Party</th><th>Status</th><th>Signed</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+            {% for s in signatories %}
+            <tr>
+              <td>{{ s.order }}</td>
+              <td>{{ s.name }}{% if s.title %}<div class="small text-muted">{{ s.title }}</div>{% endif %}</td>
+              <td><span class="badge bg-light text-dark">{{ s.get_party_display }}</span></td>
+              <td>
+                {% if s.status == 'signed' %}<span class="badge badge-soft-success">Signed</span>
+                {% elif s.status == 'declined' %}<span class="badge badge-soft-danger">Declined</span>
+                {% else %}<span class="badge badge-soft-secondary">Pending</span>{% endif %}
+              </td>
+              <td class="small">{{ s.signed_at|date:"M d, Y H:i"|default:"—" }}</td>
+              <td class="text-end">
+                {% if can_manage and contract.status == 'pending_signature' and s.status == 'pending' and s.party == 'internal' %}
+                <a href="{% url 'contracts:signatory_sign' contract.pk s.pk %}" class="btn btn-sm btn-outline-success">Sign</a>
+                {% endif %}
+                {% if can_manage and contract.is_editable %}
+                <form method="post" action="{% url 'contracts:signatory_remove' contract.pk s.pk %}" class="d-inline" onsubmit="return confirm('Remove signatory?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-3">No signatories yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Obligations -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-task-line"></i> Obligations &amp; Milestones ({{ obligations|length }})</span>
+        {% if can_manage %}
+        <a href="{% url 'contracts:obligation_add' contract.pk %}" class="btn btn-sm btn-outline-primary">Add</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Type</th><th>Title</th><th>Due</th><th class="text-end">Amount</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+            {% for o in obligations %}
+            <tr>
+              <td><span class="badge bg-light text-dark">{{ o.get_obligation_type_display }}</span></td>
+              <td>{{ o.title }}</td>
+              <td class="small">{{ o.due_date|date:"M d, Y"|default:"—" }}</td>
+              <td class="text-end">{{ o.amount|floatformat:2|intcomma }}</td>
+              <td>
+                {% if o.status == 'completed' %}<span class="badge badge-soft-success">Completed</span>
+                {% elif o.status == 'overdue' %}<span class="badge badge-soft-danger">Overdue</span>
+                {% elif o.status == 'waived' %}<span class="badge badge-soft-secondary">Waived</span>
+                {% elif o.status == 'in_progress' %}<span class="badge badge-soft-info">In progress</span>
+                {% else %}<span class="badge badge-soft-warning">Pending</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if can_manage %}
+                {% if o.is_open %}
+                <form method="post" action="{% url 'contracts:obligation_complete' contract.pk o.pk %}" class="d-inline">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-success" title="Complete"><i class="ri-check-line"></i></button>
+                </form>
+                {% endif %}
+                <a href="{% url 'contracts:obligation_edit' contract.pk o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'contracts:obligation_delete' contract.pk o.pk %}" class="d-inline" onsubmit="return confirm('Delete obligation?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-3">No obligations recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Amendments -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-git-branch-line"></i> Amendments ({{ amendments|length }})</span>
+        {% if can_manage and contract.status not in 'cancelled,terminated,renewed' %}
+        <a href="{% url 'contracts:amendment_create' contract.pk %}" class="btn btn-sm btn-outline-primary">New amendment</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Number</th><th>Title</th><th>Type</th><th>Status</th><th>Applied</th></tr></thead>
+          <tbody>
+            {% for a in amendments %}
+            <tr>
+              <td><a href="{% url 'contracts:amendment_detail' contract.pk a.pk %}">{{ a.amendment_number }}</a></td>
+              <td>{{ a.title }}</td>
+              <td>{{ a.get_change_type_display }}</td>
+              <td>
+                {% if a.status == 'applied' %}<span class="badge badge-soft-success">Applied</span>
+                {% elif a.status == 'cancelled' %}<span class="badge badge-soft-secondary">Cancelled</span>
+                {% else %}<span class="badge badge-soft-warning">{{ a.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="small">{{ a.applied_at|date:"M d, Y"|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No amendments.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Documents -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-attachment-2"></i> Documents</div>
+      <div class="card-body">
+        {% for d in documents %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+          <div>
+            {% if d.file %}<a href="{{ d.file.url }}" target="_blank">{{ d.title }}</a>{% else %}{{ d.title }}{% endif %}
+            <div class="small text-muted">{{ d.uploaded_by|default:"—" }} · {{ d.uploaded_at|date:"M d, Y" }}</div>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{% url 'contracts:document_delete' contract.pk d.pk %}" onsubmit="return confirm('Remove document?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+          </form>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-muted mb-2">No documents.</p>
+        {% endfor %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'contracts:document_add' contract.pk %}" enctype="multipart/form-data" class="mt-3">
+          {% csrf_token %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">{{ document_form.title }}</div>
+            <div class="col-md-5">{{ document_form.file }}</div>
+            <div class="col-md-3"><button class="btn btn-outline-primary w-100"><i class="ri-upload-2-line"></i> Upload</button></div>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for e in status_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{% include 'contracts/_status_badge.html' with status=e.status %} {{ e.note }}</span>
+          <span class="small text-muted">{{ e.actor|default:"system" }} · {{ e.created_at|date:"M d, Y H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- Actions sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-settings-3-line"></i> Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if can_manage %}
+          {% if contract.status == 'draft' %}
+          <form method="post" action="{% url 'contracts:contract_send_for_signature' contract.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100"><i class="ri-send-plane-line"></i> Send for signature</button>
+          </form>
+          {% endif %}
+
+          {% if contract.status == 'pending_signature' and contract.is_fully_signed %}
+          <form method="post" action="{% url 'contracts:contract_activate' contract.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-success w-100"><i class="ri-check-double-line"></i> Activate</button>
+          </form>
+          {% endif %}
+
+          {% if contract.can_renew %}
+          <form method="post" action="{% url 'contracts:contract_renew' contract.pk %}" onsubmit="return confirm('Create a renewal draft?');">
+            {% csrf_token %}
+            <button class="btn btn-outline-primary w-100"><i class="ri-refresh-line"></i> Renew</button>
+          </form>
+          {% endif %}
+
+          <button class="btn btn-outline-secondary w-100" data-bs-toggle="collapse" data-bs-target="#saveTplBox">
+            <i class="ri-save-3-line"></i> Save as template
+          </button>
+          <div class="collapse" id="saveTplBox">
+            <form method="post" action="{% url 'contracts:contract_save_as_template' contract.pk %}" class="mt-2">
+              {% csrf_token %}
+              <input type="text" name="title" class="form-control mb-2" placeholder="Template title" required>
+              <button class="btn btn-sm btn-outline-primary w-100">Save template</button>
+            </form>
+          </div>
+
+          {% if contract.can_terminate %}
+          <hr>
+          <button class="btn btn-outline-danger w-100" data-bs-toggle="collapse" data-bs-target="#terminateBox">
+            <i class="ri-close-circle-line"></i> Terminate
+          </button>
+          <div class="collapse" id="terminateBox">
+            <form method="post" action="{% url 'contracts:contract_terminate' contract.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Reason" required></textarea>
+              <button class="btn btn-sm btn-danger w-100">Confirm terminate</button>
+            </form>
+          </div>
+          {% endif %}
+
+          {% if contract.can_cancel %}
+          <button class="btn btn-outline-danger w-100" data-bs-toggle="collapse" data-bs-target="#cancelBox">
+            <i class="ri-delete-bin-line"></i> Cancel
+          </button>
+          <div class="collapse" id="cancelBox">
+            <form method="post" action="{% url 'contracts:contract_cancel' contract.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Reason" required></textarea>
+              <button class="btn btn-sm btn-danger w-100">Confirm cancel</button>
+            </form>
+          </div>
+          {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">You have read-only access.</p>
+        {% endif %}
+        <a href="{% url 'contracts:contract_list' %}" class="btn btn-link w-100">Back to list</a>
+      </div>
+    </div>
+
+    {% if contract.signatory_count %}
+    <div class="card">
+      <div class="card-header"><i class="ri-progress-4-line"></i> Signing progress</div>
+      <div class="card-body">
+        <div class="progress" role="progressbar">
+          <div class="progress-bar" style="width: {{ contract.signature_progress }}%">{{ contract.signature_progress }}%</div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">{{ contract.signed_count }} of {{ contract.signatory_count }} signed.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
