@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Contract Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Contract Analytics</h1>
+  <p class="page-subtitle">Contract portfolio across the tenant</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total Contracts</div>
+      <div class="stat-value">{{ metrics.total_contracts }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Active</div>
+      <div class="stat-value">{{ metrics.active }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Expiring soon</div>
+      <div class="stat-value">{{ metrics.expiring_soon }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Active value</div>
+      <div class="stat-value">{{ metrics.active_value|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Pending signature</div>
+      <div class="stat-value">{{ metrics.pending_signature }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Open obligations</div>
+      <div class="stat-value">{{ metrics.open_obligations }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Overdue obligations</div>
+      <div class="stat-value text-danger">{{ metrics.overdue_obligations }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total value</div>
+      <div class="stat-value">{{ metrics.total_value|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent Contracts</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Number</th><th>Title</th><th>Vendor</th><th>Status</th><th class="text-end">Value</th></tr></thead>
+          <tbody>
+            {% for c in recent_contracts %}
+            <tr>
+              <td><a href="{% url 'contracts:contract_detail' c.pk %}" class="text-decoration-none">{{ c.contract_number }}</a></td>
+              <td>{{ c.title }}</td>
+              <td>{{ c.vendor.legal_name }}</td>
+              <td>{% include 'contracts/_status_badge.html' with status=c.status %}</td>
+              <td class="text-end">{{ c.value|floatformat:2|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No contracts yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-trophy-line"></i> Top vendors by active contracts</div>
+      <ul class="list-group list-group-flush">
+        {% for v in metrics.top_vendors %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ v.vendor__legal_name|default:"—" }}</span>
+          <span><span class="badge badge-soft-primary">{{ v.n }}</span> {{ v.v|floatformat:0|intcomma }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No active contracts.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
