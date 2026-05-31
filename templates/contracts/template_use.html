@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Use Template{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Create Contract from Template</h1>
+  <p class="page-subtitle">{{ template.title }}</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Supplier</label>
+            <select name="vendor" class="form-select" required>
+              <option value="">Choose a supplier…</option>
+              {% for v in vendors %}
+              <option value="{{ v.pk }}">{{ v.legal_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Contract title (optional)</label>
+            <input type="text" name="title" class="form-control" placeholder="Defaults to template + vendor">
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary"><i class="ri-file-add-line"></i> Create draft contract</button>
+            <a href="{% url 'contracts:template_detail' template.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
