@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Add Signatory{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Add Signatory</h1>
+  <p class="page-subtitle">{{ contract.contract_number }} — {{ contract.title }}</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <p class="text-muted">Add an internal stakeholder or the supplier as a signatory. Supplier
+        signatories sign from the vendor portal via a tokenized link; internal stakeholders sign
+        from within the app.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Add signatory</button>
+            <a href="{% url 'contracts:contract_detail' contract.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
