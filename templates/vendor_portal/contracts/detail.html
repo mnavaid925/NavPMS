@@ -1,0 +1,84 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}{{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ contract.title }}</h4>
+    <div class="small text-muted">{{ contract.contract_number }} · {{ contract.get_contract_type_display }}</div>
+  </div>
+  {% if my_signatory and my_signatory.sign_token %}
+  <a href="{% url 'vendor_portal:contract_sign' my_signatory.sign_token %}" class="btn btn-success">
+    <i class="ri-quill-pen-line"></i> Review &amp; sign
+  </a>
+  {% endif %}
+</div>
+
+{% if contract.status == 'pending_signature' and my_signatory %}
+<div class="alert alert-info"><i class="ri-quill-pen-line"></i> This contract is awaiting your signature.</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Value</small>{{ contract.currency }} {{ contract.value|floatformat:2|intcomma }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Start</small>{{ contract.start_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">End</small>{{ contract.end_date|date:"M d, Y"|default:"—" }}</div>
+    </div>
+    <p class="mt-2 mb-0">{{ contract.description }}</p>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-file-text-line"></i> Clauses</div>
+  <div class="card-body">
+    {% for line in clause_lines %}
+    <div class="mb-3">
+      <strong>{{ forloop.counter }}. {{ line.heading }}</strong>
+      <p class="mb-0 text-muted" style="white-space:pre-wrap">{{ line.body }}</p>
+    </div>
+    {% empty %}
+    <p class="text-muted mb-0">No clauses.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-quill-pen-line"></i> Signatories</div>
+  <ul class="list-group list-group-flush">
+    {% for s in signatories %}
+    <li class="list-group-item d-flex justify-content-between">
+      <span>{{ s.name }} <span class="badge bg-light text-dark">{{ s.get_party_display }}</span></span>
+      <span>
+        {% if s.status == 'signed' %}<span class="badge badge-soft-success">Signed {{ s.signed_at|date:"M d, Y" }}</span>
+        {% elif s.status == 'declined' %}<span class="badge badge-soft-danger">Declined</span>
+        {% else %}<span class="badge badge-soft-secondary">Pending</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% if obligations %}
+<div class="card">
+  <div class="card-header"><i class="ri-task-line"></i> Obligations</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Type</th><th>Title</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for o in obligations %}
+        <tr>
+          <td>{{ o.get_obligation_type_display }}</td>
+          <td>{{ o.title }}</td>
+          <td>{{ o.due_date|date:"M d, Y"|default:"—" }}</td>
+          <td>{{ o.get_status_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
