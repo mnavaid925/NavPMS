@@ -117,6 +117,25 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbContracts" role="button" aria-expanded="false">
+          <i class="ri-file-paper-2-line"></i> <span class="flex-grow-1">Contracts</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbContracts">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:contract_list' %}">All Contracts</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:contract_create' %}">New Contract</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:renewals_board' %}">Renewals Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:obligation_board' %}">Obligations</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:template_list' %}">Templates</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:clause_list' %}">Clause Library</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'contracts:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
