@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ item.item_number }} Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Item Analytics</h1>
+    <p class="page-subtitle">{{ item.item_number }} — {{ item.name }}</p>
+  </div>
+  <a href="{% url 'catalog:item_detail' item.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Base price</div><div class="stat-value">{{ analytics.base_price|floatformat:4|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Effective price</div><div class="stat-value">{{ analytics.effective_price|floatformat:4|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Tiers (current)</div><div class="stat-value">{{ analytics.current_tier_count }} / {{ analytics.tier_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Price changes</div><div class="stat-value">{{ analytics.price_change_count }}</div></div></div></div>
+</div>
+<div class="row g-3 mt-1">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Status events</div><div class="stat-value">{{ analytics.status_event_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Orderable</div><div class="stat-value">{{ analytics.is_orderable|yesno:"Yes,No" }}</div></div></div></div>
+</div>
+{% endblock %}
