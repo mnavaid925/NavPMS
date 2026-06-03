@@ -18,6 +18,8 @@ urlpatterns = [
     path('rfx/', include('apps.rfx.urls')),
     path('auctions/', include('apps.auctions.urls')),
     path('contracts/', include('apps.contracts.urls')),
+    path('catalog/', include('apps.catalog.urls')),
+    path('purchase-orders/', include('apps.purchase_orders.urls')),
 ]
 
 if settings.DEBUG:
