@@ -10,6 +10,7 @@ from apps.sourcing import portal_views as sourcing_portal
 from apps.rfx import portal_views as rfx_portal
 from apps.auctions import portal_views as auctions_portal
 from apps.contracts import portal_views as contracts_portal
+from apps.catalog import portal_views as catalog_portal
 
 app_name = 'vendor_portal'
 
@@ -84,4 +85,14 @@ urlpatterns = [
          name='contract_sign'),
     path('sign/<str:token>/decline/', contracts_portal.portal_sign_decline,
          name='contract_sign_decline'),
+
+    # Module 10 — Catalog Management (vendor-side: supplier catalog hosting)
+    path('catalog/', catalog_portal.portal_catalog_list, name='catalog_items'),
+    path('catalog/uploads/', catalog_portal.portal_upload_list, name='catalog_uploads'),
+    path('catalog/uploads/new/', catalog_portal.portal_upload_create,
+         name='catalog_upload_create'),
+    path('catalog/uploads/<int:pk>/', catalog_portal.portal_upload_detail,
+         name='catalog_upload_detail'),
+    path('catalog/uploads/<int:pk>/delete/', catalog_portal.portal_upload_delete,
+         name='catalog_upload_delete'),
 ]
