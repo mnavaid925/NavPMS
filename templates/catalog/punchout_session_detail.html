@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Punch-out Session{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Punch-out Session</h1>
+    <p class="page-subtitle">{{ session.vendor.legal_name }} · {{ session.config.name }} · <span class="badge bg-light text-dark">{{ session.get_status_display }}</span></p>
+  </div>
+  <a href="{% url 'catalog:punchout_session_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> All sessions</a>
+</div>
+
+{% if session.error_message %}<div class="alert alert-warning">{{ session.error_message }}</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card"><div class="card-header">Returned cart ({{ session.line_count }} line{{ session.line_count|pluralize }})</div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Item</th><th>SKU</th><th class="text-end">Qty</th><th class="text-end">Unit price</th><th>UoM</th></tr></thead>
+      <tbody>
+        {% for line in session.cart_data %}
+        <tr><td>{{ line.name }}</td><td>{{ line.sku|default:"—" }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end">{{ line.currency }} {{ line.unit_price }}</td><td>{{ line.uom }}</td></tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted small">No cart returned yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div></div>
+
+  <div class="col-lg-4"><div class="card"><div class="card-header">Use this cart</div><div class="card-body d-grid gap-2">
+    {% if can_manage and session.status == 'returned' and session.cart_data %}
+      <form method="post" action="{% url 'catalog:punchout_to_requisition' session.pk %}">
+        {% csrf_token %}
+        <label class="form-label">Add to requisition</label>
+        <select name="requisition" class="form-select mb-2" required>
+          <option value="">Choose a draft requisition…</option>
+          {% for r in requisitions %}<option value="{{ r.pk }}">{{ r.number }} — {{ r.title }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-primary w-100"><i class="ri-file-add-line"></i> Add cart lines</button>
+      </form>
+      <form method="post" action="{% url 'catalog:punchout_to_items' session.pk %}" onsubmit="return confirm('Stage these as draft catalog items?');">{% csrf_token %}<button class="btn btn-outline-secondary w-100"><i class="ri-add-box-line"></i> Stage as catalog items</button></form>
+    {% elif session.is_open %}
+      <a href="{% url 'catalog:punchout_redirect' session.pk %}" class="btn btn-primary w-100"><i class="ri-external-link-line"></i> Continue to supplier</a>
+    {% else %}
+      <div class="text-muted small">No cart actions available for this session.</div>
+    {% endif %}
+  </div></div></div>
+</div>
+{% endblock %}
