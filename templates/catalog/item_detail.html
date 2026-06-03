@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ item.item_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">{{ item.name }}</h1>
+    <p class="page-subtitle">{{ item.item_number }} · {% include 'catalog/_status_badge.html' with status=item.status %}</p>
+  </div>
+  <a href="{% url 'catalog:item_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> All items</a>
+</div>
+
+{% if item.status == 'rejected' and item.rejection_reason %}
+<div class="alert alert-danger"><i class="ri-error-warning-line"></i> Rejected: {{ item.rejection_reason }}</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Overview</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Source</dt><dd class="col-sm-3">{{ item.get_source_display }}</dd>
+          <dt class="col-sm-3">Category</dt><dd class="col-sm-3">{{ item.category.name|default:"—" }}</dd>
+          <dt class="col-sm-3">Supplier</dt><dd class="col-sm-3">{{ item.vendor.legal_name|default:"—" }}</dd>
+          <dt class="col-sm-3">Account code</dt><dd class="col-sm-3">{{ item.account_code|default:"—" }}</dd>
+          <dt class="col-sm-3">Unit of measure</dt><dd class="col-sm-3">{{ item.get_uom_display }}</dd>
+          <dt class="col-sm-3">Min order qty</dt><dd class="col-sm-3">{{ item.min_order_qty|floatformat:2 }}</dd>
+          <dt class="col-sm-3">Base price</dt><dd class="col-sm-3">{{ item.currency }} {{ item.base_price|floatformat:4|intcomma }}</dd>
+          <dt class="col-sm-3">Effective price</dt><dd class="col-sm-3">{{ item.currency }} {{ effective_price|floatformat:4|intcomma }}</dd>
+          <dt class="col-sm-3">Lead time</dt><dd class="col-sm-3">{{ item.lead_time_days }} day(s)</dd>
+          <dt class="col-sm-3">SKU / MPN</dt><dd class="col-sm-9">{{ item.sku|default:"—" }} / {{ item.manufacturer_part_number|default:"—" }}</dd>
+          {% if item.description %}<dt class="col-sm-3">Description</dt><dd class="col-sm-9">{{ item.description|linebreaksbr }}</dd>{% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Price tiers</span>
+        {% if can_manage and item.is_editable %}
+        <a href="{% url 'catalog:tier_add' item.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-add-line"></i> Add tier</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Type</th><th class="text-end">Min qty</th><th class="text-end">Unit price</th><th>Effective</th><th>Current</th><th></th></tr></thead>
+          <tbody>
+            {% for t in tiers %}
+            <tr>
+              <td>{{ t.get_tier_type_display }}{% if t.contract %}<div class="small text-muted">{{ t.contract.contract_number }}</div>{% endif %}</td>
+              <td class="text-end">{{ t.min_quantity|floatformat:2 }}</td>
+              <td class="text-end">{{ t.unit_price|floatformat:4|intcomma }}</td>
+              <td class="small">{{ t.effective_from|date:"M d, Y"|default:"—" }} → {{ t.effective_to|date:"M d, Y"|default:"open" }}</td>
+              <td>{% if t.is_current %}<span class="badge badge-soft-success">Yes</span>{% else %}<span class="badge badge-soft-secondary">No</span>{% endif %}</td>
+              <td class="text-end">
+                {% if can_manage and item.is_editable %}
+                <a href="{% url 'catalog:tier_edit' item.pk t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'catalog:tier_delete' item.pk t.pk %}" class="d-inline" onsubmit="return confirm('Remove this tier?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted small">No tiers — the base price applies at every quantity.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Price-change requests</span>
+        {% if can_manage and item.status == 'approved' %}
+        <a href="{% url 'catalog:price_change_create' item.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-add-line"></i> Request change</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Number</th><th>Type</th><th class="text-end">New base</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for pc in price_changes %}
+            <tr>
+              <td>{{ pc.request_number }}</td>
+              <td>{{ pc.get_change_type_display }}</td>
+              <td class="text-end">{{ pc.new_base_price|floatformat:4|default:"—" }}</td>
+              <td><span class="badge bg-light text-dark">{{ pc.get_status_display }}</span></td>
+              <td class="text-end"><a href="{% url 'catalog:price_change_detail' item.pk pc.pk %}" class="btn btn-sm btn-outline-primary">Open</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-muted small">No price-change requests.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for ev in status_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <div>{% include 'catalog/_status_badge.html' with status=ev.status %} {{ ev.note }}</div>
+          <div class="small text-muted">{{ ev.actor|default:"system" }} · {{ ev.created_at|date:"M d, Y H:i" }}</div>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">No events yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        <a href="{% url 'catalog:item_analytics' item.pk %}" class="btn btn-outline-secondary"><i class="ri-bar-chart-box-line"></i> Analytics</a>
+        {% if can_manage %}
+          {% if item.is_editable %}
+          <a href="{% url 'catalog:item_edit' item.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+          <form method="post" action="{% url 'catalog:item_submit' item.pk %}">{% csrf_token %}<button class="btn btn-primary w-100"><i class="ri-send-plane-line"></i> Submit for approval</button></form>
+          {% endif %}
+          {% if item.status == 'pending_approval' %}
+          <form method="post" action="{% url 'catalog:item_approve' item.pk %}">{% csrf_token %}<button class="btn btn-success w-100"><i class="ri-check-double-line"></i> Approve</button></form>
+          <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#rejectBox"><i class="ri-close-circle-line"></i> Reject…</button>
+          <div class="collapse" id="rejectBox">
+            <form method="post" action="{% url 'catalog:item_reject' item.pk %}" class="mt-2">{% csrf_token %}{{ reject_form.reason }}<button class="btn btn-danger w-100 mt-2">Confirm reject</button></form>
+          </div>
+          {% endif %}
+          {% if item.status == 'approved' %}
+          <button class="btn btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#retireBox"><i class="ri-archive-line"></i> Retire…</button>
+          <div class="collapse" id="retireBox">
+            <form method="post" action="{% url 'catalog:item_retire' item.pk %}" class="mt-2">{% csrf_token %}{{ retire_form.reason }}<button class="btn btn-warning w-100 mt-2">Confirm retire</button></form>
+          </div>
+          {% endif %}
+          {% if item.is_finished or item.status == 'rejected' %}
+          <form method="post" action="{% url 'catalog:item_archive' item.pk %}" onsubmit="return confirm('Archive this item?');">{% csrf_token %}<button class="btn btn-outline-dark w-100"><i class="ri-inbox-archive-line"></i> Archive</button></form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
