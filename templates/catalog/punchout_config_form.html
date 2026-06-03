@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit Punch-out{% else %}New Punch-out{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{% if is_edit %}Edit Punch-out Supplier{% else %}Configure Punch-out Supplier{% endif %}</h1>
+      <p class="page-subtitle">cXML / OCI connectivity to an external supplier catalog</p>
+    </div>
+    <a href="{% url 'catalog:punchout_config_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+<div class="row"><div class="col-lg-8">
+  <div class="alert alert-info small"><i class="ri-information-line"></i> The setup URL must be HTTPS and publicly routable. The shared secret is write-only — it is never displayed back.</div>
+  <div class="card"><div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {{ form|crispy }}
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'catalog:punchout_config_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}
