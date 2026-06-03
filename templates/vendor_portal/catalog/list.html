@@ -1,0 +1,33 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}My Catalog{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">My Catalog Items</h4>
+  <a href="{% url 'vendor_portal:catalog_uploads' %}" class="btn btn-sm btn-outline-primary"><i class="ri-upload-2-line"></i> Upload catalog file</a>
+</div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Item</th><th>Category</th><th>Status</th><th class="text-end">Base price</th></tr></thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.name }}<div class="small text-muted">{{ item.item_number }}{% if item.sku %} · SKU {{ item.sku }}{% endif %}</div></td>
+        <td>{{ item.category.name|default:"—" }}</td>
+        <td>
+          {% if item.status == 'approved' %}<span class="badge badge-soft-success">Approved</span>
+          {% elif item.status == 'pending_approval' %}<span class="badge badge-soft-info">Pending</span>
+          {% elif item.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+          {% else %}<span class="badge badge-soft-secondary">{{ item.get_status_display }}</span>{% endif %}
+        </td>
+        <td class="text-end">{{ item.currency }} {{ item.base_price|floatformat:2|intcomma }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="text-center text-muted py-4">No catalog items yet. <a href="{% url 'vendor_portal:catalog_upload_create' %}">Upload a catalog file</a>.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}
