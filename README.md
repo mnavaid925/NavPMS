@@ -26,7 +26,9 @@ Contract Authoring & Templating, E-Signature Integration, Renewal & Expiration A
 Contract Amendment Tracking, Obligation & Milestone Management), and
 **Module 10 — Catalog Management** (all five sub-modules: Catalog Item Creation,
 Pricing & Tier Management, Catalog Approval Workflow, Punch-out Catalog Integration,
-Supplier Catalog Hosting).
+Supplier Catalog Hosting), and **Module 11 — Purchase Order Management** (all five
+sub-modules: PO Generation, PO Dispatch & Acknowledgment, PO Change Order Management,
+PO Cancellation & Close-out, PO Line Item Tracking).
 
 ---
 
@@ -49,11 +51,12 @@ Supplier Catalog Hosting).
 16. [Module 8 — E-Auction Management](#module-8--e-auction-management)
 17. [Module 9 — Contract Management](#module-9--contract-management)
 18. [Module 10 — Catalog Management](#module-10--catalog-management)
-19. [Routes / UI Tour](#routes--ui-tour)
-20. [Multi-tenancy Model](#multi-tenancy-model)
-21. [Payment Gateway](#payment-gateway)
-22. [Browser Compatibility](#browser-compatibility)
-23. [Roadmap](#roadmap)
+19. [Module 11 — Purchase Order Management](#module-11--purchase-order-management)
+20. [Routes / UI Tour](#routes--ui-tour)
+21. [Multi-tenancy Model](#multi-tenancy-model)
+22. [Payment Gateway](#payment-gateway)
+23. [Browser Compatibility](#browser-compatibility)
+24. [Roadmap](#roadmap)
 
 ---
 
@@ -105,10 +108,12 @@ NavPMS/
 │   │                         # (+Clause), Contract (+ClauseLine), ContractSignatory,
 │   │                         # ContractAmendment, ContractObligation, ContractDocument,
 │   │                         # ContractStatusEvent (append-only)
-│   └── catalog/              # Module 10: CatalogCategory, CatalogItem, CatalogPriceTier,
-│                             # CatalogPriceChangeRequest, CatalogItemStatusEvent
-│                             # (append-only), SupplierPunchoutConfig, PunchoutSession,
-│                             # SupplierCatalogUpload + punchout.py connector registry
+│   ├── catalog/              # Module 10: CatalogCategory, CatalogItem, CatalogPriceTier,
+│   │                         # CatalogPriceChangeRequest, CatalogItemStatusEvent
+│   │                         # (append-only), SupplierPunchoutConfig, PunchoutSession,
+│   │                         # SupplierCatalogUpload + punchout.py connector registry
+│   └── purchase_orders/      # Module 11: PurchaseOrder (+Line), PurchaseOrderChangeOrder,
+│                             # PurchaseOrderStatusEvent (append-only), PurchaseOrderDocument
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -134,12 +139,15 @@ NavPMS/
 │   │                         # boards, analytics
 │   ├── catalog/              # item list/form/detail, tier + price-change forms, approval
 │   │                         # board, category + punch-out + upload pages, analytics
+│   ├── purchase_orders/      # po list/form/detail, change-order + line forms, tracking board,
+│   │                         # analytics
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
 │       ├── auctions/         # Vendor-side auction invitations + live bidding
 │       ├── contracts/        # Vendor-side contracts + tokenized e-signature
-│       └── catalog/          # Vendor-side catalog list + self-service file uploads
+│       ├── catalog/          # Vendor-side catalog list + self-service file uploads
+│       └── purchase_orders/  # Vendor-side PO inbox + acknowledge / decline
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -222,7 +230,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -235,9 +243,11 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_auctions` | Creates 3 e-auctions per tenant (draft / scheduled with invitees / awarded with a full live bid ledger, anti-snipe extension + recorded savings). |
 | `python manage.py seed_contracts` | Creates a clause library, 2 contract templates and 7 contracts per tenant across every status (draft-from-template / pending signature / active with obligations / expiring-soon / auto-renewing / amended / terminated). |
 | `python manage.py seed_catalog` | Creates 4 catalog categories, items across every status (draft with tiers / pending / approved-with-tiers / rejected / retired), a pending price-change request, a cXML punch-out supplier config and a parsed supplier upload per tenant. |
+| `python manage.py seed_purchase_orders` | Creates 8 purchase orders per tenant across every status (draft / issued / acknowledged / partially received / received / closed / cancelled / with an applied change order) plus a 9th generated from the approved requisition. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
+| `python manage.py run_po_alerts` | Raises a one-time reminder for issued POs left unacknowledged and a one-time alert for overdue PO deliveries across all tenants (cron-friendly; the tracking board also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -258,7 +268,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/) — **714 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/) — **806 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -366,6 +376,22 @@ and catalog items covering every status:
 Plus a **cXML punch-out supplier configuration** and a **parsed supplier upload** (a small CSV
 with one intentionally-bad row → a *partially imported* upload demonstrating the row-level
 error log).
+
+### Purchase Order data
+Each tenant gets **8 purchase orders** covering every status, driven through the real PO services:
+- **Draft** — "Office supplies restock" (supplier assigned, 2 lines, not yet issued).
+- **Issued** — "Server rack hardware" (dispatched, awaiting acknowledgment).
+- **Acknowledged** — "Marketing print run" (supplier accepted).
+- **Partially received** — "Quarterly stationery" (one of two lines partly received).
+- **Received** — "Laptop batch Q2" (fully received, with tax — closeable).
+- **Closed** — "Annual maintenance kit" (received then closed out).
+- **Cancelled** — "Trial sample order" (issued then cancelled).
+- **With an applied change order** — "Bulk steel order" (acknowledged, then a quantity change
+  order applied → revision 2).
+
+Plus a **9th PO generated from the approved requisition** (`REQ-*-00003`) via the
+`Create Purchase Order` flow, which marks that requisition `converted`. (A full
+`seed_data --flush` reseeds requisitions first, so the approved requisition is always available.)
 
 ---
 
@@ -703,6 +729,47 @@ contracts.
 
 ---
 
+## Module 11 — Purchase Order (PO) Management
+
+The downstream purchasing surface ([apps/purchase_orders/](apps/purchase_orders/)) — turn an
+approved requisition (or a manual entry) into a purchase order, dispatch it to a supplier who
+acknowledges or declines it from the vendor portal, track delivery line-by-line, and close it out —
+or revise it with a change order. Mirrors the Module 9 conventions (tenant-aware models,
+`PO-<SLUG>-NNNNN` numbering, append-only timeline). All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **PO Generation** | `PurchaseOrder` (`PO-<SLUG>-NNNNN`) + `PurchaseOrderLine` (qty, UoM, 2-dp unit price, optional `AccountCode`, per-line delivery tracking). `create_po_from_requisition()` clones an approved requisition's lines into a fresh draft PO and marks the requisition `converted` — the **Create Purchase Order** button on the approved-requisition detail does exactly this (`?from_requisition=<id>`). POs can also be entered manually. |
+| **PO Dispatch & Acknowledgment** | `issue_po()` validates (supplier + ≥1 line + total > 0), stamps the dispatch method/recipient and moves `draft → issued`, raising a `portal.Notification` to the supplier's portal user. The supplier **acknowledges** or **declines** from `/vendor-portal/purchase-orders/<id>/`; a buyer can also record the acknowledgment on a portal-less supplier's behalf. A declined PO can be reopened to draft. |
+| **PO Change Order Management** | `PurchaseOrderChangeOrder` captures a proposed delivery date and per-line `(quantity, unit_price)` change as a `proposed_lines` JSON. `apply_change_order()` snapshots the previous values, writes the new ones, recomputes totals and bumps `PurchaseOrder.revision` — atomically. Applied change orders are frozen into the version history (admin change/delete disabled once applied). |
+| **PO Cancellation & Close-out** | `cancel_po()` cancels an unfulfilled PO (draft / issued / acknowledged / partially-received / declined) with a reason; `close_po()` closes a fully or partially received PO. Both write the append-only `PurchaseOrderStatusEvent` timeline and an audit entry. |
+| **PO Line Item Tracking** | Each `PurchaseOrderLine` carries a `delivery_status` (pending / partial / received / cancelled) and a `received_quantity`. `record_line_receipt()` posts a receipt (rejecting over-receipt), rolls the PO status up to `partially_received` / `received`, and feeds a status-grouped tracking board. A lightweight precursor to Module 13 (Goods Receipt & Inspection). |
+
+**Status workflow:** `draft → issued → acknowledged → (partially_received → received) → closed`
+plus `declined` (issued → declined → draft / cancelled) and `cancelled`. Only drafts are
+editable/deletable; receipts and change orders apply only to an issued PO.
+
+**Permission gate:** create / edit / issue / acknowledge / change / cancel / close is restricted to
+roles `tenant_admin`, `procurement_manager`, `buyer` (plus Django superuser); analytics/tracking
+additionally allow `approver`. Helpers [`can_manage_po`](apps/purchase_orders/services.py) and
+[`can_view_po`](apps/purchase_orders/services.py) encapsulate the check.
+
+**Vendor-side gate:** [`po_visible_to(user, po)`](apps/purchase_orders/services.py) lets a vendor
+portal user see only POs issued to their own vendor, and only once dispatched (a still-draft PO is
+never exposed) — so one supplier can never view or acknowledge another's order.
+
+**Alerts:** `scan_po_alerts()` raises a one-time reminder for an issued PO left unacknowledged past
+its window and a one-time alert for an overdue delivery (idempotent via `ack_alerted_at` /
+`delivery_alerted_at`). Driven by the cron-friendly `run_po_alerts` command **and** a lazy sweep when
+the tracking board is opened.
+
+**Integration with Modules 3 & 5:** a nullable `PurchaseOrder.requisition` FK (and per-line
+`requisition_line`) records provenance; only `active` vendors can be the supplier (the form excludes
+`suspended` / `blacklisted` / `inactive`), and a vendor cannot be deleted while a PO references it
+(`on_delete=PROTECT`).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -790,6 +857,12 @@ contracts.
 | `/catalog/punchout/return/<token>/` | **Inbound** cXML/OCI cart POST (CSRF-exempt, token-authenticated) |
 | `/catalog/uploads/` | Supplier upload review + parse-and-ingest |
 | `/catalog/analytics/` | Tenant-wide catalog analytics dashboard |
+| `/purchase-orders/list/` | Purchase orders — search + status/vendor/category filters |
+| `/purchase-orders/new/` | New PO (or `?from_requisition=<id>` to generate from an approved REQ) |
+| `/purchase-orders/<id>/` | PO detail (lines, receipts, change orders, documents, timeline) + lifecycle actions |
+| `/purchase-orders/<id>/change-orders/new/` | Draft a change order (qty / price / delivery date); apply from its detail page |
+| `/purchase-orders/tracking/` | Tracking board (draft / issued / acknowledged / partially received / received / closed) |
+| `/purchase-orders/analytics/` | Tenant-wide purchase-order analytics dashboard |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -808,7 +881,9 @@ contracts.
 | `/vendor-portal/sign/<token>/` | Tokenized e-signature page (type name to sign / decline) |
 | `/vendor-portal/catalog/` | Supplier's own catalog items (read-only) |
 | `/vendor-portal/catalog/uploads/` | Supplier self-service catalog file uploads (CSV/XLSX) |
-| `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
+| `/vendor-portal/purchase-orders/` | Supplier's purchase orders inbox |
+| `/vendor-portal/purchase-orders/<id>/` | PO read-only view + acknowledge / decline |
+| `/vendor-portal/invoices/` | Placeholder for Module 14 |
 | `/admin/` | Django admin |
 
 ---
@@ -847,7 +922,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–10 ship. Modules 11–21 from the PMS spec are not yet implemented:
+Modules 1–11 ship. Modules 12–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -861,7 +936,7 @@ Modules 1–10 ship. Modules 11–21 from the PMS spec are not yet implemented:
 | 8 | E-Auction Management | Shipped |
 | 9 | Contract Management | Shipped |
 | 10 | Catalog Management | Shipped |
-| 11 | Purchase Order Management | Planned |
+| 11 | Purchase Order Management | Shipped |
 | 12 | Order Fulfillment & Tracking | Planned |
 | 13 | Goods Receipt & Inspection | Planned |
 | 14 | Invoice & Voucher Management | Planned |
