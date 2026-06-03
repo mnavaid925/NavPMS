@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ pc.request_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Price Change {{ pc.request_number }}</h1>
+    <p class="page-subtitle">{{ item.item_number }} — {{ item.name }} · <span class="badge bg-light text-dark">{{ pc.get_status_display }}</span></p>
+  </div>
+  <a href="{% url 'catalog:item_detail' item.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back to item</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card"><div class="card-header">Proposed change</div><div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-4">Change type</dt><dd class="col-sm-8">{{ pc.get_change_type_display }}</dd>
+      <dt class="col-sm-4">Current base price</dt><dd class="col-sm-8">{{ item.currency }} {{ item.base_price|floatformat:4|intcomma }}</dd>
+      <dt class="col-sm-4">New base price</dt><dd class="col-sm-8">{% if pc.new_base_price is not None %}{{ item.currency }} {{ pc.new_base_price|floatformat:4|intcomma }}{% else %}—{% endif %}</dd>
+      <dt class="col-sm-4">Effective date</dt><dd class="col-sm-8">{{ pc.effective_date|date:"M d, Y"|default:"—" }}</dd>
+      {% if pc.reason %}<dt class="col-sm-4">Reason</dt><dd class="col-sm-8">{{ pc.reason|linebreaksbr }}</dd>{% endif %}
+      {% if pc.is_applied %}<dt class="col-sm-4">Previous base price</dt><dd class="col-sm-8">{{ pc.prev_base_price|floatformat:4|default:"—" }}</dd>{% endif %}
+    </dl>
+  </div></div></div>
+
+  <div class="col-lg-4"><div class="card"><div class="card-header">Actions</div><div class="card-body d-grid gap-2">
+    {% if can_manage %}
+      {% if pc.status == 'draft' %}
+      <form method="post" action="{% url 'catalog:price_change_submit' item.pk pc.pk %}">{% csrf_token %}<button class="btn btn-primary w-100"><i class="ri-send-plane-line"></i> Submit for approval</button></form>
+      <form method="post" action="{% url 'catalog:price_change_cancel' item.pk pc.pk %}" onsubmit="return confirm('Cancel this request?');">{% csrf_token %}<button class="btn btn-outline-secondary w-100">Cancel request</button></form>
+      {% endif %}
+      {% if pc.status == 'pending_approval' %}
+      <form method="post" action="{% url 'catalog:price_change_apply' item.pk pc.pk %}">{% csrf_token %}<button class="btn btn-success w-100"><i class="ri-check-double-line"></i> Approve &amp; apply</button></form>
+      <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#pcReject"><i class="ri-close-circle-line"></i> Reject…</button>
+      <div class="collapse" id="pcReject">
+        <form method="post" action="{% url 'catalog:price_change_reject' item.pk pc.pk %}" class="mt-2">{% csrf_token %}{{ reject_form.reason }}<button class="btn btn-danger w-100 mt-2">Confirm reject</button></form>
+      </div>
+      {% endif %}
+    {% endif %}
+    {% if pc.decision_note %}<div class="small text-muted">Decision: {{ pc.decision_note }}</div>{% endif %}
+  </div></div></div>
+</div>
+{% endblock %}
