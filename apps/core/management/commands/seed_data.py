@@ -30,6 +30,7 @@ class Command(BaseCommand):
             ('seed_auctions', 'Auctions + lots + participants + live bid ledger + award'),
             ('seed_contracts', 'Clause library + templates + contracts + signatories + obligations + amendments'),
             ('seed_catalog', 'Catalog categories + items + tiers + price-change + punch-out config + supplier upload'),
+            ('seed_purchase_orders', 'Purchase orders across every status + change order + from-requisition'),
         ]
 
         for cmd, label in steps:
