@@ -1,0 +1,6 @@
+{% if status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+{% elif status == 'pending_approval' %}<span class="badge badge-soft-info">Pending Approval</span>
+{% elif status == 'approved' %}<span class="badge badge-soft-success">Approved</span>
+{% elif status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+{% elif status == 'retired' %}<span class="badge badge-soft-warning">Retired</span>
+{% else %}<span class="badge badge-soft-dark">Archived</span>{% endif %}
