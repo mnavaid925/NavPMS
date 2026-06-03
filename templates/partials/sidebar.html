@@ -136,6 +136,25 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbCatalog" role="button" aria-expanded="false">
+          <i class="ri-store-3-line"></i> <span class="flex-grow-1">Catalog</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbCatalog">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:item_list' %}">Catalog Items</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:item_create' %}">New Item</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:approval_board' %}">Approval Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:punchout_config_list' %}">Punch-out</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:upload_list' %}">Supplier Uploads</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:category_list' %}">Categories</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'catalog:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
