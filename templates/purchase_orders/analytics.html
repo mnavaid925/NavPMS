@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Purchase Order Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Purchase Order Analytics</h1>
+  <p class="page-subtitle">Purchase order activity across the tenant</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total POs</div>
+      <div class="stat-value">{{ metrics.total_pos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Awaiting acknowledgment</div>
+      <div class="stat-value">{{ metrics.awaiting_ack }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Overdue delivery</div>
+      <div class="stat-value text-danger">{{ metrics.overdue_delivery }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Open value</div>
+      <div class="stat-value">{{ metrics.open_value|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Issued</div>
+      <div class="stat-value">{{ metrics.issued }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Received</div>
+      <div class="stat-value">{{ metrics.received }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Closed</div>
+      <div class="stat-value">{{ metrics.closed }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Committed value</div>
+      <div class="stat-value">{{ metrics.committed_value|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent Purchase Orders</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Number</th><th>Title</th><th>Vendor</th><th>Status</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for po in recent_pos %}
+            <tr>
+              <td><a href="{% url 'purchase_orders:po_detail' po.pk %}" class="text-decoration-none">{{ po.po_number }}</a></td>
+              <td>{{ po.title }}</td>
+              <td>{{ po.vendor.legal_name|default:"—" }}</td>
+              <td>{% include 'purchase_orders/_status_badge.html' with status=po.status %}</td>
+              <td class="text-end">{{ po.total_amount|floatformat:2|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No purchase orders yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-trophy-line"></i> Top vendors by committed spend</div>
+      <ul class="list-group list-group-flush">
+        {% for v in metrics.top_vendors %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ v.vendor__legal_name|default:"—" }}</span>
+          <span><span class="badge badge-soft-primary">{{ v.n }}</span> {{ v.v|floatformat:0|intcomma }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No purchase orders.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
