@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     'apps.rfx',
     'apps.auctions',
     'apps.contracts',
+    'apps.catalog',
+    'apps.purchase_orders',
 ]
 
 MIDDLEWARE = [
@@ -119,6 +121,12 @@ EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.conso
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@navpms.local')
 
 PAYMENT_GATEWAY = config('PAYMENT_GATEWAY', default='mock')
+
+# Module 10 — Catalog punch-out. Selects the default punch-out connector
+# (cxml / oci / loopback) and an optional comma-separated SSRF allowlist of
+# extra hosts the setup URL may target (used for testing against a known host).
+PUNCHOUT_CONNECTOR = config('PUNCHOUT_CONNECTOR', default='cxml')
+PUNCHOUT_SSRF_ALLOWLIST = config('PUNCHOUT_SSRF_ALLOWLIST', default='')
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
