@@ -11,6 +11,7 @@ from apps.rfx import portal_views as rfx_portal
 from apps.auctions import portal_views as auctions_portal
 from apps.contracts import portal_views as contracts_portal
 from apps.catalog import portal_views as catalog_portal
+from apps.purchase_orders import portal_views as po_portal
 
 app_name = 'vendor_portal'
 
@@ -20,7 +21,13 @@ urlpatterns = [
     path('profile/edit/', views.portal_profile_edit, name='profile_edit'),
     path('documents/', views.portal_documents, name='documents'),
     path('contacts/', views.portal_contacts, name='contacts'),
-    path('purchase-orders/', views.portal_purchase_orders, name='purchase_orders'),
+    path('purchase-orders/', po_portal.portal_po_list, name='purchase_orders'),
+    path('purchase-orders/<int:pk>/', po_portal.portal_po_detail,
+         name='purchase_order_detail'),
+    path('purchase-orders/<int:pk>/acknowledge/', po_portal.portal_po_acknowledge,
+         name='purchase_order_acknowledge'),
+    path('purchase-orders/<int:pk>/decline/', po_portal.portal_po_decline,
+         name='purchase_order_decline'),
     path('invoices/', views.portal_invoices, name='invoices'),
 
     # Module 6 — Sourcing & Tendering (vendor-side)
