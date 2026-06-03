@@ -56,6 +56,11 @@
     <div class="small-label">Contracts</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'contract_inbox' or request.resolver_match.url_name == 'contract_detail' or request.resolver_match.url_name == 'contract_sign' %}active{% endif %}"
        href="{% url 'vendor_portal:contract_inbox' %}"><i class="ri-file-paper-2-line"></i> My Contracts</a>
+    <div class="small-label">Catalog</div>
+    <a class="nav-link {% if request.resolver_match.url_name == 'catalog_items' %}active{% endif %}"
+       href="{% url 'vendor_portal:catalog_items' %}"><i class="ri-store-3-line"></i> My Catalog</a>
+    <a class="nav-link {% if 'catalog_upload' in request.resolver_match.url_name|default:'' or request.resolver_match.url_name == 'catalog_uploads' %}active{% endif %}"
+       href="{% url 'vendor_portal:catalog_uploads' %}"><i class="ri-upload-2-line"></i> Catalog Uploads</a>
     <div class="small-label">Orders &amp; Payments</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
        href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
