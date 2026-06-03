@@ -1,0 +1,8 @@
+{% if status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+{% elif status == 'issued' %}<span class="badge badge-soft-info">Issued</span>
+{% elif status == 'acknowledged' %}<span class="badge badge-soft-primary">Acknowledged</span>
+{% elif status == 'declined' %}<span class="badge badge-soft-danger">Declined</span>
+{% elif status == 'partially_received' %}<span class="badge badge-soft-warning">Partially Received</span>
+{% elif status == 'received' %}<span class="badge badge-soft-success">Received</span>
+{% elif status == 'closed' %}<span class="badge badge-soft-dark">Closed</span>
+{% else %}<span class="badge badge-soft-secondary">Cancelled</span>{% endif %}
