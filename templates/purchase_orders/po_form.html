@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit Purchase Order{% else %}New Purchase Order{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{% if is_edit %}Edit Purchase Order{% else %}New Purchase Order{% endif %}</h1>
+      <p class="page-subtitle">{% if is_edit %}{{ po.po_number }}{% else %}Create a purchase order, then add line items{% endif %}</p>
+    </div>
+    <a href="{% if is_edit %}{% url 'purchase_orders:po_detail' po.pk %}{% else %}{% url 'purchase_orders:po_list' %}{% endif %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="ri-save-line"></i> {% if is_edit %}Save Changes{% else %}Create Purchase Order{% endif %}
+            </button>
+            <a href="{% if is_edit %}{% url 'purchase_orders:po_detail' po.pk %}{% else %}{% url 'purchase_orders:po_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
