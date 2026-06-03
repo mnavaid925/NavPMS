@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ co.change_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">Change Order {{ co.change_number }}</h1>
+      <p class="page-subtitle">
+        <a href="{% url 'purchase_orders:po_detail' po.pk %}">{{ po.po_number }}</a> — {{ po.title }}
+        <span class="badge bg-light text-dark ms-2">{{ co.get_change_type_display }}</span>
+        {% if co.status == 'applied' %}<span class="badge badge-soft-success">Applied</span>
+        {% elif co.status == 'cancelled' %}<span class="badge badge-soft-secondary">Cancelled</span>
+        {% else %}<span class="badge badge-soft-warning">{{ co.get_status_display }}</span>{% endif %}
+      </p>
+    </div>
+    <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back to PO
+    </a>
+  </div>
+</div>
+
+{% if co.is_applied %}
+<div class="alert alert-success">
+  <i class="ri-check-double-line"></i> Applied {{ co.applied_at|date:"M d, Y H:i" }} by {{ co.applied_by|default:"—" }}.
+  Total changed from {{ co.prev_total|floatformat:2|intcomma }} to <strong>{{ co.new_total|floatformat:2|intcomma }}</strong>.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Reason</div>
+      <div class="card-body"><p class="mb-0" style="white-space:pre-wrap">{{ co.reason|default:"—" }}</p></div>
+    </div>
+
+    <form method="post" action="{% url 'purchase_orders:change_order_detail' po.pk co.pk %}">
+      {% csrf_token %}
+      <div class="card mb-3">
+        <div class="card-header"><i class="ri-list-check-2"></i> Proposed line changes</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>#</th><th>Description</th><th class="text-end">Current Qty</th><th>New Qty</th><th class="text-end">Current Price</th><th>New Price</th></tr></thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td>{{ line.line_no }}</td>
+                <td>{{ line.description }}</td>
+                <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+                <td>
+                  {% if co.is_editable and can_manage %}
+                  <input type="number" name="line_{{ line.id }}_quantity" class="form-control form-control-sm"
+                         style="width:110px" min="0" step="0.01"
+                         value="{{ line.proposed_quantity|default:line.quantity|floatformat:2 }}">
+                  {% else %}{{ line.proposed_quantity|default:"—" }}{% endif %}
+                </td>
+                <td class="text-end">{{ line.unit_price|floatformat:2|intcomma }}</td>
+                <td>
+                  {% if co.is_editable and can_manage %}
+                  <input type="number" name="line_{{ line.id }}_unit_price" class="form-control form-control-sm"
+                         style="width:110px" min="0" step="0.01"
+                         value="{{ line.proposed_unit_price|default:line.unit_price|floatformat:2 }}">
+                  {% else %}{{ line.proposed_unit_price|default:"—" }}{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-center text-muted py-3">This PO has no line items.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header"><i class="ri-calendar-line"></i> Delivery</div>
+        <div class="card-body">
+          <label class="form-label small">New expected delivery date</label>
+          <input type="date" name="new_expected_delivery_date" class="form-control"
+                 value="{{ co.new_expected_delivery_date|date:'Y-m-d' }}" {% if not co.is_editable %}disabled{% endif %}>
+        </div>
+      </div>
+
+      {% if co.is_editable and can_manage %}
+      <button type="submit" class="btn btn-outline-primary">
+        <i class="ri-save-line"></i> Save proposed changes
+      </button>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Actions -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-settings-3-line"></i> Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if can_manage and co.is_editable %}
+        <form method="post" action="{% url 'purchase_orders:change_order_apply' po.pk co.pk %}"
+              onsubmit="return confirm('Apply this change order? It will revise the PO and is final.');">
+          {% csrf_token %}
+          <button class="btn btn-success w-100"><i class="ri-check-double-line"></i> Apply change order</button>
+        </form>
+        <form method="post" action="{% url 'purchase_orders:change_order_cancel' po.pk co.pk %}"
+              onsubmit="return confirm('Cancel this change order?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger w-100"><i class="ri-close-circle-line"></i> Cancel change order</button>
+        </form>
+        {% else %}
+        <p class="text-muted mb-0">This change order can no longer be edited.</p>
+        {% endif %}
+        <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-link w-100">Back to PO</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
