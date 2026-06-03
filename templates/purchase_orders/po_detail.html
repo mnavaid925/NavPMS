@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ po.title }}</h1>
+      <p class="page-subtitle">
+        <span class="badge bg-light text-dark">{{ po.po_number }}</span>
+        {% include 'purchase_orders/_status_badge.html' with status=po.status %}
+        <span class="text-muted ms-2">Rev {{ po.revision }}</span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if can_manage and po.is_editable %}
+      <a href="{% url 'purchase_orders:po_edit' po.pk %}" class="btn btn-outline-secondary">
+        <i class="ri-edit-line"></i> Edit
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if po.status == 'declined' %}
+<div class="alert alert-danger"><i class="ri-close-circle-line"></i> Declined by supplier{% if po.decline_reason %}: {{ po.decline_reason }}{% endif %} ({{ po.declined_at|date:"M d, Y" }})</div>
+{% elif po.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> Cancelled{% if po.cancel_reason %}: {{ po.cancel_reason }}{% endif %}</div>
+{% elif po.status == 'closed' %}
+<div class="alert alert-dark"><i class="ri-archive-line"></i> Closed out{% if po.close_note %}: {{ po.close_note }}{% endif %} ({{ po.closed_at|date:"M d, Y" }})</div>
+{% elif po.is_delivery_overdue %}
+<div class="alert alert-warning"><i class="ri-alarm-warning-line"></i> Delivery overdue — expected {{ po.expected_delivery_date|date:"M d, Y" }}.</div>
+{% elif po.status == 'issued' %}
+<div class="alert alert-info"><i class="ri-mail-send-line"></i> Issued — awaiting supplier acknowledgment.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+      <div class="card-body">
+        <p>{{ po.description|default:"No description." }}</p>
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Vendor</small>{{ po.vendor.legal_name|default:"— (assign before issuing)" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Category</small>{{ po.category.name|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Owner</small>{{ po.owner|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Order date</small>{{ po.order_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Expected delivery</small>{{ po.expected_delivery_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Payment terms</small>{{ po.payment_terms|default:"—" }}</div>
+          {% if po.requisition %}
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">From requisition</small>
+            <a href="{% url 'requisitions:requisition_detail' po.requisition.pk %}">{{ po.requisition.number }}</a>
+          </div>
+          {% endif %}
+          {% if po.dispatched_to or po.issued_at %}
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Dispatched</small>{{ po.get_dispatch_method_display }}{% if po.dispatched_to %} → {{ po.dispatched_to }}{% endif %}</div>
+          {% endif %}
+          {% if po.acknowledged_at %}
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Acknowledged</small>{{ po.acknowledged_at|date:"M d, Y H:i" }}{% if po.acknowledgement_note %} — {{ po.acknowledgement_note }}{% endif %}</div>
+          {% endif %}
+          {% if po.shipping_address %}
+          <div class="col-12 mb-2"><small class="text-muted d-block">Ship to</small><span style="white-space:pre-wrap">{{ po.shipping_address }}</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Line items -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Line Items ({{ lines|length }})</span>
+        {% if can_manage and po.is_editable %}
+        <a href="{% url 'purchase_orders:line_add' po.pk %}" class="btn btn-sm btn-outline-primary">Add line</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th>
+              <th class="text-end">Total</th><th class="text-end">Received</th><th>Delivery</th><th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+            <tr>
+              <td>{{ line.line_no }}</td>
+              <td>
+                {{ line.description }}
+                {% if line.sku %}<div class="small text-muted">SKU {{ line.sku }}</div>{% endif %}
+                {% if line.account_code %}<div class="small text-muted">{{ line.account_code.code }}</div>{% endif %}
+              </td>
+              <td class="text-end">{{ line.quantity|floatformat:2 }} {{ line.uom }}</td>
+              <td class="text-end">{{ line.unit_price|floatformat:2|intcomma }}</td>
+              <td class="text-end">{{ line.line_total|floatformat:2|intcomma }}</td>
+              <td class="text-end">{{ line.received_quantity|floatformat:2 }}</td>
+              <td>
+                {% if line.delivery_status == 'received' %}<span class="badge badge-soft-success">Received</span>
+                {% elif line.delivery_status == 'partial' %}<span class="badge badge-soft-warning">Partial</span>
+                {% elif line.delivery_status == 'cancelled' %}<span class="badge badge-soft-secondary">Cancelled</span>
+                {% else %}<span class="badge badge-soft-secondary">Pending</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if can_manage and po.is_editable %}
+                <a href="{% url 'purchase_orders:line_edit' po.pk line.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'purchase_orders:line_delete' po.pk line.pk %}" class="d-inline" onsubmit="return confirm('Delete line item?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% elif can_manage and po.can_receive and line.is_open %}
+                <form method="post" action="{% url 'purchase_orders:line_receive' po.pk line.pk %}" class="d-inline-flex gap-1">
+                  {% csrf_token %}
+                  <input type="number" name="received_quantity" class="form-control form-control-sm" style="width:84px"
+                         min="0" step="0.01" value="{{ line.outstanding_quantity|floatformat:2 }}">
+                  <button class="btn btn-sm btn-outline-success" title="Record receipt"><i class="ri-inbox-archive-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center text-muted py-3">No line items.{% if can_manage and po.is_editable %} <a href="{% url 'purchase_orders:line_add' po.pk %}">Add one</a>.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="4" class="text-end text-muted">Subtotal</td><td class="text-end">{{ po.subtotal|floatformat:2|intcomma }}</td><td colspan="3"></td></tr>
+            <tr><td colspan="4" class="text-end text-muted">Tax</td><td class="text-end">{{ po.tax_amount|floatformat:2|intcomma }}</td><td colspan="3"></td></tr>
+            <tr><td colspan="4" class="text-end text-muted">Shipping</td><td class="text-end">{{ po.shipping_amount|floatformat:2|intcomma }}</td><td colspan="3"></td></tr>
+            <tr><td colspan="4" class="text-end fw-semibold">Total ({{ po.currency }})</td><td class="text-end fw-semibold">{{ po.total_amount|floatformat:2|intcomma }}</td><td colspan="3"></td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Change orders -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-git-branch-line"></i> Change Orders ({{ change_orders|length }})</span>
+        {% if can_manage and po.can_change_order %}
+        <a href="{% url 'purchase_orders:change_order_create' po.pk %}" class="btn btn-sm btn-outline-primary">New change order</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Number</th><th>Type</th><th>Status</th><th class="text-end">New total</th><th>Applied</th></tr></thead>
+          <tbody>
+            {% for co in change_orders %}
+            <tr>
+              <td><a href="{% url 'purchase_orders:change_order_detail' po.pk co.pk %}">{{ co.change_number }}</a></td>
+              <td>{{ co.get_change_type_display }}</td>
+              <td>
+                {% if co.status == 'applied' %}<span class="badge badge-soft-success">Applied</span>
+                {% elif co.status == 'cancelled' %}<span class="badge badge-soft-secondary">Cancelled</span>
+                {% elif co.status == 'rejected' %}<span class="badge badge-soft-danger">Rejected</span>
+                {% else %}<span class="badge badge-soft-warning">{{ co.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="text-end">{{ co.new_total|floatformat:2|intcomma|default:"—" }}</td>
+              <td class="small">{{ co.applied_at|date:"M d, Y"|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No change orders.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Documents -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-attachment-2"></i> Documents</div>
+      <div class="card-body">
+        {% for d in documents %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+          <div>
+            {% if d.file %}<a href="{{ d.file.url }}" target="_blank">{{ d.title }}</a>{% else %}{{ d.title }}{% endif %}
+            <div class="small text-muted">{{ d.uploaded_by|default:"—" }} · {{ d.uploaded_at|date:"M d, Y" }}</div>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{% url 'purchase_orders:document_delete' po.pk d.pk %}" onsubmit="return confirm('Remove document?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+          </form>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-muted mb-2">No documents.</p>
+        {% endfor %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'purchase_orders:document_add' po.pk %}" enctype="multipart/form-data" class="mt-3">
+          {% csrf_token %}
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">{{ document_form.title }}</div>
+            <div class="col-md-5">{{ document_form.file }}</div>
+            <div class="col-md-3"><button class="btn btn-outline-primary w-100"><i class="ri-upload-2-line"></i> Upload</button></div>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for e in status_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{% include 'purchase_orders/_status_badge.html' with status=e.status %} {{ e.note }}</span>
+          <span class="small text-muted">{{ e.actor|default:"system" }} · {{ e.created_at|date:"M d, Y H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- Actions sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-settings-3-line"></i> Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if can_manage %}
+          {% if po.can_issue %}
+          <button class="btn btn-primary w-100" data-bs-toggle="collapse" data-bs-target="#issueBox">
+            <i class="ri-send-plane-line"></i> Issue / dispatch
+          </button>
+          <div class="collapse" id="issueBox">
+            <form method="post" action="{% url 'purchase_orders:po_issue' po.pk %}" class="mt-2">
+              {% csrf_token %}
+              <label class="form-label small">Dispatch method</label>
+              {{ issue_form.dispatch_method }}
+              <label class="form-label small mt-2">Recipient email (optional)</label>
+              {{ issue_form.recipient_email }}
+              <button class="btn btn-sm btn-primary w-100 mt-2">Confirm issue</button>
+            </form>
+            {% if not po.vendor_id %}<p class="small text-danger mt-2 mb-0">Assign a supplier first (Edit).</p>{% endif %}
+          </div>
+          {% endif %}
+
+          {% if po.can_acknowledge %}
+          <button class="btn btn-success w-100" data-bs-toggle="collapse" data-bs-target="#ackBox">
+            <i class="ri-check-line"></i> Acknowledge (on behalf)
+          </button>
+          <div class="collapse" id="ackBox">
+            <form method="post" action="{% url 'purchase_orders:po_acknowledge' po.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="note" class="form-control mb-2" rows="2" placeholder="Optional note"></textarea>
+              <button class="btn btn-sm btn-success w-100">Confirm acknowledgment</button>
+            </form>
+          </div>
+          <button class="btn btn-outline-danger w-100" data-bs-toggle="collapse" data-bs-target="#declineBox">
+            <i class="ri-close-line"></i> Mark declined
+          </button>
+          <div class="collapse" id="declineBox">
+            <form method="post" action="{% url 'purchase_orders:po_decline' po.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Reason" required></textarea>
+              <button class="btn btn-sm btn-danger w-100">Confirm decline</button>
+            </form>
+          </div>
+          {% endif %}
+
+          {% if po.status == 'declined' %}
+          <form method="post" action="{% url 'purchase_orders:po_reopen' po.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-primary w-100"><i class="ri-arrow-go-back-line"></i> Reopen to draft</button>
+          </form>
+          {% endif %}
+
+          {% if po.can_change_order %}
+          <a href="{% url 'purchase_orders:change_order_create' po.pk %}" class="btn btn-outline-secondary w-100">
+            <i class="ri-git-branch-line"></i> New change order
+          </a>
+          {% endif %}
+
+          {% if po.can_close %}
+          <button class="btn btn-outline-dark w-100" data-bs-toggle="collapse" data-bs-target="#closeBox">
+            <i class="ri-archive-line"></i> Close out
+          </button>
+          <div class="collapse" id="closeBox">
+            <form method="post" action="{% url 'purchase_orders:po_close' po.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="note" class="form-control mb-2" rows="2" placeholder="Optional close-out note"></textarea>
+              <button class="btn btn-sm btn-dark w-100">Confirm close-out</button>
+            </form>
+          </div>
+          {% endif %}
+
+          {% if po.can_cancel %}
+          <hr class="my-1">
+          <button class="btn btn-outline-danger w-100" data-bs-toggle="collapse" data-bs-target="#cancelBox">
+            <i class="ri-close-circle-line"></i> Cancel PO
+          </button>
+          <div class="collapse" id="cancelBox">
+            <form method="post" action="{% url 'purchase_orders:po_cancel' po.pk %}" class="mt-2">
+              {% csrf_token %}
+              <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Reason" required></textarea>
+              <button class="btn btn-sm btn-danger w-100">Confirm cancel</button>
+            </form>
+          </div>
+          {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">You have read-only access.</p>
+        {% endif %}
+        <a href="{% url 'purchase_orders:po_list' %}" class="btn btn-link w-100">Back to list</a>
+      </div>
+    </div>
+
+    {% if po.line_count %}
+    <div class="card">
+      <div class="card-header"><i class="ri-progress-4-line"></i> Receiving progress</div>
+      <div class="card-body">
+        <div class="progress" role="progressbar">
+          <div class="progress-bar bg-success" style="width: {{ po.received_progress }}%">{{ po.received_progress }}%</div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">{{ po.received_line_count }} of {{ po.line_count }} line(s) received.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
