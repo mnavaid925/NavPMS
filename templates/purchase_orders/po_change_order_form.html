@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Change Order — {{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">New Change Order</h1>
+      <p class="page-subtitle">{{ po.po_number }} — {{ po.title }}</p>
+    </div>
+    <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back to PO
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <p class="text-muted">
+          Draft the change order header, then adjust line quantities / prices on the
+          next screen before applying it. Applying bumps the PO revision and is final.
+        </p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="ri-git-branch-line"></i> Create Change Order
+            </button>
+            <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
