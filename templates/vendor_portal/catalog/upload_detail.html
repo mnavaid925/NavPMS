@@ -1,0 +1,31 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}Upload{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">{{ upload.original_filename|default:upload.file.name }}</h4>
+  <a href="{% url 'vendor_portal:catalog_uploads' %}" class="btn btn-sm btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <dl class="row mb-0">
+    <dt class="col-sm-4">Status</dt><dd class="col-sm-8"><span class="badge bg-light text-dark">{{ upload.get_status_display }}</span></dd>
+    <dt class="col-sm-4">Rows</dt><dd class="col-sm-8">{{ upload.row_count }}</dd>
+    <dt class="col-sm-4">Imported</dt><dd class="col-sm-8">{{ upload.imported_count }}</dd>
+    <dt class="col-sm-4">Errors</dt><dd class="col-sm-8">{{ upload.error_count }}</dd>
+  </dl>
+</div></div>
+
+{% if upload.error_log %}
+<div class="card mb-3"><div class="card-header">Errors</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Row</th><th>Field</th><th>Message</th></tr></thead>
+    <tbody>{% for e in upload.error_log %}<tr><td>{{ e.row }}</td><td>{{ e.field }}</td><td>{{ e.message }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if upload.is_open %}
+<form method="post" action="{% url 'vendor_portal:catalog_upload_delete' upload.pk %}" onsubmit="return confirm('Remove this upload?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete upload</button></form>
+{% endif %}
+{% endblock %}
