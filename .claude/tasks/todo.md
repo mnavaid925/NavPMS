@@ -1,3 +1,145 @@
+# Module 11 — Purchase Order (PO) Management
+
+**Created:** 2026-06-03
+**Scope:** New Django app `apps/purchase_orders/` mounted at `/purchase-orders/`, implementing the
+5 PMS sub-modules of Module 11. Mirrors the Module 9 (Contracts) conventions. Vendor-facing
+dispatch/acknowledgment integrated into the existing `/vendor-portal/` namespace (no second shell).
+
+## Decisions (locked with the user, 2026-06-03)
+- Build as **Module 11 now**; the half-built, uncommitted `apps/catalog/` (Module 10) is **left untouched**.
+- PO **Generation** sources: **approved requisitions** (`?from_requisition=<pk>` pre-fill) **+ manual entry**.
+
+## Design decisions (my defaults — flag on review if you disagree)
+- **Acknowledgment** happens inside the authenticated **vendor portal** (vendor user accepts/declines).
+  Buyer can also "record acknowledgment on behalf" for vendors without a portal account. No public
+  token page (unlike contract e-sign) since dispatch targets an existing supplier record.
+- **Receiving** is a lightweight precursor to Module 13 (Goods Receipt): per-line `received_quantity`
+  + `delivery_status` + a `record receipt` action. Full inspection/GRN stays for Module 13.
+- **No PO template library** (spec doesn't call for one, unlike Contracts/RFx) — keeps scope to the 5 sub-modules.
+- **Change Orders** capture proposed `expected_delivery_date` + per-line `(quantity, unit_price)` changes as a
+  `proposed_lines` JSON, snapshotting `prev_*` on apply (mirrors `catalog.CatalogPriceChangeRequest` + `ContractAmendment`).
+- Money: line `unit_price`/`line_total` + PO `subtotal/tax/shipping/total` at **2 dp** (match requisitions, the source).
+
+| Sub-module (spec) | Implementation |
+|---|---|
+| **PO Generation** | `PurchaseOrder` + `PurchaseOrderLine`; `create_po_from_requisition()` + manual form; "Create Purchase Order" button on approved requisition detail (`?from_requisition=<pk>`) |
+| **PO Dispatch & Acknowledgment** | `issue_po()` (draft→issued, stamps dispatch), vendor-portal `acknowledge`/`decline`; portal `Notification` to the vendor's portal user |
+| **PO Change Order Management** | `PurchaseOrderChangeOrder` (+`apply_change_order()`, `revision` bump, immutable once applied) — qty / price / delivery-date changes on an active PO |
+| **PO Cancellation & Close-out** | `cancel_po()` (unfulfilled) / `close_po()` (fully or partially received) status workflow |
+| **PO Line Item Tracking** | `PurchaseOrderLine.delivery_status` + `received_quantity`; `record_line_receipt()`; status-grouped tracking board |
+
+## Status workflow
+`draft → issued → acknowledged → (partially_received → received) → closed`, plus `declined` (issued→declined→draft/cancel) and `cancelled`.
+- EDITABLE `('draft',)` · ISSUABLE `('draft',)` · ACKNOWLEDGEABLE `('issued',)`
+- RECEIVABLE `('issued','acknowledged','partially_received')` · CHANGE_ORDERABLE `('issued','acknowledged','partially_received')`
+- CANCELLABLE `('draft','issued','acknowledged','partially_received','declined')` · CLOSEABLE `('partially_received','received')`
+- OPEN `('draft','issued','acknowledged','partially_received')` · FINISHED `('closed','cancelled')`
+
+## Build checklist
+
+### A. App scaffold + wiring
+- [ ] `apps/purchase_orders/__init__.py`, `apps.py` (`PurchaseOrdersConfig`, label `purchase_orders`)
+- [ ] Add `'apps.purchase_orders'` to `config/settings.py` INSTALLED_APPS (after `apps.contracts`)
+- [ ] Mount `path('purchase-orders/', include('apps.purchase_orders.urls'))` in `config/urls.py`
+
+### B. Models (`models.py`) + migration
+- [ ] Module-level choice constants + status tuples (above)
+- [ ] `PurchaseOrder` (po_number `PO-<SLUG>-NNNNN`, vendor FK, nullable `requisition` FK, currency, order/expected dates, subtotal/tax/shipping/total, dispatch + ack + close/cancel stamps, owner/created_by, payment_terms, ship_to, notes, revision)
+- [ ] `PurchaseOrderLine` (line_no, description, uom, quantity, unit_price, line_total, account_code FK, nullable `requisition_line` FK, required_date, `delivery_status`, received_quantity)
+- [ ] `PurchaseOrderChangeOrder` (change_number, change_type, reason, new_expected_delivery_date, proposed_lines JSON, prev_* snapshot, status, decided_*)
+- [ ] `PurchaseOrderStatusEvent` (append-only: po FK, change_order FK nullable, status, note, actor)
+- [ ] `PurchaseOrderDocument` (FileField upload, mirror ContractDocument)
+- [ ] `makemigrations purchase_orders` → review `0001_initial`
+
+### C. Services (`services.py`)
+- [ ] `next_po_number(tenant)` (gap-free, `all_objects` + collision loop) · `next_change_number(po)`
+- [ ] Role helpers: `MANAGE_ROLES`, `VIEW_ROLES`, `_has_role`, `can_manage_po`, `can_view_po`
+- [ ] `record_status_event(po, status, user, note, change_order=None)` · `recompute_totals(po)`
+- [ ] `create_po_from_requisition(req, user)` (@atomic; copy lines; link req; mark requisition converted; audit)
+- [ ] `issue_po` / `acknowledge_po` / `decline_po` / `reopen_po` — @atomic, stamps, event, audit, vendor notify
+- [ ] `record_line_receipt(po, line, qty, user)` (line + PO receiving status rollup)
+- [ ] `cancel_po(po, user, reason)` · `close_po(po, user, note)`
+- [ ] `create_change_order` / `apply_change_order(co, user)` (@atomic, snapshot prev, apply, bump revision, immutable after)
+- [ ] `scan_po_alerts(tenant=None, now=None)` (awaiting-ack + overdue-delivery, idempotent via `*_alerted_at`)
+- [ ] Vendor gate: `po_visible_to(user, po)`
+
+### D. Forms (`forms.py`)
+- [ ] `PurchaseOrderForm` (vendor qs excludes suspended/blacklisted/inactive; requisition optional; date widgets)
+- [ ] `PurchaseOrderLineForm` (account_code tenant-filtered) · `ChangeOrderForm`
+- [ ] Action forms: `AcknowledgePOForm`, `DeclinePOForm`, `CancelPOForm`, `CloseoutForm`, `ReceiveLineForm`
+
+### E. Views + URLs
+- [ ] `urls.py` (`app_name='purchase_orders'`): dashboard/analytics, list, new, detail, edit, delete, issue, acknowledge, decline, reopen, cancel, close, line add/edit/delete/receive, change-order create/detail/apply/cancel, documents add/delete, tracking
+- [ ] `views.py`: permission gates, list (search+filters+paginate), create (incl. `?from_requisition=`), detail, edit, delete, all lifecycle + line + change-order + document actions, tracking board (lazy `scan_po_alerts`), analytics dashboard
+
+### F. Admin (`admin.py`)
+- [ ] Register PO (+line/change-order inlines), ChangeOrder (read-only once applied), StatusEvent (append-only: no add/change/delete), Document
+
+### G. Templates (`templates/purchase_orders/`)
+- [ ] `po_list.html`, `po_form.html`, `po_detail.html` (lines + change orders + timeline + actions), `po_change_order_form.html`, `po_line_form.html`, `tracking.html`, `analytics.html` — Actions column per CRUD Completeness rules
+
+### H. Vendor portal
+- [ ] Repoint `portal_purchase_orders` to a real list; add `portal_po_detail` + `portal_po_acknowledge`/`decline` (POST) in `apps/vendors/views.py`
+- [ ] Routes in `apps/vendors/portal_urls.py`; templates `templates/vendor_portal/purchase_orders/{list,detail}.html` (replace placeholder)
+
+### I. Requisition integration
+- [ ] "Create Purchase Order" button on `templates/requisitions/requisitions/detail.html` when `status == 'approved'` and not already converted
+
+### J. Seed + management command
+- [ ] `management/__init__.py` + `management/commands/__init__.py`
+- [ ] `seed_purchase_orders.py` (idempotent, per-tenant; POs across every status + one w/ applied change order + one from an approved requisition)
+- [ ] Append `('seed_purchase_orders', ...)` to `seed_data.py` steps
+- [ ] `run_po_alerts.py` (cron-friendly `scan_po_alerts` sweep)
+
+### K. Tests (`tests/`)
+- [ ] `conftest.py` fixtures + `test_models.py`, `test_services.py`, `test_views.py`, `test_security.py` (IDOR, cross-vendor PO/ack, XSS, permission gates, anon redirect) — target ~150–180 tests
+
+### L. Docs + verification
+- [ ] README: Module 11 section, intro list, Project Structure, routes table, Management Commands, Seeded Demo Data, Roadmap (→ Shipped), TOC, test count
+- [ ] `pytest apps/purchase_orders`, `makemigrations --check`, smoke the pages
+- [ ] Hand the user **one-file-per-commit** PowerShell snippets
+
+## Review
+
+**Status: complete & verified (2026-06-04).**
+
+- New app `apps/purchase_orders/` — 5 models (`PurchaseOrder`, `PurchaseOrderLine`,
+  `PurchaseOrderChangeOrder`, `PurchaseOrderStatusEvent` append-only, `PurchaseOrderDocument`),
+  full service layer (`next_po_number`, `can_manage_po`/`can_view_po`, `po_visible_to`,
+  `create_purchase_order`, `create_po_from_requisition`, `issue_po`/`acknowledge_po`/`decline_po`/
+  `reopen_po`, `record_line_receipt`, `cancel_po`/`close_po`, `apply_change_order`/
+  `cancel_change_order`, `scan_po_alerts`, `tenant_po_metrics`), views + portal_views, forms,
+  admin, urls, seed command, `run_po_alerts` cron command.
+- 9 internal templates under `templates/purchase_orders/` + 2 vendor-portal templates under
+  `templates/vendor_portal/purchase_orders/` (replaced the Module-11 placeholder).
+- All 3 locked design defaults implemented as planned: portal-based acknowledgment (no token page),
+  lightweight per-line receiving, no PO template library.
+- Wiring: `INSTALLED_APPS`, `/purchase-orders/` mount, sidebar "Purchase Orders" group (after
+  Catalog), `seed_data` orchestrator extended, vendor-portal routes + repointed `purchase_orders`
+  view (dead Module-5 placeholder view + flat template removed), "Create Purchase Order" button on
+  the approved-requisition detail. README updated end to end (Module 11 → Shipped).
+
+**Verification performed:**
+- `manage.py check` — 0 issues; `makemigrations --check` — no missing migrations.
+- `migrate` + `seed_purchase_orders` — 8 POs/tenant across every status + a 9th from the approved
+  requisition; idempotent re-run skips; `--flush` re-seeds; `run_po_alerts` flags overdue deliveries.
+- **pytest: 92 PO tests pass; full project suite 806 pass (0 failures)** — my edits to shared files
+  broke nothing.
+
+**Bug found & fixed during seeding:** the seed chained lifecycle calls on one in-memory PO; the
+services re-fetch the row internally (so the caller's object goes stale), leaving every chained step
+(`acknowledge`→`receive`→`close`) failing its status precondition silently. Fixed by refreshing the
+PO after each step (this is the [[navpms-module-build-cadence]] gotcha #2 — applied). Production views
+are unaffected (each request re-fetches).
+
+**Note (parallel session):** Module 10 (Catalog) was committed by another session mid-build; my
+`config/settings.py` + `config/urls.py` PO lines were swept into catalog-labelled commits. Those two
+files are therefore already committed; the per-file snippets below cover only the rest.
+
+**Files:** 22 new (`apps/purchase_orders/` package + 11 templates) + 6 modified + 1 deleted.
+
+---
+
 # Module 6 — Sourcing & Tendering
 
 **Created:** 2026-05-25
