@@ -155,6 +155,20 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbPurchaseOrders" role="button" aria-expanded="false">
+          <i class="ri-shopping-cart-2-line"></i> <span class="flex-grow-1">Purchase Orders</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbPurchaseOrders">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'purchase_orders:po_list' %}">All Purchase Orders</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'purchase_orders:po_create' %}">New Purchase Order</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'purchase_orders:po_tracking' %}">Tracking Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'purchase_orders:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
