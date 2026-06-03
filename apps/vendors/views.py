@@ -753,14 +753,6 @@ def portal_contacts(request):
 
 
 @vendor_required
-def portal_purchase_orders(request):
-    """Placeholder until Module 11 (Purchase Order Management) ships."""
-    return render(request, 'vendor_portal/purchase_orders.html', {
-        'vendor': request.user.vendor,
-    })
-
-
-@vendor_required
 def portal_invoices(request):
     """Placeholder until Module 14 (Invoice & Voucher Management) ships."""
     return render(request, 'vendor_portal/invoices.html', {
