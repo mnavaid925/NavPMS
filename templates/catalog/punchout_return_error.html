@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Punch-out{% endblock %}
+
+{% block content %}
+<div class="card mt-4"><div class="card-body text-center py-5">
+  {% if ok %}
+    <i class="ri-checkbox-circle-line text-success" style="font-size:3rem;"></i>
+    <h4 class="mt-3">Cart received</h4>
+    <p class="text-muted">{{ message }}</p>
+    {% if session %}<a href="{% url 'catalog:punchout_session_detail' session.pk %}" class="btn btn-primary"><i class="ri-shopping-cart-line"></i> Review cart in NavPMS</a>{% endif %}
+  {% else %}
+    <i class="ri-error-warning-line text-danger" style="font-size:3rem;"></i>
+    <h4 class="mt-3">Punch-out could not be completed</h4>
+    <p class="text-muted">{{ message }}</p>
+    <a href="{% url 'catalog:punchout_config_list' %}" class="btn btn-outline-secondary">Back to punch-out suppliers</a>
+  {% endif %}
+</div></div>
+{% endblock %}
