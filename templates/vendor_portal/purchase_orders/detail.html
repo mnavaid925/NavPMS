@@ -1,0 +1,87 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}{{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ po.title }}</h4>
+    <div class="small text-muted">{{ po.po_number }} · Rev {{ po.revision }}</div>
+  </div>
+  {% if po.status == 'issued' %}
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'vendor_portal:purchase_order_acknowledge' po.pk %}">
+      {% csrf_token %}
+      <button class="btn btn-success"><i class="ri-check-line"></i> Acknowledge</button>
+    </form>
+    <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#declineBox">
+      <i class="ri-close-line"></i> Decline
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+{% if po.status == 'issued' %}
+<div class="alert alert-info"><i class="ri-mail-send-line"></i> This purchase order is awaiting your acknowledgment.</div>
+<div class="collapse mb-3" id="declineBox">
+  <div class="card"><div class="card-body">
+    <form method="post" action="{% url 'vendor_portal:purchase_order_decline' po.pk %}">
+      {% csrf_token %}
+      <label class="form-label">Reason for declining</label>
+      <textarea name="reason" class="form-control mb-2" rows="2" required></textarea>
+      <button class="btn btn-danger btn-sm">Confirm decline</button>
+    </form>
+  </div></div>
+</div>
+{% elif po.status == 'acknowledged' %}
+<div class="alert alert-success"><i class="ri-check-double-line"></i> You acknowledged this purchase order on {{ po.acknowledged_at|date:"M d, Y" }}.</div>
+{% elif po.status == 'declined' %}
+<div class="alert alert-danger"><i class="ri-close-circle-line"></i> You declined this purchase order{% if po.decline_reason %}: {{ po.decline_reason }}{% endif %}.</div>
+{% elif po.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> This purchase order was cancelled by the buyer.</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Total</small>{{ po.currency }} {{ po.total_amount|floatformat:2|intcomma }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Order date</small>{{ po.order_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Expected delivery</small>{{ po.expected_delivery_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Payment terms</small>{{ po.payment_terms|default:"—" }}</div>
+    </div>
+    {% if po.description %}<p class="mt-2 mb-0">{{ po.description }}</p>{% endif %}
+    {% if po.shipping_address %}<div class="mt-2"><small class="text-muted d-block">Ship to</small><span style="white-space:pre-wrap">{{ po.shipping_address }}</span></div>{% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-list-check-2"></i> Line Items</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>#</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Total</th><th>Delivery</th></tr></thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>{{ line.line_no }}</td>
+          <td>{{ line.description }}{% if line.sku %}<div class="small text-muted">SKU {{ line.sku }}</div>{% endif %}</td>
+          <td class="text-end">{{ line.quantity|floatformat:2 }} {{ line.uom }}</td>
+          <td class="text-end">{{ line.unit_price|floatformat:2|intcomma }}</td>
+          <td class="text-end">{{ line.line_total|floatformat:2|intcomma }}</td>
+          <td>
+            {% if line.delivery_status == 'received' %}<span class="badge badge-soft-success">Received</span>
+            {% elif line.delivery_status == 'partial' %}<span class="badge badge-soft-warning">Partial</span>
+            {% else %}<span class="badge badge-soft-secondary">Pending</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-3">No line items.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="4" class="text-end fw-semibold">Total ({{ po.currency }})</td><td class="text-end fw-semibold">{{ po.total_amount|floatformat:2|intcomma }}</td><td></td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}
