@@ -236,6 +236,14 @@
         {% endif %}
 
         {% if req.status == 'approved' %}
+          <a href="{% url 'purchase_orders:po_create' %}?from_requisition={{ req.pk }}"
+             class="btn btn-primary"
+             onclick="return confirm('Generate a purchase order from this requisition? Lines will be pre-filled and the requisition will be marked converted.');">
+            <i class="ri-shopping-cart-2-line me-1"></i> Create Purchase Order
+          </a>
+        {% endif %}
+
+        {% if req.status == 'approved' %}
           <a href="{% url 'sourcing:event_create' %}?from_requisition={{ req.pk }}"
              class="btn btn-outline-primary"
              onclick="return confirm('Create a sourcing event (RFQ) from this requisition? Items will be pre-filled.');">
