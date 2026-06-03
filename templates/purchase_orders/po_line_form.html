@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit Line{% else %}Add Line{% endif %} — {{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{% if is_edit %}Edit Line Item{% else %}Add Line Item{% endif %}</h1>
+      <p class="page-subtitle">{{ po.po_number }} — {{ po.title }}</p>
+    </div>
+    <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back to PO
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="ri-save-line"></i> {% if is_edit %}Save Line{% else %}Add Line{% endif %}
+            </button>
+            <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
