@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}PO Tracking Board{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Purchase Order Tracking</h1>
+    <p class="page-subtitle">Purchase orders grouped by where they sit in the fulfilment lifecycle</p>
+  </div>
+  <a href="{% url 'purchase_orders:po_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All POs</a>
+</div>
+
+<div class="row g-3">
+  {% for key, title, klass, items in board %}
+  <div class="col-xl-2 col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ title }}</span>
+        <span class="badge {{ klass }}">{{ items|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for po in items %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="fw-semibold text-decoration-none">{{ po.po_number }}</a>
+          <div class="small text-muted">{{ po.vendor.legal_name|default:"—" }}</div>
+          <div class="small">{{ po.currency }} {{ po.total_amount|floatformat:2|intcomma }}</div>
+          <div class="small">
+            Due {{ po.expected_delivery_date|date:"M d, Y"|default:"—" }}
+            {% if po.is_delivery_overdue %}<span class="badge badge-soft-danger ms-1">overdue</span>{% endif %}
+          </div>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
