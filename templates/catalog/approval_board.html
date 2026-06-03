@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Catalog Approvals{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Catalog Approval Board</h1>
+    <p class="page-subtitle">New items &amp; price changes moving through review</p>
+  </div>
+  <a href="{% url 'catalog:item_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All items</a>
+</div>
+
+<div class="row g-3">
+  {% for key, title, klass, items in board %}
+  <div class="col-lg-3">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ title }}</span>
+        <span class="badge {{ klass }}">{{ items|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for item in items %}
+        <li class="list-group-item">
+          <div class="fw-semibold"><a href="{% url 'catalog:item_detail' item.pk %}" class="text-decoration-none">{{ item.name }}</a></div>
+          <div class="small text-muted">{{ item.item_number }} · {{ item.vendor.legal_name|default:item.get_source_display }}</div>
+          <div class="small">{{ item.currency }} {{ item.base_price|floatformat:2|intcomma }}</div>
+          {% if can_manage and item.status == 'pending_approval' %}
+          <form method="post" action="{% url 'catalog:item_approve' item.pk %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-outline-success w-100"><i class="ri-check-line"></i> Approve</button></form>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
