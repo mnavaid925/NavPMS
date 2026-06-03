@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Catalog Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Catalog Analytics</h1>
+    <p class="page-subtitle">Items, approvals, punch-out &amp; supplier uploads</p>
+  </div>
+  <a href="{% url 'catalog:item_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All items</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Total items</div><div class="stat-value">{{ metrics.total_items|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Approved</div><div class="stat-value">{{ metrics.approved|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Pending approval</div><div class="stat-value">{{ metrics.pending_approval|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Pending price changes</div><div class="stat-value">{{ metrics.pending_price_changes|intcomma }}</div></div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Internal / Supplier</div><div class="stat-value">{{ metrics.internal }} / {{ metrics.supplier }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Active tiers</div><div class="stat-value">{{ metrics.active_tiers|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Punch-out sessions</div><div class="stat-value">{{ metrics.punchout_sessions|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body"><div class="stat-label">Open uploads</div><div class="stat-value">{{ metrics.open_uploads|intcomma }}</div></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-header">Recent items</div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Number</th><th>Name</th><th>Status</th><th class="text-end">Base price</th></tr></thead>
+      <tbody>
+        {% for item in recent_items %}
+        <tr><td><a href="{% url 'catalog:item_detail' item.pk %}" class="text-decoration-none">{{ item.item_number }}</a></td><td>{{ item.name }}</td><td>{% include 'catalog/_status_badge.html' with status=item.status %}</td><td class="text-end">{{ item.base_price|floatformat:2|intcomma }}</td></tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-muted small">No items yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header">Top categories</div>
+    <ul class="list-group list-group-flush">
+      {% for c in metrics.top_categories %}
+      <li class="list-group-item d-flex justify-content-between"><span>{{ c.category__name }}</span><span class="badge badge-soft-primary">{{ c.n }}</span></li>
+      {% empty %}
+      <li class="list-group-item text-muted small">No approved items yet.</li>
+      {% endfor %}
+    </ul>
+  </div></div>
+</div>
+{% endblock %}
