@@ -23,7 +23,10 @@ and **Module 8 — E-Auction Management** (all five sub-modules: Auction Setup &
 Configuration, Live Bidding Interface, Bid Extension & Rule Enforcement, Auction Monitoring
 Console, Post-Auction Results), and **Module 9 — Contract Management** (all five sub-modules:
 Contract Authoring & Templating, E-Signature Integration, Renewal & Expiration Alerts,
-Contract Amendment Tracking, Obligation & Milestone Management).
+Contract Amendment Tracking, Obligation & Milestone Management), and
+**Module 10 — Catalog Management** (all five sub-modules: Catalog Item Creation,
+Pricing & Tier Management, Catalog Approval Workflow, Punch-out Catalog Integration,
+Supplier Catalog Hosting).
 
 ---
 
@@ -45,11 +48,12 @@ Contract Amendment Tracking, Obligation & Milestone Management).
 15. [Module 7 — RFx Management](#module-7--rfx-management)
 16. [Module 8 — E-Auction Management](#module-8--e-auction-management)
 17. [Module 9 — Contract Management](#module-9--contract-management)
-18. [Routes / UI Tour](#routes--ui-tour)
-19. [Multi-tenancy Model](#multi-tenancy-model)
-20. [Payment Gateway](#payment-gateway)
-21. [Browser Compatibility](#browser-compatibility)
-22. [Roadmap](#roadmap)
+18. [Module 10 — Catalog Management](#module-10--catalog-management)
+19. [Routes / UI Tour](#routes--ui-tour)
+20. [Multi-tenancy Model](#multi-tenancy-model)
+21. [Payment Gateway](#payment-gateway)
+22. [Browser Compatibility](#browser-compatibility)
+23. [Roadmap](#roadmap)
 
 ---
 
@@ -66,6 +70,7 @@ Contract Amendment Tracking, Obligation & Milestone Management).
 | Config | python-decouple (`.env` file) |
 | Seeding | Faker |
 | Payment | Mock (pluggable: swap [`apps/tenants/gateways.py`](apps/tenants/gateways.py) for Stripe / Razorpay) |
+| Punch-out | Real cXML/OCI (pluggable [`apps/catalog/punchout.py`](apps/catalog/punchout.py)); `requests` + `defusedxml` (XXE-safe); supplier XLSX uploads via `openpyxl` |
 
 ---
 
@@ -96,10 +101,14 @@ NavPMS/
 │   │                         # RfxTemplate (+Section +Question)
 │   ├── auctions/             # Module 8: Auction (+Lot), AuctionParticipant,
 │   │                         # AuctionBid (append-only ledger), AuctionDocument
-│   └── contracts/            # Module 9: ContractClause (library), ContractTemplate
-│                             # (+Clause), Contract (+ClauseLine), ContractSignatory,
-│                             # ContractAmendment, ContractObligation, ContractDocument,
-│                             # ContractStatusEvent (append-only)
+│   ├── contracts/            # Module 9: ContractClause (library), ContractTemplate
+│   │                         # (+Clause), Contract (+ClauseLine), ContractSignatory,
+│   │                         # ContractAmendment, ContractObligation, ContractDocument,
+│   │                         # ContractStatusEvent (append-only)
+│   └── catalog/              # Module 10: CatalogCategory, CatalogItem, CatalogPriceTier,
+│                             # CatalogPriceChangeRequest, CatalogItemStatusEvent
+│                             # (append-only), SupplierPunchoutConfig, PunchoutSession,
+│                             # SupplierCatalogUpload + punchout.py connector registry
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -123,11 +132,14 @@ NavPMS/
 │   ├── contracts/            # list, form, detail, author, clause/template libraries,
 │   │                         # signatory/amendment/obligation forms, renewals + obligation
 │   │                         # boards, analytics
+│   ├── catalog/              # item list/form/detail, tier + price-change forms, approval
+│   │                         # board, category + punch-out + upload pages, analytics
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
 │       ├── auctions/         # Vendor-side auction invitations + live bidding
-│       └── contracts/        # Vendor-side contracts + tokenized e-signature
+│       ├── contracts/        # Vendor-side contracts + tokenized e-signature
+│       └── catalog/          # Vendor-side catalog list + self-service file uploads
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -199,6 +211,8 @@ All values are read via `python-decouple` from `.env`.
 | `EMAIL_BACKEND` | console | Dev only. |
 | `DEFAULT_FROM_EMAIL` | `no-reply@navpms.local` | |
 | `PAYMENT_GATEWAY` | `mock` | Switch to `stripe` / `razorpay` after registering a handler. |
+| `PUNCHOUT_CONNECTOR` | `cxml` | Default punch-out connector (`cxml` / `oci` / `loopback`). |
+| `PUNCHOUT_SSRF_ALLOWLIST` | `` | Comma-separated extra hosts a punch-out setup URL may target (else HTTPS + public-host only). |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -208,7 +222,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -220,6 +234,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_rfx` | Creates 2 RFx templates and 3 events per tenant (draft RFI / open RFP with responses / completed RFQ with full panel evaluation + shortlist). |
 | `python manage.py seed_auctions` | Creates 3 e-auctions per tenant (draft / scheduled with invitees / awarded with a full live bid ledger, anti-snipe extension + recorded savings). |
 | `python manage.py seed_contracts` | Creates a clause library, 2 contract templates and 7 contracts per tenant across every status (draft-from-template / pending signature / active with obligations / expiring-soon / auto-renewing / amended / terminated). |
+| `python manage.py seed_catalog` | Creates 4 catalog categories, items across every status (draft with tiers / pending / approved-with-tiers / rejected / retired), a pending price-change request, a cXML punch-out supplier config and a parsed supplier upload per tenant. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -243,7 +258,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/) — **629 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/) — **714 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -337,6 +352,20 @@ NDA) and **7 contracts** covering every status:
 - **Auto-renewing** — "Software subscription" (active, `auto_renew=True`, ends in +15 days).
 - **Amended** — "Logistics framework agreement" (active, one applied amendment → revision 2).
 - **Terminated** — "Catering services agreement".
+
+### Catalog data
+Each tenant gets **4 catalog categories** (Office Supplies, IT Equipment, MRO, Raw Materials)
+and catalog items covering every status:
+- **Draft** — "A4 Copier Paper" (internal, with two volume-break tiers).
+- **Pending approval** — "Industrial Safety Helmet" (supplier-sourced).
+- **Approved** — "Heavy-Duty Cable Ties" (supplier, two volume tiers, orderable) — plus a
+  **pending price-change request** (annual uplift) awaiting approval.
+- **Rejected** — "Unbranded Power Adapter" (rejected for a missing safety certificate).
+- **Retired** — "Legacy Toner Cartridge".
+
+Plus a **cXML punch-out supplier configuration** and a **parsed supplier upload** (a small CSV
+with one intentionally-bad row → a *partially imported* upload demonstrating the row-level
+error log).
 
 ---
 
@@ -642,6 +671,38 @@ place as cheap provenance hooks for a future Sourcing/Requisition → Contract h
 
 ---
 
+## Module 10 — Catalog Management
+
+The catalogued-buying surface ([apps/catalog/](apps/catalog/)) — a curated list of internal
+stock items and supplier products with volume/contract pricing, reviewed through a self-contained
+approval workflow, fed by both **real cXML/OCI punch-out** round-trips and **supplier-hosted file
+uploads**. Mirrors the Module 9 conventions (tenant-aware models, `CAT-<SLUG>-NNNNN` numbering,
+append-only timeline). All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Catalog Item Creation** | `CatalogItem` (`CAT-<SLUG>-NNNNN`, `source` internal/supplier) + a dedicated product taxonomy `CatalogCategory` (self-FK tree, distinct from `vendors.VendorCategory` which classifies *suppliers*). Items carry SKU/MPN, UoM, currency, a 4-dp `base_price`, optional supplier `Vendor` and `AccountCode` (GL coding). Full CRUD; only `draft`/`rejected` items are editable. |
+| **Pricing & Tier Management** | `CatalogPriceTier` — volume breaks (`min_quantity` → `unit_price`) and **contract prices** (FK to `contracts.Contract`) with `effective_from`/`effective_to` windows. `resolve_price(item, qty, on_date, contract)` picks the best current, in-window, quantity-satisfying tier (contract-preferred), else the base price. Tiers are edited directly while an item is a draft. |
+| **Catalog Approval Workflow** | Self-contained `draft → pending_approval → approved/rejected → retired/archived` lifecycle on `CatalogItem` (a rejected item returns to editable). Price changes to an **approved** item are themselves reviewed via `CatalogPriceChangeRequest` — approving one snapshots the previous price and applies the new base/tier schedule atomically. An append-only `CatalogItemStatusEvent` timeline records every transition. A Kanban approval board groups items by status. |
+| **Punch-out Catalog Integration** | **Real cXML & OCI** behind a pluggable connector registry ([`apps/catalog/punchout.py`](apps/catalog/punchout.py)) modelled on the payment gateway: `SupplierPunchoutConfig` (per supplier) + `PunchoutSession`. cXML sends a server-side `PunchOutSetupRequest`, parses the `StartPage`, then receives a `PunchOutOrderMessage`; OCI renders a browser `HOOK_URL` auto-form. The returned cart becomes requisition lines or staged draft items. A `loopback` connector exercises the whole flow in tests. **Security**: setup/return URLs are SSRF-validated (HTTPS-only, non-routable hosts blocked); the inbound cart endpoint is CSRF-exempt but authenticated by an unguessable `return_token` + shared-secret; cXML is parsed with `defusedxml` (XXE-safe); the shared secret is write-only and never rendered. |
+| **Supplier Catalog Hosting** | Suppliers upload a CSV/XLSX from the vendor portal (`@vendor_required`, scoped to their own vendor); `SupplierCatalogUpload` validates each row (`openpyxl` for XLSX) and stages valid rows as draft supplier items with a per-row `error_log` (a buyer then reviews and approves). File uploads are extension- and size-validated (10 MB cap). |
+
+**Status workflow:** `draft → pending_approval → approved → (retired | archived)` plus `rejected`
+(returns to editable). Submitting validates name, non-negative price and a supplier for
+supplier-sourced items.
+
+**Permission gate:** create / edit / approve / configure punch-out is restricted to roles
+`tenant_admin`, `procurement_manager`, `buyer` (plus Django superuser); analytics/boards
+additionally allow `approver`. Helpers [`can_manage_catalog`](apps/catalog/services.py) and
+[`can_view_catalog`](apps/catalog/services.py) encapsulate the check.
+
+**Integration with other modules:** only `active` vendors can be a supplier or punch-out
+counterparty; `CatalogItem.account_code` reuses Module 3's `AccountCode`; punch-out carts and
+approved items flow into Module 3 requisition lines; contract-price tiers link to Module 9
+contracts.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -719,6 +780,16 @@ place as cheap provenance hooks for a future Sourcing/Requisition → Contract h
 | `/contracts/clauses/` | Clause library CRUD (tenant admin) |
 | `/contracts/templates/` | Contract template library — list, create, edit, use |
 | `/contracts/analytics/` | Tenant-wide contract analytics dashboard |
+| `/catalog/items/` | Catalog items — search + status/source/category filters |
+| `/catalog/items/new/` | New catalog item (then add tiers, submit for approval) |
+| `/catalog/items/<id>/` | Item detail (tiers, price changes, timeline) + lifecycle actions |
+| `/catalog/items/<id>/price-change/new/` | Request a reviewed price change on an approved item |
+| `/catalog/approvals/` | Catalog approval board (draft / pending / approved / rejected) |
+| `/catalog/categories/` | Catalog category CRUD (tenant admin) |
+| `/catalog/punchout/` | Punch-out supplier config + sessions; **Punch out** initiates a round-trip |
+| `/catalog/punchout/return/<token>/` | **Inbound** cXML/OCI cart POST (CSRF-exempt, token-authenticated) |
+| `/catalog/uploads/` | Supplier upload review + parse-and-ingest |
+| `/catalog/analytics/` | Tenant-wide catalog analytics dashboard |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -735,6 +806,8 @@ place as cheap provenance hooks for a future Sourcing/Requisition → Contract h
 | `/vendor-portal/contracts/` | Supplier's contracts inbox |
 | `/vendor-portal/contracts/<id>/` | Contract read-only view + sign entry point |
 | `/vendor-portal/sign/<token>/` | Tokenized e-signature page (type name to sign / decline) |
+| `/vendor-portal/catalog/` | Supplier's own catalog items (read-only) |
+| `/vendor-portal/catalog/uploads/` | Supplier self-service catalog file uploads (CSV/XLSX) |
 | `/vendor-portal/purchase-orders/` · `/invoices/` | Placeholders for Modules 11 / 14 |
 | `/admin/` | Django admin |
 
@@ -774,7 +847,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–9 ship. Modules 10–21 from the PMS spec are not yet implemented:
+Modules 1–10 ship. Modules 11–21 from the PMS spec are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -787,7 +860,7 @@ Modules 1–9 ship. Modules 10–21 from the PMS spec are not yet implemented:
 | 7 | RFx Management | Shipped |
 | 8 | E-Auction Management | Shipped |
 | 9 | Contract Management | Shipped |
-| 10 | Catalog Management | Planned |
+| 10 | Catalog Management | Shipped |
 | 11 | Purchase Order Management | Planned |
 | 12 | Order Fulfillment & Tracking | Planned |
 | 13 | Goods Receipt & Inspection | Planned |
