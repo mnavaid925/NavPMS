@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Purchase Orders{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Purchase Orders</h1>
+    <p class="page-subtitle">Generate, dispatch, track &amp; close supplier purchase orders</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'purchase_orders:po_tracking' %}" class="btn btn-outline-secondary">
+      <i class="ri-kanban-view"></i> Tracking
+    </a>
+    <a href="{% url 'purchase_orders:analytics_dashboard' %}" class="btn btn-outline-secondary">
+      <i class="ri-bar-chart-box-line"></i> Analytics
+    </a>
+    {% if can_manage %}
+    <a href="{% url 'purchase_orders:po_create' %}" class="btn btn-primary">
+      <i class="ri-add-line"></i> New Purchase Order
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Number, title, description or vendor">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Vendor</label>
+        <select name="vendor" class="form-select">
+          <option value="">All</option>
+          {% for v in vendors %}
+          <option value="{{ v.pk }}" {% if request.GET.vendor == v.pk|stringformat:"d" %}selected{% endif %}>{{ v.legal_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for cat in categories %}
+          <option value="{{ cat.pk }}" {% if request.GET.category == cat.pk|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="ri-search-line"></i>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Title</th>
+          <th>Vendor</th>
+          <th>Status</th>
+          <th class="text-end">Total</th>
+          <th>Delivery</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for po in purchase_orders %}
+        <tr>
+          <td><a href="{% url 'purchase_orders:po_detail' po.pk %}" class="fw-semibold text-decoration-none">{{ po.po_number }}</a></td>
+          <td>{{ po.title }}</td>
+          <td>{{ po.vendor.legal_name|default:"—" }}</td>
+          <td>{% include 'purchase_orders/_status_badge.html' with status=po.status %}</td>
+          <td class="text-end">{{ po.currency }} {{ po.total_amount|floatformat:2|intcomma }}</td>
+          <td>
+            {{ po.expected_delivery_date|date:"M d, Y"|default:"—" }}
+            {% if po.is_delivery_overdue %}<span class="badge badge-soft-danger ms-1">overdue</span>{% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            {% if can_manage and po.is_editable %}
+            <a href="{% url 'purchase_orders:po_edit' po.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'purchase_orders:po_delete' po.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ po.po_number }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">
+            No purchase orders yet.{% if can_manage %} <a href="{% url 'purchase_orders:po_create' %}">Create one</a>.{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
