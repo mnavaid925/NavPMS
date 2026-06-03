@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Connecting to supplier…{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1 class="page-title">Connecting to the supplier…</h1></div>
+<div class="card"><div class="card-body text-center">
+  <p class="text-muted">You are being handed off to the supplier's punch-out catalog. If you are not redirected automatically, use the button below.</p>
+  <form id="punchoutForm" method="{{ method|default:'POST' }}" action="{{ action }}">
+    {% for key, value in fields.items %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-primary"><i class="ri-external-link-line"></i> Continue to supplier</button>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Auto-submit the hand-off form (the supplier site is the punch-out start page).
+  document.getElementById('punchoutForm').submit();
+</script>
+{% endblock %}
