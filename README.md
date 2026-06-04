@@ -28,7 +28,10 @@ Contract Amendment Tracking, Obligation & Milestone Management), and
 Pricing & Tier Management, Catalog Approval Workflow, Punch-out Catalog Integration,
 Supplier Catalog Hosting), and **Module 11 — Purchase Order Management** (all five
 sub-modules: PO Generation, PO Dispatch & Acknowledgment, PO Change Order Management,
-PO Cancellation & Close-out, PO Line Item Tracking).
+PO Cancellation & Close-out, PO Line Item Tracking), and
+**Module 12 — Order Fulfillment & Tracking** (all five sub-modules: Advanced Shipping
+Notice (ASN), Real-time Freight Tracking, Delivery Confirmation, Backorder Management,
+Split Delivery Management).
 
 ---
 
@@ -52,11 +55,13 @@ PO Cancellation & Close-out, PO Line Item Tracking).
 17. [Module 9 — Contract Management](#module-9--contract-management)
 18. [Module 10 — Catalog Management](#module-10--catalog-management)
 19. [Module 11 — Purchase Order Management](#module-11--purchase-order-management)
-20. [Routes / UI Tour](#routes--ui-tour)
-21. [Multi-tenancy Model](#multi-tenancy-model)
-22. [Payment Gateway](#payment-gateway)
-23. [Browser Compatibility](#browser-compatibility)
-24. [Roadmap](#roadmap)
+20. [Module 12 — Order Fulfillment & Tracking](#module-12--order-fulfillment--tracking)
+21. [Module 13 — Goods Receipt & Inspection](#module-13--goods-receipt--inspection)
+22. [Routes / UI Tour](#routes--ui-tour)
+23. [Multi-tenancy Model](#multi-tenancy-model)
+24. [Payment Gateway](#payment-gateway)
+25. [Browser Compatibility](#browser-compatibility)
+26. [Roadmap](#roadmap)
 
 ---
 
@@ -112,8 +117,14 @@ NavPMS/
 │   │                         # CatalogPriceChangeRequest, CatalogItemStatusEvent
 │   │                         # (append-only), SupplierPunchoutConfig, PunchoutSession,
 │   │                         # SupplierCatalogUpload + punchout.py connector registry
-│   └── purchase_orders/      # Module 11: PurchaseOrder (+Line), PurchaseOrderChangeOrder,
-│                             # PurchaseOrderStatusEvent (append-only), PurchaseOrderDocument
+│   ├── purchase_orders/      # Module 11: PurchaseOrder (+Line), PurchaseOrderChangeOrder,
+│   │                         # PurchaseOrderStatusEvent (append-only), PurchaseOrderDocument
+│   ├── fulfillment/          # Module 12: Shipment (+Line), ShipmentTrackingEvent
+│   │                         # (append-only), Backorder, ShipmentStatusEvent (append-only),
+│   │                         # ShipmentDocument + carriers.py connector registry
+│   └── goods_receipt/        # Module 13: GoodsReceipt (+Line), GoodsReceiptCheck (QA
+│                             # checklist), GoodsReceiptStatusEvent (append-only),
+│                             # ReturnToVendor (+Line), ReceiptTag (barcode/QR)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -230,7 +241,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -244,10 +255,14 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_contracts` | Creates a clause library, 2 contract templates and 7 contracts per tenant across every status (draft-from-template / pending signature / active with obligations / expiring-soon / auto-renewing / amended / terminated). |
 | `python manage.py seed_catalog` | Creates 4 catalog categories, items across every status (draft with tiers / pending / approved-with-tiers / rejected / retired), a pending price-change request, a cXML punch-out supplier config and a parsed supplier upload per tenant. |
 | `python manage.py seed_purchase_orders` | Creates 8 purchase orders per tenant across every status (draft / issued / acknowledged / partially received / received / closed / cancelled / with an applied change order) plus a 9th generated from the approved requisition. |
+| `python manage.py seed_fulfillment` | Creates 6 shipments per tenant against the dispatched POs (draft ASN / advised + carrier-synced in-transit / delivered + received with receipts posted to the PO / a split-delivery PO with 2 shipments + a backorder / an overdue shipment) — driven through the real services. |
+| `python manage.py seed_goods_receipt` | Creates 5 goods receipts per tenant from the open POs (draft / awaiting inspection / posted-with-tags / mixed accept-reject + Return-to-Vendor / QA-fail) — driven through the real receive→inspect→post services. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
 | `python manage.py run_po_alerts` | Raises a one-time reminder for issued POs left unacknowledged and a one-time alert for overdue PO deliveries across all tenants (cron-friendly; the tracking board also sweeps lazily). |
+| `python manage.py run_fulfillment_alerts` | Raises a one-time alert for in-flight shipments past their estimated delivery date and for overdue backorders, and auto-cancels backorders whose PO has finished, across all tenants (cron-friendly; the tracking board also sweeps lazily). |
+| `python manage.py run_goods_receipt_alerts` | Raises a one-time alert for goods receipts left awaiting inspection and for open returns-to-vendor across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -268,7 +283,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/) — **806 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/) — **896 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -392,6 +407,27 @@ Each tenant gets **8 purchase orders** covering every status, driven through the
 Plus a **9th PO generated from the approved requisition** (`REQ-*-00003`) via the
 `Create Purchase Order` flow, which marks that requisition `converted`. (A full
 `seed_data --flush` reseeds requisitions first, so the approved requisition is always available.)
+
+### Fulfillment data
+Each tenant gets **6 shipments** built from the dispatched POs, driven through the real fulfillment
+services:
+- **Draft ASN** — created with lines, not yet advised.
+- **Advised + in transit** — ASN sent and carrier-synced via the mock carrier (tracking ledger populated).
+- **Delivered + received** — synced to delivered, then confirmed — posting the received quantities back into the PO.
+- **Split delivery** — one PO fulfilled across two shipments (one received, one in transit) **plus a backorder** for the remainder.
+- **Overdue** — advised with a past estimated-delivery date, so the overdue-delivery alert fires.
+
+### Goods Receipt data
+Each tenant gets **5 goods receipts** built from the open POs, driven through the real
+receive → inspect → post services:
+- **Draft** — received lines entered, not yet marked received.
+- **Awaiting inspection** — marked received (back-dated, so the overdue-inspection alert fires).
+- **Posted** — fully accepted, posted to the PO line `received_quantity`, with barcode/QR
+  **ReceiptTags** generated for the accepted inventory.
+- **Mixed accept/reject + RTV** — half accepted (posted) and half rejected with a `damaged`
+  discrepancy, spawning a **Return-to-Vendor** that is authorised and shipped back (visible in
+  the supplier's vendor portal under *Returns to Vendor*).
+- **QA-fail** — inspected with a failed QA checklist criterion, left un-posted pending a decision.
 
 ---
 
@@ -770,6 +806,69 @@ the tracking board is opened.
 
 ---
 
+## Module 12 — Order Fulfillment & Tracking
+
+The logistics layer ([apps/fulfillment/](apps/fulfillment/)) — it sits in the P2P cycle *after* a
+PO is issued (Module 11) and *before* the future Goods Receipt & Inspection (Module 13), answering
+"where is my order, and did it arrive?". A supplier raises an ASN against a dispatched PO, the
+shipment is tracked through a carrier, and confirming delivery posts the received quantities back
+into the PO. Mirrors the Module 11 conventions: `TenantAwareModel` + `TimeStampedModel`, gap-free
+`SHP-<SLUG>-NNNNN` numbering, and append-only timeline/ledger models. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Advanced Shipping Notice (ASN)** | `Shipment` (`SHP-<SLUG>-NNNNN`) + `ShipmentLine` (each line ships a quantity of a `PurchaseOrderLine`, with packing details — carton/package refs, weight, package count). A supplier raises and **advises** the ASN from the vendor portal (`/vendor-portal/shipments/`); `advise_shipment()` moves `draft -> advised` and notifies the buyer. Buyers can also create shipments internally. |
+| **Real-time Freight Tracking** | A pluggable carrier-connector registry ([`apps/fulfillment/carriers.py`](apps/fulfillment/carriers.py)) modelled on the punch-out/payment patterns: `CarrierConnector` Protocol + `MockCarrier` default (deterministic, derived from the ship date) selected via `FREIGHT_CARRIER`. `sync_tracking()` appends an append-only `ShipmentTrackingEvent` ledger (deduped) and advances the shipment status monotonically (`in_transit -> out_for_delivery -> delivered`); manual events are also supported. A real HTTP carrier must SSRF-validate its endpoint (`validate_carrier_url`, fail-closed). |
+| **Delivery Confirmation** | `confirm_delivery()` captures the arrival date/time + `received_condition`, and (when `post_receipt`) posts each line's received quantity into the PO via Module 11's `record_line_receipt()`. Posting is **idempotent** — a per-line `posted_quantity` watermark means re-confirming never double-counts — and **guarded** so it can never exceed the PO outstanding (over-receipt requires a PO change order). |
+| **Backorder Management** | `Backorder` tracks an undelivered remainder of a PO line with an `expected_date` and `open -> promised -> fulfilled / cancelled` lifecycle, surfaced on a board grouped by Overdue / Open / Promised / Fulfilled / Cancelled. `scan_backorder_alerts()` raises a one-time overdue alert and auto-cancels backorders whose PO has finished. |
+| **Split Delivery Management** | One PO is fulfilled across many `Shipment`s; `remaining_to_ship_line()` (ordered − already-shipped across non-cancelled shipment lines) guards every line against over-shipping, and each confirmed shipment rolls the PO up to `partially_received` / `received`. |
+
+**Status workflow:** `draft -> advised -> in_transit -> out_for_delivery -> delivered -> received -> closed`
+plus `cancelled` and `exception`. A delivered/received shipment can no longer be cancelled (its
+receipt has posted to the PO — reversals/RTV are Module 13's job).
+
+**Permission gate:** create / advise / track / confirm / cancel is restricted to roles
+`tenant_admin`, `procurement_manager`, `buyer` (plus Django superuser); tracking/analytics
+additionally allow `approver`. Helpers [`can_manage_fulfillment`](apps/fulfillment/services.py) and
+[`can_view_fulfillment`](apps/fulfillment/services.py) encapsulate the check.
+
+**Vendor-side gate:** [`shipment_visible_to(user, shipment)`](apps/fulfillment/services.py) lets a
+vendor portal user see only their own vendor's shipments; a supplier can only raise/advise an ASN
+against their own dispatched PO.
+
+**Alerts:** `scan_fulfillment_alerts()` raises a one-time alert for an in-flight shipment past its
+estimated delivery date (idempotent via `delivery_alerted_at`). Driven by the cron-friendly
+`run_fulfillment_alerts` command **and** a lazy sweep when the tracking board is opened.
+
+---
+
+## Module 13 — Goods Receipt & Inspection
+
+The receiving surface ([apps/goods_receipt/](apps/goods_receipt/)) — when ordered goods arrive, log a
+Goods Receipt Note (GRN) against the PO, inspect items against a QA checklist, post the accepted
+quantity back to the PO, return rejected items to the supplier, and tag accepted inventory with
+internal barcodes. Mirrors the Module 11/12 conventions (tenant-aware models, `GRN-<SLUG>-NNNNN`
+numbering, append-only timeline). All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Goods Receipt Note (GRN) Creation** | `GoodsReceipt` (`GRN-<SLUG>-NNNNN`) + `GoodsReceiptLine` (received / accepted / rejected / posted quantities). `create_goods_receipt()` raises a draft GRN against a dispatched, still-open PO (optionally provenance-linked to a fulfilment `Shipment`); `mark_received()` moves `draft → received`. |
+| **Quality Inspection Checklists** | A fixed pass/fail QA checklist (`GoodsReceiptCheck`: packaging intact / quantity matches / no damage / labelling correct / documentation present) plus a per-line accepted/rejected split. `record_inspection()` derives the overall `pass` / `partial` / `fail` result and moves `received → inspected`. |
+| **Discrepancy Reporting** | Each line carries a `discrepancy_type` (short / over / damaged / wrong item / quality failure) and a rejection reason, surfaced on the GRN and rolled into the analytics "top discrepancies". |
+| **Return to Vendor (RTV) Processing** | `create_rtv_from_rejections()` opens a `ReturnToVendor` (`RTV-<SLUG>-NNNNN`) for the rejected lines; `authorise → ship → close`. The authorised return is surfaced to the supplier in the vendor portal (*Returns to Vendor*), where they can acknowledge it. |
+| **Item Tagging & Barcoding** | `post_goods_receipt()` posts the accepted quantity to the PO line via Module 11's `record_line_receipt()` — *idempotently* (a `posted_quantity` watermark) and *guarded* (never over-receipts, so it can't double-count with Module 12) — and generates a `ReceiptTag` (internal Code128/QR code) per accepted line, rendered on a print-friendly label sheet. |
+
+**Status workflow:** `draft → received → under_inspection → inspected → posted → closed`, plus
+`cancelled`. A posted GRN can no longer be cancelled — rejected goods flow through the RTV channel
+instead.
+
+**Integration with Modules 11 & 12:** the accepted quantity is the single thing posted to the PO,
+through the same guarded `record_line_receipt()` that the fulfilment module's delivery confirmation
+uses; the shared PO outstanding budget means the two receiving paths can never double-count. An
+optional `Shipment` FK records which ASN a receipt was booked from **without modifying Module 12**.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -863,6 +962,18 @@ the tracking board is opened.
 | `/purchase-orders/<id>/change-orders/new/` | Draft a change order (qty / price / delivery date); apply from its detail page |
 | `/purchase-orders/tracking/` | Tracking board (draft / issued / acknowledged / partially received / received / closed) |
 | `/purchase-orders/analytics/` | Tenant-wide purchase-order analytics dashboard |
+| `/fulfillment/list/` | Shipments — search + status/vendor/carrier filters |
+| `/fulfillment/new/` | New shipment (or `?from_po=<id>` to ship a dispatched PO) |
+| `/fulfillment/<id>/` | Shipment detail (lines, tracking timeline, documents) + lifecycle (advise / sync / confirm delivery / cancel / close) |
+| `/fulfillment/tracking/` | Tracking board (draft / advised / in transit / out for delivery / delivered / received) |
+| `/fulfillment/backorders/` | Backorder board (overdue / open / promised / fulfilled / cancelled) |
+| `/fulfillment/analytics/` | Tenant-wide fulfillment analytics dashboard |
+| `/goods-receipt/list/` | Goods receipts — search + status/vendor/PO filters |
+| `/goods-receipt/new/` | New goods receipt (select an open PO, or `?from_po=<id>` from the PO page) |
+| `/goods-receipt/<id>/` | GRN detail — receive → inspect (QA checklist + accept/reject) → post, tags, returns, timeline |
+| `/goods-receipt/<id>/tags/` | Printable barcode/QR labels for the accepted inventory |
+| `/goods-receipt/rtv/<id>/` | Return-to-Vendor detail (authorise → ship → close) |
+| `/goods-receipt/analytics/` | Tenant-wide goods-receipt analytics dashboard |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -883,6 +994,7 @@ the tracking board is opened.
 | `/vendor-portal/catalog/uploads/` | Supplier self-service catalog file uploads (CSV/XLSX) |
 | `/vendor-portal/purchase-orders/` | Supplier's purchase orders inbox |
 | `/vendor-portal/purchase-orders/<id>/` | PO read-only view + acknowledge / decline |
+| `/vendor-portal/returns/` | Supplier's Returns-to-Vendor inbox (read-only + acknowledge) |
 | `/vendor-portal/invoices/` | Placeholder for Module 14 |
 | `/admin/` | Django admin |
 
@@ -922,7 +1034,8 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–11 ship. Modules 12–21 from the PMS spec are not yet implemented:
+Modules 1–11 and 13 ship (Module 12 Order Fulfillment & Tracking is in the working tree,
+pending its own commit). The remaining PMS modules are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -937,8 +1050,8 @@ Modules 1–11 ship. Modules 12–21 from the PMS spec are not yet implemented:
 | 9 | Contract Management | Shipped |
 | 10 | Catalog Management | Shipped |
 | 11 | Purchase Order Management | Shipped |
-| 12 | Order Fulfillment & Tracking | Planned |
-| 13 | Goods Receipt & Inspection | Planned |
+| 12 | Order Fulfillment & Tracking | Shipped |
+| 13 | Goods Receipt & Inspection | Shipped |
 | 14 | Invoice & Voucher Management | Planned |
 | 15 | Spend Analytics & Reporting | Planned |
 | 16 | Budget & Cost Management | Planned |
