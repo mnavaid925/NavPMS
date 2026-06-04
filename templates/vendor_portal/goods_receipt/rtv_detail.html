@@ -1,0 +1,74 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}{{ rtv.rtv_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ rtv.rtv_number }} <span class="badge badge-soft-secondary">{{ rtv.get_status_display }}</span></h4>
+    <div class="small text-muted">Return against PO {{ po.po_number }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'vendor_portal:returns' %}"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+{% if rtv.status == 'authorized' %}
+<div class="alert alert-warning"><i class="ri-arrow-go-back-line"></i> The buyer has authorised this return. Please review the items and acknowledge.</div>
+{% elif rtv.status == 'shipped' %}
+<div class="alert alert-info"><i class="ri-truck-line"></i> These items have been shipped back to you{% if rtv.tracking_number %} ({{ rtv.carrier }} {{ rtv.tracking_number }}){% endif %}.</div>
+{% elif rtv.status == 'closed' %}
+<div class="alert alert-dark"><i class="ri-archive-line"></i> This return is closed.</div>
+{% endif %}
+
+{% if rtv.acknowledged_at %}
+<div class="alert alert-success"><i class="ri-check-double-line"></i> You acknowledged this return on {{ rtv.acknowledged_at|date:"M d, Y H:i" }}.</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Purchase order</small>{{ po.po_number }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">RMA #</small>{{ rtv.rma_number|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Authorised</small>{{ rtv.authorized_at|date:"M d, Y"|default:"—" }}</div>
+      {% if rtv.reason %}<div class="col-12 mb-2"><small class="text-muted d-block">Reason</small><span style="white-space:pre-wrap">{{ rtv.reason }}</span></div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-list-check-2"></i> Returned items</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Quantity</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>{{ line.line_no }}</td>
+          <td>{{ line.description }}</td>
+          <td>{{ line.uom }}</td>
+          <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+          <td>{{ line.reason|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No items.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if not rtv.acknowledged_at %}
+<div class="card">
+  <div class="card-header"><i class="ri-check-double-line"></i> Acknowledge return</div>
+  <div class="card-body">
+    <form method="post" action="{% url 'vendor_portal:rtv_acknowledge' rtv.pk %}">
+      {% csrf_token %}
+      <div class="mb-2">
+        <label class="form-label small">Note (optional)</label>
+        <input type="text" name="note" class="form-control" placeholder="e.g. RMA confirmed, awaiting receipt">
+      </div>
+      <button class="btn btn-success"><i class="ri-check-line"></i> Acknowledge</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
