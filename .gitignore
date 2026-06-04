@@ -222,3 +222,6 @@ __marimo__/
 
 # Claude Code — local-only
 .claude/settings.local.json
+
+# dump-module skill output — generated code dumps, regenerable via /dump-module
+temp/
