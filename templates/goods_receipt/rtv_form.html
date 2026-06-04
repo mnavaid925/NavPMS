@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Return to Vendor · {{ grn.grn_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">Return to Vendor</h1>
+      <p class="page-subtitle">From {{ grn.grn_number }} · {{ grn.vendor.legal_name }}</p>
+    </div>
+    <a href="{% url 'goods_receipt:grn_detail' grn.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-arrow-go-back-line"></i> Return details</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Reason</label>
+            <textarea name="reason" class="form-control" rows="2" placeholder="Why are these items being returned?">{{ form.reason.value|default:'' }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">RMA number (optional)</label>
+            <input type="text" name="rma_number" class="form-control" value="{{ form.rma_number.value|default:'' }}">
+          </div>
+          <button type="submit" class="btn btn-danger"><i class="ri-arrow-go-back-line"></i> Create return</button>
+          <a href="{% url 'goods_receipt:grn_detail' grn.pk %}" class="btn btn-outline-secondary">Cancel</a>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-list-check-2"></i> Rejected items to return</div>
+      <ul class="list-group list-group-flush">
+        {% for line in grn.lines.all %}
+        {% if line.rejected_quantity %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ line.description }}{% if line.rejection_reason %}<span class="text-muted small"> · {{ line.rejection_reason }}</span>{% endif %}</span>
+          <span class="text-danger">{{ line.rejected_quantity|floatformat:2 }} {{ line.uom }}</span>
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
