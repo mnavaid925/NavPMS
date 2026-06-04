@@ -1,0 +1,9 @@
+{% if status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+{% elif status == 'advised' %}<span class="badge badge-soft-info">Advised</span>
+{% elif status == 'in_transit' %}<span class="badge badge-soft-primary">In transit</span>
+{% elif status == 'out_for_delivery' %}<span class="badge badge-soft-warning">Out for delivery</span>
+{% elif status == 'delivered' %}<span class="badge badge-soft-success">Delivered</span>
+{% elif status == 'received' %}<span class="badge badge-soft-success">Received</span>
+{% elif status == 'closed' %}<span class="badge badge-soft-dark">Closed</span>
+{% elif status == 'exception' %}<span class="badge badge-soft-danger">Exception</span>
+{% else %}<span class="badge badge-soft-secondary">Cancelled</span>{% endif %}
