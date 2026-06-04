@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Shipment Tracking Board{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Shipment Tracking</h1>
+    <p class="page-subtitle">Shipments grouped by where they sit in the fulfilment lifecycle</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    <a href="{% url 'fulfillment:shipment_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Shipment</a>
+    {% endif %}
+    <a href="{% url 'fulfillment:shipment_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All Shipments</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for key, label, badge_class, items in board %}
+  <div class="col-xl-2 col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ label }}</span>
+        <span class="badge {{ badge_class }}">{{ items|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for shipment in items %}
+        <li class="list-group-item">
+          <a href="{% url 'fulfillment:shipment_detail' shipment.pk %}" class="fw-semibold text-decoration-none">{{ shipment.shipment_number }}</a>
+          <div class="small text-muted">{{ shipment.purchase_order.po_number|default:"—" }}</div>
+          <div class="small text-muted">{{ shipment.vendor.legal_name|default:"—" }}</div>
+          <div class="small">
+            Due {{ shipment.estimated_delivery_date|date:"M d, Y"|default:"—" }}
+            {% if shipment.is_delivery_overdue %}<span class="badge badge-soft-danger ms-1">overdue</span>{% endif %}
+          </div>
+          <div class="small text-muted">{{ shipment.carrier|default:"—" }} / {{ shipment.tracking_number|default:"—" }}</div>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
