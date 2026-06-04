@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Backorders{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Backorders</h1>
+    <p class="page-subtitle">Outstanding order lines grouped by fulfilment status</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'fulfillment:shipment_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Shipments</a>
+    {% if can_manage %}
+    <a href="{% url 'fulfillment:backorder_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New backorder</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Overdue</span>
+        <span class="badge badge-soft-danger">{{ board.overdue|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for bo in board.overdue %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' bo.purchase_order.pk %}" class="fw-semibold text-decoration-none">{{ bo.purchase_order.po_number }}</a>
+          <span class="badge badge-soft-danger ms-1">overdue</span>
+          <div class="small text-muted">{{ bo.purchase_order_line.description }}</div>
+          <div class="small">Qty {{ bo.quantity|floatformat:2 }}</div>
+          <div class="small">Expected {{ bo.expected_date|date:"M d, Y"|default:"—" }}</div>
+          {% if bo.fulfilled_by_shipment %}<div class="small"><i class="ri-truck-line"></i> {{ bo.fulfilled_by_shipment.shipment_number }}</div>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-xl col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Open</span>
+        <span class="badge badge-soft-secondary">{{ board.open|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for bo in board.open %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' bo.purchase_order.pk %}" class="fw-semibold text-decoration-none">{{ bo.purchase_order.po_number }}</a>
+          <div class="small text-muted">{{ bo.purchase_order_line.description }}</div>
+          <div class="small">Qty {{ bo.quantity|floatformat:2 }}</div>
+          <div class="small">Expected {{ bo.expected_date|date:"M d, Y"|default:"—" }}</div>
+          {% if bo.fulfilled_by_shipment %}<div class="small"><i class="ri-truck-line"></i> {{ bo.fulfilled_by_shipment.shipment_number }}</div>{% endif %}
+          {% if can_manage %}
+          <div class="d-flex gap-1 mt-2">
+            <form method="post" action="{% url 'fulfillment:backorder_fulfill' bo.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-success"><i class="ri-check-line"></i> Fulfill</button>
+            </form>
+            <form method="post" action="{% url 'fulfillment:backorder_cancel' bo.pk %}" onsubmit="return confirm('Cancel this backorder?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i> Cancel</button>
+            </form>
+          </div>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-xl col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Promised</span>
+        <span class="badge badge-soft-info">{{ board.promised|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for bo in board.promised %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' bo.purchase_order.pk %}" class="fw-semibold text-decoration-none">{{ bo.purchase_order.po_number }}</a>
+          <div class="small text-muted">{{ bo.purchase_order_line.description }}</div>
+          <div class="small">Qty {{ bo.quantity|floatformat:2 }}</div>
+          <div class="small">Expected {{ bo.expected_date|date:"M d, Y"|default:"—" }}</div>
+          {% if bo.fulfilled_by_shipment %}<div class="small"><i class="ri-truck-line"></i> {{ bo.fulfilled_by_shipment.shipment_number }}</div>{% endif %}
+          {% if can_manage %}
+          <div class="d-flex gap-1 mt-2">
+            <form method="post" action="{% url 'fulfillment:backorder_fulfill' bo.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-success"><i class="ri-check-line"></i> Fulfill</button>
+            </form>
+            <form method="post" action="{% url 'fulfillment:backorder_cancel' bo.pk %}" onsubmit="return confirm('Cancel this backorder?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i> Cancel</button>
+            </form>
+          </div>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-xl col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Fulfilled</span>
+        <span class="badge badge-soft-success">{{ board.fulfilled|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for bo in board.fulfilled %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' bo.purchase_order.pk %}" class="fw-semibold text-decoration-none">{{ bo.purchase_order.po_number }}</a>
+          <div class="small text-muted">{{ bo.purchase_order_line.description }}</div>
+          <div class="small">Qty {{ bo.quantity|floatformat:2 }}</div>
+          <div class="small">Expected {{ bo.expected_date|date:"M d, Y"|default:"—" }}</div>
+          {% if bo.fulfilled_by_shipment %}<div class="small"><i class="ri-truck-line"></i> {{ bo.fulfilled_by_shipment.shipment_number }}</div>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-xl col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Cancelled</span>
+        <span class="badge badge-soft-dark">{{ board.cancelled|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for bo in board.cancelled %}
+        <li class="list-group-item">
+          <a href="{% url 'purchase_orders:po_detail' bo.purchase_order.pk %}" class="fw-semibold text-decoration-none">{{ bo.purchase_order.po_number }}</a>
+          <div class="small text-muted">{{ bo.purchase_order_line.description }}</div>
+          <div class="small">Qty {{ bo.quantity|floatformat:2 }}</div>
+          <div class="small">Expected {{ bo.expected_date|date:"M d, Y"|default:"—" }}</div>
+          {% if bo.fulfilled_by_shipment %}<div class="small"><i class="ri-truck-line"></i> {{ bo.fulfilled_by_shipment.shipment_number }}</div>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">None.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
