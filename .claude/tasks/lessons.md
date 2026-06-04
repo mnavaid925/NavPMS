@@ -173,3 +173,38 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
   test where two `r_a.answers.first()` calls saved an answer with
   `value_number=None`, then `submit_response` rightly failed the required-
   answer check.
+
+- **2026-06-04 — Check a lifecycle precondition AFTER `select_for_update()`, on the
+  locked row — never before it.** Module 12's `advise/confirm/cancel/close_shipment`
+  evaluated `can_*` on the PASSED-IN (possibly stale) instance, then locked the row but
+  never re-checked, so two concurrent POSTs could both pass a stale status (e.g. cancel a
+  shipment a racing `confirm_delivery` just moved to `received` — freeing already-received
+  qty for re-shipping). **How to apply:** in every transition service,
+  `obj = Model.all_objects.select_for_update().get(pk=obj.pk)` FIRST, then
+  `if not obj.can_X: raise`. (Module 11's PO services share this anti-pattern except
+  `apply_change_order`, which does it right.) Verified fix: [apps/fulfillment/services.py](apps/fulfillment/services.py).
+
+- **2026-06-04 — Gate status-ADVANCING side-effects to the states that should produce
+  them.** `add_manual_tracking_event`/`sync_tracking` ran `_advance_status` with no
+  precondition, so a *draft* shipment could be driven straight to `delivered` — skipping
+  `advise_shipment` AND the only receipt-posting path (`confirm_delivery`), decoupling
+  shipment state from PO received qty. **How to apply:** gate such mutators on the relevant
+  in-flight predicate (`shipment.can_track`), and gate the matching template panel on the
+  same predicate — not on a looser `not is_finished`. Verified fix:
+  [apps/fulfillment/services.py](apps/fulfillment/services.py) + the detail template.
+
+- **2026-06-04 — A gap-free sequence number must use `Max(field)+1`, not `count()+1`.**
+  Shipment `line_no` derived from `lines.count()+1` collided (→ IntegrityError 500) after a
+  mid-list line was deleted. **How to apply:**
+  `(qs.aggregate(m=Max('line_no'))['m'] or 0) + 1`, or route through the service that
+  already does so — don't let a view re-implement the numbering differently. Verified fix:
+  [apps/fulfillment/views.py](apps/fulfillment/views.py) + portal_views.py.
+
+- **2026-06-04 — Locking the PARENT row does not protect a stale CHILD read in a
+  read-modify-write.** `record_line_receipt` locked the `PurchaseOrder` header but computed
+  `new_received` from the caller's stale in-memory `line`, so two concurrent split-delivery
+  confirmations on the same PO line lost an update (and could defeat the over-receipt
+  guard). **How to apply:** re-fetch+lock the exact row you mutate —
+  `line = PurchaseOrderLine.all_objects.select_for_update().get(pk=line.pk)` — inside the
+  same transaction before reading its value. Verified fix:
+  [apps/purchase_orders/services.py](apps/purchase_orders/services.py) `record_line_receipt`.
