@@ -1,0 +1,46 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}My Shipments{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">My Shipments</h4>
+  <a href="{% url 'vendor_portal:asn_create' %}" class="btn btn-primary btn-sm">
+    <i class="ri-add-line"></i> New ASN
+  </a>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Shipment #</th>
+          <th>PO</th>
+          <th>Status</th>
+          <th>Carrier / Tracking</th>
+          <th>ETA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for shipment in shipments %}
+        <tr>
+          <td>
+            <a href="{% url 'vendor_portal:shipment_detail' shipment.pk %}" class="fw-semibold text-decoration-none">{{ shipment.shipment_number }}</a>
+          </td>
+          <td>{{ shipment.purchase_order.po_number|default:"—" }}</td>
+          <td>{% include 'fulfillment/_status_badge.html' with status=shipment.status %}</td>
+          <td>
+            {{ shipment.carrier|default:"—" }}
+            {% if shipment.tracking_number %}<div class="small text-muted">{{ shipment.tracking_number }}</div>{% endif %}
+          </td>
+          <td>{{ shipment.estimated_delivery_date|date:"M d, Y"|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No shipments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
