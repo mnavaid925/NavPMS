@@ -788,3 +788,34 @@ back-end-verifiable subset, then a 43-case browser pass; fixed two bugs.
 
 **Totals:** 103 / 145 cases executed, 0 fail, 2 bugs fixed. 42 cases still need a
 human (visual judgement, double-submit timing, browser back/forward). GO-with-fixes.
+
+
+## Module 12 — Order Fulfillment & Tracking (review)
+
+**Status: COMPLETE & verified.** New `apps/fulfillment/` app (PMS.md `### 11` = real Module 12).
+
+Built (mirrors Module 11): models (Shipment, ShipmentLine, ShipmentTrackingEvent, Backorder,
+ShipmentStatusEvent, ShipmentDocument) + 2 migrations; `carriers.py` pluggable connector
+(MockCarrier, `FREIGHT_CARRIER` env, SSRF-validated); services (gates, SHP-numbering,
+advise/sync/confirm/cancel/close, idempotent receipt posting via `record_line_receipt`,
+backorders, alerts, metrics); forms; admin (append-only ledgers); buyer views + vendor-portal
+ASN; 12 templates (generated via a parallel workflow, reviewed); sidebar nav; `seed_fulfillment`
++ `run_fulfillment_alerts` (chained into `seed_data`); wiring (settings/urls/portal_urls/.env).
+
+Verification:
+- `pytest apps/fulfillment --create-db` -> **75 passed** (models/services/views/security + 6 fix tests).
+- Live smoke render: all buyer + vendor-portal pages 200. `manage.py check` clean. seed + re-seed OK.
+
+Adversarial multi-agent review (3 lenses -> verify): 8 findings, 7 confirmed, **all fixed**:
+1. Manual tracking event / sync could jump a draft straight to `delivered` -> gated to `can_track`.
+2. TOCTOU: lifecycle guards now run AFTER `select_for_update` (advise/confirm/cancel/close).
+3. `record_line_receipt` lost-update -> re-fetch+lock the PO line (Module 11 file touched).
+4. `line_no` collision after mid-list delete -> `Max(line_no)+1` in both add-line views.
+5. Two shipment lines for one PO line -> `unique_together(shipment, purchase_order_line)` + form guard.
+6. Manual events on finished shipments -> blocked by the `can_track` gate.
+7. Received-condition/delivered-at now shown for the `received` state, not just `delivered`.
+
+NOTE (parallel session): Module 13 (`apps/goods_receipt/`) was being built concurrently and
+edited shared files (settings/urls/portal_urls/seed_data/sidebar/README) live. Diff those shared
+files before committing; `record_line_receipt` lives in the PO module (Module 11) and was hardened
+here — review that commit separately.
