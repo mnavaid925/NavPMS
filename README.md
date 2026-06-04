@@ -232,6 +232,8 @@ All values are read via `python-decouple` from `.env`.
 | `PAYMENT_GATEWAY` | `mock` | Switch to `stripe` / `razorpay` after registering a handler. |
 | `PUNCHOUT_CONNECTOR` | `cxml` | Default punch-out connector (`cxml` / `oci` / `loopback`). |
 | `PUNCHOUT_SSRF_ALLOWLIST` | `` | Comma-separated extra hosts a punch-out setup URL may target (else HTTPS + public-host only). |
+| `FREIGHT_CARRIER` | `mock` | Default freight-tracking carrier connector (real carriers added in `apps/fulfillment/carriers.py`). |
+| `FREIGHT_TRACKING_ALLOWLIST` | `` | Comma-separated extra hosts a real carrier tracking endpoint may target (SSRF allowlist). |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -994,6 +996,9 @@ optional `Shipment` FK records which ASN a receipt was booked from **without mod
 | `/vendor-portal/catalog/uploads/` | Supplier self-service catalog file uploads (CSV/XLSX) |
 | `/vendor-portal/purchase-orders/` | Supplier's purchase orders inbox |
 | `/vendor-portal/purchase-orders/<id>/` | PO read-only view + acknowledge / decline |
+| `/vendor-portal/shipments/` | Supplier's shipments / ASNs |
+| `/vendor-portal/shipments/new/` | Raise an ASN against a dispatched PO |
+| `/vendor-portal/shipments/<id>/` | ASN detail + send / edit / line CRUD (while draft) |
 | `/vendor-portal/returns/` | Supplier's Returns-to-Vendor inbox (read-only + acknowledge) |
 | `/vendor-portal/invoices/` | Placeholder for Module 14 |
 | `/admin/` | Django admin |
