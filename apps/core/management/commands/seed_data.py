@@ -31,6 +31,8 @@ class Command(BaseCommand):
             ('seed_contracts', 'Clause library + templates + contracts + signatories + obligations + amendments'),
             ('seed_catalog', 'Catalog categories + items + tiers + price-change + punch-out config + supplier upload'),
             ('seed_purchase_orders', 'Purchase orders across every status + change order + from-requisition'),
+            ('seed_fulfillment', 'Shipments/ASNs + carrier tracking + delivery confirmation + split delivery + backorders'),
+            ('seed_goods_receipt', 'Goods receipts across every status + QA inspection + posting + returns to vendor + tags'),
         ]
 
         for cmd, label in steps:
