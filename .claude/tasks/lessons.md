@@ -10,6 +10,24 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
 
 ---
 
+- **2026-06-04 — `.claude/` tooling was copied from the sibling `NavMSM` repo; verify it targets NavPMS before trusting it.**
+  The `dump-module` skill had `$RepoRoot = 'c:\xampp\htdocs\NavMSM'` and a registry of
+  manufacturing modules (plm/bom/pps/mrp/mes/qms…) that don't exist here. It printed
+  `OK … bytes` while silently writing into `c:\xampp\htdocs\NavMSM\temp\` — a *different*
+  repo — so `NavPMS\temp` stayed empty. **Why:** a relative-looking success message (`-> temp\…`)
+  hid an absolute path pointing elsewhere; "it ran without error" ≠ "it did what I think."
+  **How to apply:** when a script reports success but the expected artifact is missing,
+  read the script and check its hardcoded paths/registry before re-running; never trust an
+  `OK` line over a filesystem check. NavPMS modules follow `PMS.md` (`### N` = real Module N+1).
+
+- **2026-06-04 — Don't trust `git check-ignore <dir>/` alone; verify with a real file + `git status`.**
+  `git check-ignore temp/` reported `temp/` as ignored, but `git check-ignore -v temp/<file>.txt`
+  exited 1 and `git status` showed `?? temp/` — the dumps were NOT ignored (`.gitignore` only had
+  `tempCodeRunnerFile.py`). **Why:** a trailing-slash directory arg can match a pattern that does
+  not actually propagate to the directory's contents, giving a false "ignored". **How to apply:**
+  confirm ignore status against an actual file path and `git add -n`; added `temp/` to `.gitignore`
+  so generated code dumps stay out of git. See [[dump-module-targets-navmsm]] reasoning above.
+
 - **2026-05-23 — Validate `DecimalField` quantities/prices server-side, not just with HTML `min`.**
   `QuickRequisitionItemForm` accepted negative `quantity`/`unit_price` because the
   `min=0` was only a widget attribute. **Why:** HTML constraints are advisory; a direct
