@@ -1,0 +1,111 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}{{ shipment.shipment_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ shipment.shipment_number }} {% include 'fulfillment/_status_badge.html' with status=shipment.status %}</h4>
+    <div class="small text-muted">
+      Against PO
+      {% if po %}<a href="{% url 'purchase_orders:po_detail' po.pk %}">{{ po.po_number }}</a>{% else %}—{% endif %}
+    </div>
+  </div>
+  {% if shipment.is_editable %}
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'vendor_portal:asn_advise' shipment.pk %}" onsubmit="return confirm('Send this ASN to the buyer? You will no longer be able to edit it.')">
+      {% csrf_token %}
+      <button class="btn btn-success"><i class="ri-mail-send-line"></i> Send ASN</button>
+    </form>
+    <a class="btn btn-outline-secondary" href="{% url 'vendor_portal:asn_edit' shipment.pk %}"><i class="ri-edit-line"></i> Edit</a>
+    <a class="btn btn-outline-primary" href="{% url 'vendor_portal:asn_line_add' shipment.pk %}"><i class="ri-add-line"></i> Add line</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if shipment.status == 'draft' %}
+<div class="alert alert-secondary"><i class="ri-draft-line"></i> This ASN is a draft. Add your line items and details, then send it to the buyer.</div>
+{% elif shipment.status == 'advised' %}
+<div class="alert alert-info"><i class="ri-mail-send-line"></i> This ASN has been sent to the buyer and is now read-only.</div>
+{% elif shipment.status == 'in_transit' %}
+<div class="alert alert-primary"><i class="ri-truck-line"></i> This shipment is in transit.</div>
+{% elif shipment.status == 'out_for_delivery' %}
+<div class="alert alert-warning"><i class="ri-truck-line"></i> This shipment is out for delivery.</div>
+{% elif shipment.status == 'delivered' %}
+<div class="alert alert-success"><i class="ri-check-double-line"></i> This shipment has been delivered.</div>
+{% elif shipment.status == 'received' %}
+<div class="alert alert-success"><i class="ri-inbox-archive-line"></i> This shipment has been received by the buyer.</div>
+{% elif shipment.status == 'closed' %}
+<div class="alert alert-dark"><i class="ri-archive-line"></i> This shipment is closed.</div>
+{% elif shipment.status == 'exception' %}
+<div class="alert alert-danger"><i class="ri-error-warning-line"></i> This shipment has a reported exception.</div>
+{% elif shipment.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> This shipment was cancelled.</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Carrier</small>{{ shipment.carrier|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Tracking number</small>{{ shipment.tracking_number|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Package count</small>{{ shipment.package_count|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Ship date</small>{{ shipment.ship_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Estimated delivery</small>{{ shipment.estimated_delivery_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Total weight</small>{% if shipment.total_weight %}{{ shipment.total_weight|floatformat:2 }} {{ shipment.weight_uom }}{% else %}—{% endif %}</div>
+    </div>
+    {% if shipment.packing_note %}<div class="mt-2"><small class="text-muted d-block">Packing note</small><span style="white-space:pre-wrap">{{ shipment.packing_note }}</span></div>{% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-list-check-2"></i> Line Items</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>#</th><th>Description</th><th>UOM</th><th class="text-end">Shipped Qty</th>{% if shipment.is_editable %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>{{ line.line_no }}{% if line.purchase_order_line %}<div class="small text-muted">PO line {{ line.purchase_order_line.line_no }}</div>{% endif %}</td>
+          <td>{{ line.description }}</td>
+          <td>{{ line.uom }}</td>
+          <td class="text-end">{{ line.shipped_quantity|floatformat:2 }}</td>
+          {% if shipment.is_editable %}
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end">
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'vendor_portal:asn_line_edit' shipment.pk line.pk %}"><i class="ri-edit-line"></i></a>
+              <form method="post" action="{% url 'vendor_portal:asn_line_delete' shipment.pk line.pk %}" onsubmit="return confirm('Delete this line?')">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{% if shipment.is_editable %}5{% else %}4{% endif %}" class="text-center text-muted py-3">No line items.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if tracking_events %}
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-route-line"></i> Tracking Timeline</div>
+  <div class="card-body">
+    <ul class="list-unstyled mb-0">
+      {% for event in tracking_events %}
+      <li class="mb-3">
+        <div class="fw-semibold">{{ event.description|default:event.status_code }}</div>
+        <div class="small text-muted">
+          {{ event.occurred_at|date:"M d, Y H:i" }}
+          {% if event.location %} · {{ event.location }}{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
