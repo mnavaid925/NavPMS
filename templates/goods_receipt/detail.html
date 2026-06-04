@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ grn.grn_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ grn.grn_number }}</h1>
+      <p class="page-subtitle">
+        <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="badge bg-light text-dark text-decoration-none">{{ po.po_number }}</a>
+        {% include 'goods_receipt/_status_badge.html' with status=grn.status %}
+        <span class="text-muted ms-2">{{ grn.vendor.legal_name }}</span>
+      </p>
+    </div>
+    {% if can_manage %}
+    <div class="d-flex gap-2">
+      {% if grn.can_receive %}
+      <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#receiveBox">
+        <i class="ri-inbox-archive-line"></i> Mark received
+      </button>
+      {% endif %}
+      {% if grn.can_inspect %}
+      <button class="btn btn-warning" data-bs-toggle="collapse" data-bs-target="#inspectBox">
+        <i class="ri-search-eye-line"></i> Inspect
+      </button>
+      {% endif %}
+      {% if grn.can_post %}
+      <form method="post" action="{% url 'goods_receipt:grn_post' grn.pk %}" onsubmit="return confirm('Post accepted quantities to {{ po.po_number }}?');">
+        {% csrf_token %}
+        <button class="btn btn-success"><i class="ri-check-double-line"></i> Post to PO</button>
+      </form>
+      {% endif %}
+      {% if grn.can_close %}
+      <form method="post" action="{% url 'goods_receipt:grn_close' grn.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-dark"><i class="ri-archive-line"></i> Close</button>
+      </form>
+      {% endif %}
+      {% if grn.can_cancel %}
+      <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#cancelBox">
+        <i class="ri-close-circle-line"></i> Cancel
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if grn.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> Goods receipt cancelled.{% if grn.cancel_reason %} {{ grn.cancel_reason }}{% endif %}</div>
+{% elif grn.status == 'posted' %}
+<div class="alert alert-success"><i class="ri-checkbox-circle-line"></i> Accepted quantities posted to {{ po.po_number }}{% if grn.posted_at %} on {{ grn.posted_at|date:"M d, Y H:i" }}{% endif %}.</div>
+{% elif grn.status == 'inspected' %}
+<div class="alert alert-warning"><i class="ri-search-eye-line"></i> Inspection recorded — review the accepted/rejected split, then post to the PO.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-information-line"></i> Overview</span>
+        {% if can_manage and grn.is_editable %}
+        <a href="{% url 'goods_receipt:grn_edit' grn.pk %}" class="btn btn-sm btn-outline-secondary">
+          <i class="ri-edit-line"></i> Edit
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Purchase order</small><a href="{% url 'purchase_orders:po_detail' po.pk %}">{{ po.po_number }}</a></div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Vendor</small>{{ grn.vendor.legal_name }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Shipment</small>{% if grn.shipment %}<a href="{% url 'fulfillment:shipment_detail' grn.shipment.pk %}">{{ grn.shipment.shipment_number }}</a>{% else %}—{% endif %}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Received date</small>{{ grn.received_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Delivery note #</small>{{ grn.delivery_note_ref|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Warehouse / location</small>{{ grn.warehouse_location|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Inspection result</small>{% if grn.inspection_result %}<span class="badge badge-soft-secondary">{{ grn.get_inspection_result_display }}</span>{% else %}—{% endif %}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Received by</small>{{ grn.received_by|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Inspected by</small>{{ grn.inspected_by|default:"—" }}</div>
+          {% if grn.notes %}<div class="col-12 mb-2"><small class="text-muted d-block">Notes</small><span style="white-space:pre-wrap">{{ grn.notes }}</span></div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mark received -->
+    {% if can_manage and grn.can_receive %}
+    <div class="collapse mb-3" id="receiveBox">
+      <div class="card border-primary">
+        <div class="card-header bg-primary-subtle"><i class="ri-inbox-archive-line"></i> Mark Received</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'goods_receipt:grn_receive' grn.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-5">
+              <label class="form-label small">Received date</label>
+              <input type="date" name="received_date" class="form-control" value="{{ grn.received_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary w-100"><i class="ri-check-line"></i> Confirm received</button>
+            </div>
+          </form>
+          <p class="small text-muted mt-2 mb-0">Add the received lines below before marking the GRN received.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Inspection panel -->
+    {% if can_manage and grn.can_inspect %}
+    <div class="collapse mb-3" id="inspectBox">
+      <div class="card border-warning">
+        <div class="card-header bg-warning-subtle"><i class="ri-search-eye-line"></i> Quality Inspection</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'goods_receipt:grn_inspect' grn.pk %}">
+            {% csrf_token %}
+            <h6 class="mb-2">QA checklist</h6>
+            <div class="table-responsive mb-3">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Criterion</th><th style="width:160px">Result</th><th>Note</th></tr></thead>
+                <tbody>
+                  {% for row in qa_rows %}
+                  <tr>
+                    <td>{{ row.label }}</td>
+                    <td>
+                      <select name="check_{{ row.key }}" class="form-select form-select-sm">
+                        {% for rk, rl in check_result_choices %}
+                        <option value="{{ rk }}" {% if row.result == rk or not row.result and rk == 'pass' %}selected{% endif %}>{{ rl }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input type="text" name="checknote_{{ row.key }}" class="form-control form-control-sm" value="{{ row.note }}" placeholder="Optional"></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <h6 class="mb-2">Per-line accept / reject</h6>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr><th>#</th><th>Description</th><th class="text-end">Received</th><th style="width:120px" class="text-end">Accepted</th><th style="width:120px" class="text-end">Rejected</th><th style="width:150px">Discrepancy</th><th>Reason</th></tr>
+                </thead>
+                <tbody>
+                  {% for line in lines %}
+                  <tr>
+                    <td>{{ line.line_no }}</td>
+                    <td>{{ line.description }}</td>
+                    <td class="text-end">{{ line.received_quantity|floatformat:2 }}</td>
+                    <td><input type="number" name="accepted_{{ line.id }}" class="form-control form-control-sm text-end" value="{{ line.received_quantity|floatformat:2 }}" step="0.01" min="0"></td>
+                    <td><input type="number" name="rejected_{{ line.id }}" class="form-control form-control-sm text-end" value="0.00" step="0.01" min="0"></td>
+                    <td>
+                      <select name="discrepancy_{{ line.id }}" class="form-select form-select-sm">
+                        {% for dk, dl in discrepancy_choices %}
+                        <option value="{{ dk }}" {% if line.discrepancy_type == dk %}selected{% endif %}>{{ dl }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input type="text" name="reason_{{ line.id }}" class="form-control form-control-sm" placeholder="If rejected"></td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="7" class="text-center text-muted py-2">No line items to inspect.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-3">
+              <label class="form-label small">Inspection note</label>
+              <input type="text" name="inspection_note" class="form-control" placeholder="Optional summary">
+            </div>
+            <button class="btn btn-warning mt-3"><i class="ri-check-double-line"></i> Record inspection</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Cancel -->
+    {% if can_manage and grn.can_cancel %}
+    <div class="collapse mb-3" id="cancelBox">
+      <div class="card border-danger">
+        <div class="card-header bg-danger-subtle"><i class="ri-close-circle-line"></i> Cancel Goods Receipt</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'goods_receipt:grn_cancel' grn.pk %}" onsubmit="return confirm('Cancel this goods receipt?');">
+            {% csrf_token %}
+            <label class="form-label small">Reason</label>
+            <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Why are you cancelling?" required></textarea>
+            <button class="btn btn-danger"><i class="ri-close-circle-line"></i> Confirm cancel</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Line items -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Received Lines ({{ lines|length }})</span>
+        {% if can_manage and grn.is_editable %}
+        <a href="{% url 'goods_receipt:line_add' grn.pk %}" class="btn btn-sm btn-outline-primary">Add line</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th>PO line</th><th>UoM</th>
+              <th class="text-end">Received</th><th class="text-end">Accepted</th>
+              <th class="text-end">Rejected</th><th class="text-end">Posted</th>
+              <th>Discrepancy</th><th>Status</th><th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+            <tr>
+              <td>{{ line.line_no }}</td>
+              <td>{{ line.description }}</td>
+              <td>PO line {{ line.purchase_order_line.line_no }}</td>
+              <td>{{ line.uom }}</td>
+              <td class="text-end">{{ line.received_quantity|floatformat:2 }}</td>
+              <td class="text-end">{{ line.accepted_quantity|floatformat:2 }}</td>
+              <td class="text-end">{% if line.rejected_quantity %}<span class="text-danger">{{ line.rejected_quantity|floatformat:2 }}</span>{% else %}0.00{% endif %}</td>
+              <td class="text-end">{{ line.posted_quantity|floatformat:2 }}</td>
+              <td>{% if line.discrepancy_type != 'none' %}<span class="badge badge-soft-danger">{{ line.get_discrepancy_type_display }}</span>{% else %}—{% endif %}</td>
+              <td><span class="badge badge-soft-secondary">{{ line.get_line_status_display }}</span></td>
+              <td class="text-end">
+                {% if can_manage and grn.is_editable %}
+                <a href="{% url 'goods_receipt:line_edit' grn.pk line.id %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'goods_receipt:line_delete' grn.pk line.id %}" class="d-inline" onsubmit="return confirm('Delete line?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="11" class="text-center text-muted py-3">No received lines.{% if can_manage and grn.is_editable %} <a href="{% url 'goods_receipt:line_add' grn.pk %}">Add one</a>.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- QA checklist results -->
+    {% if has_checks %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-checkbox-multiple-line"></i> QA Checklist</div>
+      <ul class="list-group list-group-flush">
+        {% for row in qa_rows %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ row.label }}{% if row.note %}<span class="text-muted small"> · {{ row.note }}</span>{% endif %}</span>
+          {% if row.result == 'pass' %}<span class="badge badge-soft-success">Pass</span>
+          {% elif row.result == 'fail' %}<span class="badge badge-soft-danger">Fail</span>
+          {% elif row.result == 'na' %}<span class="badge badge-soft-secondary">N/A</span>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Returns to vendor -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-arrow-go-back-line"></i> Returns to Vendor</span>
+        {% if can_manage and grn.has_rejections %}
+        <a href="{% url 'goods_receipt:rtv_create' grn.pk %}" class="btn btn-sm btn-outline-danger">Return rejected items</a>
+        {% endif %}
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for rtv in returns %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a href="{% url 'goods_receipt:rtv_detail' rtv.pk %}" class="text-decoration-none">{{ rtv.rtv_number }}</a>
+          <span><span class="badge badge-soft-secondary">{{ rtv.get_status_display }}</span> <span class="small text-muted ms-2">{{ rtv.total_quantity|floatformat:2 }} unit(s)</span></span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No returns raised.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Tags -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-barcode-line"></i> Receipt Tags ({{ tags|length }})</span>
+        <div class="d-flex gap-2">
+          {% if tags %}<a href="{% url 'goods_receipt:tags_print' grn.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="ri-printer-line"></i> Print labels</a>{% endif %}
+          {% if can_manage and grn.status == 'posted' %}
+          <form method="post" action="{% url 'goods_receipt:grn_generate_tags' grn.pk %}">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="ri-refresh-line"></i> Generate</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Code</th><th>Line</th><th class="text-end">Qty</th></tr></thead>
+          <tbody>
+            {% for tag in tags %}
+            <tr><td><code>{{ tag.code }}</code></td><td>{{ tag.goods_receipt_line.description }}</td><td class="text-end">{{ tag.quantity|floatformat:2 }} {{ tag.uom }}</td></tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-2">No tags yet. Tags are generated when the GRN is posted.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Status timeline -->
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Status Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for e in status_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{% include 'goods_receipt/_status_badge.html' with status=e.status %} {{ e.note }}</span>
+          <span class="small text-muted">{{ e.actor|default:"system" }} · {{ e.created_at|date:"M d, Y H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Summary</div>
+      <div class="card-body">
+        <div class="mb-2"><small class="text-muted d-block">Status</small>{% include 'goods_receipt/_status_badge.html' with status=grn.status %}</div>
+        <div class="mb-2"><small class="text-muted d-block">Received</small>{{ grn.total_received_qty|floatformat:2 }}</div>
+        <div class="mb-2"><small class="text-muted d-block">Accepted</small><span class="text-success">{{ grn.total_accepted_qty|floatformat:2 }}</span></div>
+        <div class="mb-2"><small class="text-muted d-block">Rejected</small><span class="text-danger">{{ grn.total_rejected_qty|floatformat:2 }}</span></div>
+        <a href="{% url 'goods_receipt:grn_list' %}" class="btn btn-link w-100 px-0 text-start">Back to list</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
