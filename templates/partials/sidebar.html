@@ -169,6 +169,34 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbFulfillment" role="button" aria-expanded="false">
+          <i class="ri-truck-line"></i> <span class="flex-grow-1">Fulfillment</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbFulfillment">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_list' %}">Shipments</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_create' %}">New Shipment</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:tracking_board' %}">Tracking Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:backorder_board' %}">Backorders</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbGoodsReceipt" role="button" aria-expanded="false">
+          <i class="ri-inbox-archive-line"></i> <span class="flex-grow-1">Goods Receipt</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbGoodsReceipt">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'goods_receipt:grn_list' %}">All Goods Receipts</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'goods_receipt:grn_create' %}">New Goods Receipt</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'goods_receipt:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
