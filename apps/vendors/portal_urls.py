@@ -12,6 +12,8 @@ from apps.auctions import portal_views as auctions_portal
 from apps.contracts import portal_views as contracts_portal
 from apps.catalog import portal_views as catalog_portal
 from apps.purchase_orders import portal_views as po_portal
+from apps.fulfillment import portal_views as fulfillment_portal
+from apps.goods_receipt import portal_views as goods_receipt_portal
 
 app_name = 'vendor_portal'
 
@@ -92,6 +94,28 @@ urlpatterns = [
          name='contract_sign'),
     path('sign/<str:token>/decline/', contracts_portal.portal_sign_decline,
          name='contract_sign_decline'),
+
+    # Module 12 — Order Fulfillment & Tracking (vendor-side: ASN)
+    path('shipments/', fulfillment_portal.portal_shipment_list, name='shipments'),
+    path('shipments/new/', fulfillment_portal.portal_asn_create, name='asn_create'),
+    path('shipments/<int:pk>/', fulfillment_portal.portal_shipment_detail,
+         name='shipment_detail'),
+    path('shipments/<int:pk>/edit/', fulfillment_portal.portal_asn_edit,
+         name='asn_edit'),
+    path('shipments/<int:pk>/advise/', fulfillment_portal.portal_asn_advise,
+         name='asn_advise'),
+    path('shipments/<int:pk>/lines/add/', fulfillment_portal.portal_asn_line_add,
+         name='asn_line_add'),
+    path('shipments/<int:pk>/lines/<int:line_pk>/edit/',
+         fulfillment_portal.portal_asn_line_edit, name='asn_line_edit'),
+    path('shipments/<int:pk>/lines/<int:line_pk>/delete/',
+         fulfillment_portal.portal_asn_line_delete, name='asn_line_delete'),
+
+    # Module 13 — Goods Receipt & Inspection (vendor-side: Return to Vendor)
+    path('returns/', goods_receipt_portal.portal_rtv_list, name='returns'),
+    path('returns/<int:pk>/', goods_receipt_portal.portal_rtv_detail, name='rtv_detail'),
+    path('returns/<int:pk>/acknowledge/', goods_receipt_portal.portal_rtv_acknowledge,
+         name='rtv_acknowledge'),
 
     # Module 10 — Catalog Management (vendor-side: supplier catalog hosting)
     path('catalog/', catalog_portal.portal_catalog_list, name='catalog_items'),
