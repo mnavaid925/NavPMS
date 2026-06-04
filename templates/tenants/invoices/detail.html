@@ -30,7 +30,7 @@
             <small class="text-muted">Due {{ invoice.due_at|date:'M d, Y'|default:'on receipt' }}</small>
           </div>
           <div class="text-end">
-            <span class="badge badge-soft-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'overdue' %}danger{% elif invoice.status == 'sent' %}warning{% else %}secondary{% endif %} fs-6">
+            <span class="badge badge-soft-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'overdue' %}danger{% elif invoice.status == 'sent' %}warning{% elif invoice.status == 'void' or invoice.status == 'refunded' %}secondary{% else %}info{% endif %} fs-6">
               {{ invoice.get_status_display|upper }}
             </span>
           </div>
