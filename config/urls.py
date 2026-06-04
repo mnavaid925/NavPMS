@@ -20,6 +20,8 @@ urlpatterns = [
     path('contracts/', include('apps.contracts.urls')),
     path('catalog/', include('apps.catalog.urls')),
     path('purchase-orders/', include('apps.purchase_orders.urls')),
+    path('fulfillment/', include('apps.fulfillment.urls')),
+    path('goods-receipt/', include('apps.goods_receipt.urls')),
 ]
 
 if settings.DEBUG:
