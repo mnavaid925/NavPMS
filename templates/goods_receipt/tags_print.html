@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Tags · {{ grn.grn_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tag-sheet { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }
+  .receipt-tag { border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; }
+  .receipt-tag .tag-meta { font-size:12px; color:#475569; }
+  .receipt-tag .tag-code { font-family:monospace; font-weight:600; font-size:13px; }
+  @media print {
+    .app-sidebar, .app-topbar, .page-header .btn, .no-print { display:none !important; }
+    .app-main { margin:0 !important; }
+    .receipt-tag { break-inside:avoid; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Receipt Tags</h1>
+    <p class="page-subtitle">{{ grn.grn_number }} · {{ grn.purchase_order.po_number }} · {{ grn.vendor.legal_name }}</p>
+  </div>
+  <div class="d-flex gap-2 no-print">
+    <button onclick="window.print()" class="btn btn-primary"><i class="ri-printer-line"></i> Print</button>
+    <a href="{% url 'goods_receipt:grn_detail' grn.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if tags %}
+    <div class="tag-sheet">
+      {% for tag in tags %}
+      <div class="receipt-tag">
+        <div class="tag-meta">{{ grn.vendor.legal_name }} · {{ grn.purchase_order.po_number }}</div>
+        <div class="mb-1">{{ tag.goods_receipt_line.description }}</div>
+        <svg class="js-barcode" data-code="{{ tag.code }}"></svg>
+        <div class="d-flex justify-content-between align-items-center mt-1">
+          <span class="tag-code">{{ tag.code }}</span>
+          <span class="tag-meta">Qty: {{ tag.quantity|floatformat:2 }} {{ tag.uom }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">No tags to print. Tags are generated when the goods receipt is posted.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+  document.querySelectorAll('svg.js-barcode').forEach(function (el) {
+    try {
+      JsBarcode(el, el.getAttribute('data-code'), {
+        format: 'CODE128', height: 48, fontSize: 12, margin: 4, displayValue: false,
+      });
+    } catch (e) { /* leave the code text below the SVG as the fallback */ }
+  });
+</script>
+{% endblock %}
