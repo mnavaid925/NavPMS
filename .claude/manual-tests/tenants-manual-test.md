@@ -107,7 +107,7 @@ Login page: `/accounts/login/`.
 
 | ID | Title | Pre-condition | Steps | Test Data | Expected Result | Pass/Fail | Notes |
 |---|---|---|---|---|---|---|---|
-| TC-CREATE-01 | Onboarding — full flow | Logged out | 1. `/tenants/onboarding/` → click through to Company step<br>2. Fill company form, submit<br>3. Pick a plan + billing cycle, submit<br>4. Land on Complete | `Name: Delta Test, Email: d@delta.test` | "Complete" screen renders with the new tenant. DB now has a `Tenant`, a `Subscription` (created as **trial** then overridden to the chosen plan/cycle), plus default `BrandingSettings` + `SecuritySettings` and a `tenant.trial_started` audit row. | | **No user account** is created — you cannot log into the new tenant. |
+| TC-CREATE-01 | Onboarding — full flow | Logged out | 1. `/tenants/onboarding/` → click through to Company step<br>2. Fill company form, submit<br>3. Pick a plan + billing cycle, submit<br>4. Land on **Review & confirm** page<br>5. Click **Create my workspace** | `Name: Delta Test, Email: d@delta.test` | Step 4 shows a read-only review (company + plan) and creates **nothing** yet (GET is side-effect-free). Step 5 POSTs and renders the "Tenant created!" screen. DB now has a `Tenant`, a **trial** `Subscription` on the **chosen** plan whose `current_period_end == trial_ends_at` (trial window, not a full paid cycle), plus default `BrandingSettings` + `SecuritySettings` and a `tenant.trial_started` audit row. | | Creation is POST-only now. **No user account** is created — you cannot log into the new tenant. |
 | TC-CREATE-02 | Onboarding — validation error | Logged out | 1. Visit `/tenants/onboarding/company/`<br>2. Clear **Name**, submit | Name blank | Form re-renders on the Company step with a "This field is required." error under Name. No tenant created. | | `name` is the only hard-required field. |
 | TC-CREATE-03 | Onboarding — skip-ahead guard | Logged out (fresh session) | Visit `/tenants/onboarding/plan/` directly without doing the Company step | — | Redirected back to `/tenants/onboarding/company/` (session has no `onboarding_company`). | | |
 | TC-CREATE-04 | Super-admin create Plan | Logged in as `admin` | 1. `/tenants/plans/` → **+ New plan**<br>2. Fill form, Save | `Name: Custom, Slug: custom, Monthly: 5, Yearly: 50` | Redirect to Plans list, green toast **"Plan \"Custom\" created."**, new row visible. | | |
@@ -196,10 +196,10 @@ Login page: `/accounts/login/`.
 
 ## 5. Bug Log
 
-| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Screenshot | Browser |
+| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Status | Browser |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
-| | | | | | | | | |
+| BUG-01 | TC-UI-01 | High | `/tenants/monitoring/` | Open the monitoring dashboard; the four Chart.js series were injected with `{{ series_*\|safe }}` straight into the `<script>` block. | Chart data passed as JSON via `json_script` + `JSON.parse` (project standard; no XSS surface, no JS console error). | Raw Python `repr` of a list-of-dicts (single-quoted) was emitted into JS — valid-by-accident for seeded floats, but an injection vector and a violation of the repo's own `json_script` rule. | **Fixed** — `templates/tenants/monitoring/dashboard.html` now uses `json_script` for all four series + a `readSeries()` `JSON.parse` helper. | n/a (source) |
+| BUG-02 | TC-UI-02 | Low | `/tenants/invoices/<pk>/` | Open a **Draft**/**Void**/**Refunded** invoice detail page and compare the status badge colour to the list page. | Draft = blue (`info`), Void/Refunded = grey (`secondary`) — same map as the list. | Detail badge collapsed Draft/Void/Refunded all to grey (no `info` branch). | **Fixed** — `templates/tenants/invoices/detail.html` badge now mirrors the list's full status→colour map. | n/a (source) |
 
 ---
 
@@ -222,5 +222,10 @@ Login page: `/accounts/login/`.
 | 4.13 Negative/Edge | 3 | | | | |
 | **Total** | **45** | | | | |
 
-**Release Recommendation:** `[ GO / NO-GO / GO-with-fixes ]`
-**Rationale:** __________________________________________________________________
+**Release Recommendation:** `GO-with-fixes` (fixes applied 2026-06-05)
+**Rationale:** Source-level audit of all 45 cases found 2 defects — both now fixed and
+verified: BUG-01 (High, chart `\|safe` → `json_script`) and BUG-02 (Low, invoice detail
+badge colour map). Automated tenants suite: **54 passed**. Permissions, multi-tenant IDOR
+redirects/404s, filters, seed counts (3 invoices / 25 audit logs / 120 health metrics per
+tenant) all confirmed correct. Remaining Pass/Fail columns need a human click-through for
+visual/JS-console items (TC-UI-01 chart render, TC-PAGE-01 timing).
