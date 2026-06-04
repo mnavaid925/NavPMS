@@ -64,6 +64,8 @@
     <div class="small-label">Orders &amp; Payments</div>
     <a class="nav-link {% if request.resolver_match.url_name == 'purchase_orders' %}active{% endif %}"
        href="{% url 'vendor_portal:purchase_orders' %}"><i class="ri-shopping-bag-line"></i> Purchase Orders</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'returns' or request.resolver_match.url_name == 'rtv_detail' %}active{% endif %}"
+       href="{% url 'vendor_portal:returns' %}"><i class="ri-arrow-go-back-line"></i> Returns to Vendor</a>
     <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}"
        href="{% url 'vendor_portal:invoices' %}"><i class="ri-bill-line"></i> Invoices</a>
     <hr>
