@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Fulfillment Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Fulfillment Analytics</h1>
+  <p class="page-subtitle">Shipment and delivery activity across the tenant</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total shipments</div>
+      <div class="stat-value">{{ metrics.total_shipments }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">In flight</div>
+      <div class="stat-value">{{ metrics.in_flight }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Overdue delivery</div>
+      <div class="stat-value text-danger">{{ metrics.overdue_delivery }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">On-time %</div>
+      <div class="stat-value">{{ metrics.on_time_pct|floatformat:0 }}%</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Split-delivery POs</div>
+      <div class="stat-value">{{ metrics.split_pos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Open backorders</div>
+      <div class="stat-value">{{ metrics.open_backorders }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Freight spend</div>
+      <div class="stat-value">{{ metrics.freight_spend|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Delivered</div>
+      <div class="stat-value">{{ metrics.delivered }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-bar-chart-grouped-line"></i> Shipments by status</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Status</th><th class="text-end">Count</th></tr></thead>
+          <tbody>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='draft' %}</td><td class="text-end">{{ metrics.draft }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='advised' %}</td><td class="text-end">{{ metrics.advised }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='in_transit' %}</td><td class="text-end">{{ metrics.in_transit }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='out_for_delivery' %}</td><td class="text-end">{{ metrics.out_for_delivery }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='delivered' %}</td><td class="text-end">{{ metrics.delivered }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='received' %}</td><td class="text-end">{{ metrics.received }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='closed' %}</td><td class="text-end">{{ metrics.closed }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='cancelled' %}</td><td class="text-end">{{ metrics.cancelled }}</td></tr>
+            <tr><td>{% include 'fulfillment/_status_badge.html' with status='exception' %}</td><td class="text-end">{{ metrics.exception }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-truck-line"></i> Top carriers</div>
+      <ul class="list-group list-group-flush">
+        {% for c in metrics.top_carriers %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{{ c.carrier|default:"—" }}</span>
+          <span><span class="badge badge-soft-primary">{{ c.n }}</span></span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No shipments.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent shipments</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Shipment</th><th>PO</th><th>Vendor</th><th>Status</th><th>ETA</th></tr></thead>
+          <tbody>
+            {% for s in recent_shipments %}
+            <tr>
+              <td><a href="{% url 'fulfillment:shipment_detail' s.pk %}" class="text-decoration-none">{{ s.shipment_number }}</a></td>
+              <td>{% if s.purchase_order %}<a href="{% url 'purchase_orders:po_detail' s.purchase_order.pk %}" class="text-decoration-none">{{ s.purchase_order.po_number }}</a>{% else %}—{% endif %}</td>
+              <td>{{ s.vendor.legal_name|default:"—" }}</td>
+              <td>{% include 'fulfillment/_status_badge.html' with status=s.status %}</td>
+              <td>{{ s.estimated_delivery_date|date:"M d, Y"|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No shipments yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
