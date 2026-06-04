@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ shipment.shipment_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ shipment.shipment_number }}</h1>
+      <p class="page-subtitle">
+        <a href="{% url 'purchase_orders:po_detail' po.pk %}" class="badge bg-light text-dark text-decoration-none">{{ po.po_number }}</a>
+        {% include 'fulfillment/_status_badge.html' with status=shipment.status %}
+        <span class="text-muted ms-2">{{ shipment.vendor.legal_name }}</span>
+      </p>
+    </div>
+    {% if can_manage %}
+    <div class="d-flex gap-2">
+      {% if shipment.can_advise %}
+      <form method="post" action="{% url 'fulfillment:shipment_advise' shipment.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-primary"><i class="ri-send-plane-line"></i> Send ASN</button>
+      </form>
+      {% endif %}
+      {% if shipment.can_track and shipment.tracking_number %}
+      <form method="post" action="{% url 'fulfillment:shipment_sync_tracking' shipment.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary"><i class="ri-refresh-line"></i> Sync tracking</button>
+      </form>
+      {% endif %}
+      {% if shipment.can_confirm_delivery %}
+      <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#confirmBox">
+        <i class="ri-check-double-line"></i> Confirm delivery
+      </button>
+      {% endif %}
+      {% if shipment.can_cancel %}
+      <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#cancelBox">
+        <i class="ri-close-circle-line"></i> Cancel
+      </button>
+      {% endif %}
+      {% if shipment.can_close %}
+      <form method="post" action="{% url 'fulfillment:shipment_close' shipment.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-dark"><i class="ri-archive-line"></i> Close</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if shipment.status == 'cancelled' %}
+<div class="alert alert-secondary"><i class="ri-close-circle-line"></i> Shipment cancelled.</div>
+{% elif shipment.status == 'exception' %}
+<div class="alert alert-danger"><i class="ri-error-warning-line"></i> Delivery exception — review tracking.</div>
+{% elif shipment.status == 'delivered' or shipment.status == 'received' %}
+<div class="alert alert-success"><i class="ri-checkbox-circle-line"></i> Delivered{% if shipment.delivered_at %} on {{ shipment.delivered_at|date:"M d, Y H:i" }}{% endif %}.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-truck-line"></i> Overview</span>
+        {% if can_manage and shipment.is_editable %}
+        <a href="{% url 'fulfillment:shipment_edit' shipment.pk %}" class="btn btn-sm btn-outline-secondary">
+          <i class="ri-edit-line"></i> Edit
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Carrier</small>{{ shipment.carrier|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Carrier code</small>{{ shipment.carrier_code|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Service level</small>{{ shipment.service_level|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Tracking number</small>{{ shipment.tracking_number|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Freight status</small>{{ shipment.freight_status|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Freight cost</small>{{ shipment.freight_cost|floatformat:2|intcomma|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Ship date</small>{{ shipment.ship_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Estimated delivery</small>{{ shipment.estimated_delivery_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Actual delivery</small>{{ shipment.actual_delivery_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Package count</small>{{ shipment.package_count|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Total weight</small>{{ shipment.total_weight|floatformat:2|default:"—" }}{% if shipment.total_weight %} {{ shipment.weight_uom }}{% endif %}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Packing slip #</small>{{ shipment.packing_slip_number|default:"—" }}</div>
+          {% if shipment.status == 'delivered' or shipment.status == 'received' %}
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Received condition</small>{{ shipment.get_received_condition_display|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Delivered at</small>{{ shipment.delivered_at|date:"M d, Y H:i"|default:"—" }}</div>
+          {% endif %}
+          {% if shipment.packing_note %}
+          <div class="col-12 mb-2"><small class="text-muted d-block">Packing note</small><span style="white-space:pre-wrap">{{ shipment.packing_note }}</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm delivery -->
+    {% if can_manage and shipment.can_confirm_delivery %}
+    <div class="collapse mb-3" id="confirmBox">
+      <div class="card border-success">
+        <div class="card-header bg-success-subtle"><i class="ri-check-double-line"></i> Confirm Delivery</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'fulfillment:shipment_confirm_delivery' shipment.pk %}">
+            {% csrf_token %}
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small">Delivered at</label>
+                {{ confirm_form.delivered_at }}
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">Received condition</label>
+                {{ confirm_form.received_condition }}
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  {{ confirm_form.post_receipt }}
+                  <label class="form-check-label small">Post receipt</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small">Note</label>
+                {{ confirm_form.note }}
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Shipped</th><th class="text-end" style="width:160px">Received qty</th></tr>
+                </thead>
+                <tbody>
+                  {% for line in lines %}
+                  <tr>
+                    <td>{{ line.line_no }}</td>
+                    <td>{{ line.description }}</td>
+                    <td>{{ line.uom }}</td>
+                    <td class="text-end">{{ line.shipped_quantity|floatformat:2 }}</td>
+                    <td class="text-end">
+                      <input type="number" name="recv_{{ line.id }}" class="form-control form-control-sm text-end"
+                             value="{{ line.shipped_quantity|floatformat:2 }}" step="0.01" min="0">
+                    </td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="5" class="text-center text-muted py-2">No line items.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <button class="btn btn-success mt-3"><i class="ri-check-double-line"></i> Confirm delivery</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Cancel -->
+    {% if can_manage and shipment.can_cancel %}
+    <div class="collapse mb-3" id="cancelBox">
+      <div class="card border-danger">
+        <div class="card-header bg-danger-subtle"><i class="ri-close-circle-line"></i> Cancel Shipment</div>
+        <div class="card-body">
+          <form method="post" action="{% url 'fulfillment:shipment_cancel' shipment.pk %}" onsubmit="return confirm('Cancel this shipment?');">
+            {% csrf_token %}
+            <label class="form-label small">Reason</label>
+            {{ cancel_form.reason }}
+            <button class="btn btn-danger mt-3"><i class="ri-close-circle-line"></i> Confirm cancel</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Line items -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Line Items ({{ lines|length }})</span>
+        {% if can_manage and shipment.is_editable %}
+        <a href="{% url 'fulfillment:line_add' shipment.pk %}" class="btn btn-sm btn-outline-primary">Add line</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th>PO line</th><th>UoM</th>
+              <th class="text-end">Shipped</th><th class="text-end">Received</th><th class="text-end">Posted</th>
+              <th>Status</th><th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+            <tr>
+              <td>{{ line.line_no }}</td>
+              <td>{{ line.description }}</td>
+              <td>PO line {{ line.purchase_order_line.line_no }}</td>
+              <td>{{ line.uom }}</td>
+              <td class="text-end">{{ line.shipped_quantity|floatformat:2 }}</td>
+              <td class="text-end">{{ line.received_quantity|floatformat:2 }}</td>
+              <td class="text-end">{{ line.posted_quantity|floatformat:2 }}</td>
+              <td><span class="badge badge-soft-secondary">{{ line.line_status }}</span></td>
+              <td class="text-end">
+                {% if can_manage and shipment.is_editable %}
+                <a href="{% url 'fulfillment:line_edit' shipment.pk line.id %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'fulfillment:line_delete' shipment.pk line.id %}" class="d-inline" onsubmit="return confirm('Delete line item?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="text-center text-muted py-3">No line items.{% if can_manage and shipment.is_editable %} <a href="{% url 'fulfillment:line_add' shipment.pk %}">Add one</a>.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if shipment.is_editable and remaining_to_ship %}
+      <div class="card-footer small text-muted">
+        Remaining to ship:
+        {% for pol, rem in remaining_to_ship %}
+        <span class="me-2">PO line {{ pol.line_no }}: {{ rem|floatformat:2 }} remaining</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Tracking timeline -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-route-line"></i> Tracking Timeline</span>
+        {% if can_manage and not shipment.is_finished %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#trackBox">Add event</button>
+        {% endif %}
+      </div>
+      {% if can_manage and not shipment.is_finished %}
+      <div class="collapse" id="trackBox">
+        <div class="card-body border-bottom">
+          <form method="post" action="{% url 'fulfillment:tracking_event_add' shipment.pk %}">
+            {% csrf_token %}
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label small">Status code</label>
+                {{ tracking_form.status_code }}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Description</label>
+                {{ tracking_form.description }}
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Location</label>
+                {{ tracking_form.location }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">Occurred at</label>
+                {{ tracking_form.occurred_at }}
+              </div>
+            </div>
+            <button class="btn btn-sm btn-primary mt-2"><i class="ri-add-line"></i> Add event</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      <ul class="list-group list-group-flush">
+        {% for ev in tracking_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>
+            <span class="badge badge-soft-primary">{{ ev.status_code }}</span>
+            {{ ev.description }}
+            {% if ev.location %}<span class="text-muted">· {{ ev.location }}</span>{% endif %}
+          </span>
+          <span class="small text-muted">{{ ev.get_source_display }} · {{ ev.occurred_at|date:"M d, Y H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No tracking events yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Documents -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-attachment-2"></i> Documents</div>
+      <div class="card-body">
+        {% for d in documents %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+          <div>
+            {% if d.file %}<a href="{{ d.file.url }}" target="_blank">{{ d.title|default:d.file.name }}</a>{% else %}{{ d.title }}{% endif %}
+            <span class="badge badge-soft-secondary ms-1">{{ d.get_doc_type_display }}</span>
+            <div class="small text-muted">{{ d.uploaded_by|default:"—" }} · {{ d.uploaded_at|date:"M d, Y H:i" }}</div>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{% url 'fulfillment:document_delete' shipment.pk d.pk %}" onsubmit="return confirm('Remove document?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+          </form>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-muted mb-2">No documents.</p>
+        {% endfor %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'fulfillment:document_add' shipment.pk %}" enctype="multipart/form-data" class="mt-3">
+          {% csrf_token %}
+          {{ document_form.as_p }}
+          <button class="btn btn-outline-primary"><i class="ri-upload-2-line"></i> Upload</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Status timeline -->
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Status Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for e in status_events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span>{% include 'fulfillment/_status_badge.html' with status=e.status %} {{ e.note }}</span>
+          <span class="small text-muted">{{ e.actor|default:"system" }} · {{ e.created_at|date:"M d, Y H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Summary</div>
+      <div class="card-body">
+        <div class="mb-2"><small class="text-muted d-block">Purchase order</small>
+          <a href="{% url 'purchase_orders:po_detail' po.pk %}">{{ po.po_number }}</a>
+        </div>
+        <div class="mb-2"><small class="text-muted d-block">Vendor</small>{{ shipment.vendor.legal_name }}</div>
+        <div class="mb-2"><small class="text-muted d-block">Status</small>{% include 'fulfillment/_status_badge.html' with status=shipment.status %}</div>
+        <a href="{% url 'fulfillment:shipment_list' %}" class="btn btn-link w-100 px-0 text-start">Back to list</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
