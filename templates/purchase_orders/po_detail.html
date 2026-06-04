@@ -272,6 +272,12 @@
           </a>
           {% endif %}
 
+          {% if po.is_dispatched %}
+          <a href="{% url 'goods_receipt:grn_create' %}?from_po={{ po.pk }}" class="btn btn-outline-primary w-100">
+            <i class="ri-inbox-archive-line"></i> Receive goods (GRN)
+          </a>
+          {% endif %}
+
           {% if po.can_close %}
           <button class="btn btn-outline-dark w-100" data-bs-toggle="collapse" data-bs-target="#closeBox">
             <i class="ri-archive-line"></i> Close out
