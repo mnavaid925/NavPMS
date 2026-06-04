@@ -1,15 +1,15 @@
 ---
 name: dump-module
-description: Regenerate the consolidated <NN>_<slug>.txt code dump for one (or all) NavMSM modules into the temp/ folder. The .txt file contains every backend file from apps/<name>/ followed by every frontend template from templates/<name>/, with per-file separators. Use when the user says "dump module X", "regenerate the temp file for X", "extract code for module X", "give me a code dump of X", or invokes /dump-module. The user can pass a module number (1-12), an app folder name (tenants/plm/bom/pps/mrp/mes/qms/inventory/procurement/eam/labor/cost), a friendly name (e.g. "cost", "mes"), or "all" to regenerate every module.
+description: Regenerate the consolidated <NN>_<slug>.txt code dump for one (or all) NavPMS modules into the temp/ folder. The .txt file contains every backend file from apps/<name>/ followed by every frontend template from templates/<name>/, with per-file separators. Use when the user says "dump module X", "regenerate the temp file for X", "extract code for module X", "give me a code dump of X", or invokes /dump-module. The user can pass a module number (1-13), an app folder name (tenants/portal/requisitions/approvals/vendors/sourcing/rfx/auctions/contracts/catalog/purchase_orders/fulfillment/goods_receipt), a friendly name (e.g. "rfx", "fulfillment"), or "all" to regenerate every module.
 ---
 
-# dump-module — NavMSM module code-dump generator
+# dump-module — NavPMS module code-dump generator
 
 This skill regenerates one (or all) of the consolidated `temp\<NN>_<slug>.txt` files that contain a single module's complete backend + frontend source code, for use in code review, hand-off, AI prompts, or archival.
 
 ## When to use
 
-- User says: "dump module X", "regenerate temp file for X", "extract module X code", "give me the .txt for X", "refresh the cost module dump", "rebuild all module dumps"
+- User says: "dump module X", "regenerate temp file for X", "extract module X code", "give me the .txt for X", "refresh the rfx module dump", "rebuild all module dumps"
 - User invokes `/dump-module` (with or without an argument)
 - User explicitly references the `temp/` folder code dumps
 
@@ -26,10 +26,10 @@ The skill takes ONE positional argument — the module identifier. Accepted form
 
 | Form                | Examples                                     |
 |---------------------|----------------------------------------------|
-| Module number       | `1`, `4`, `12`, `01`, `09`                   |
-| App folder name     | `tenants`, `plm`, `bom`, `pps`, `mrp`, `mes`, `qms`, `inventory`, `procurement`, `eam`, `labor`, `cost` |
-| Friendly keyword    | `quality`, `supplier`, `asset`, `workforce`, `accounting` |
-| Bulk                | `all` (or `*`) — regenerates all 12 modules  |
+| Module number       | `1`, `7`, `13`, `01`, `09`                   |
+| App folder name     | `tenants`, `portal`, `requisitions`, `approvals`, `vendors`, `sourcing`, `rfx`, `auctions`, `contracts`, `catalog`, `purchase_orders`, `fulfillment`, `goods_receipt` |
+| Friendly keyword    | `supplier`, `po`, `grn`, `rfq`, `eauction`, `shipping` |
+| Bulk                | `all` (or `*`) — regenerates all 13 modules  |
 
 If the user does NOT specify a module, ask them which one (single-select) before running the script — do not guess.
 
@@ -44,9 +44,9 @@ The skill ships a single PowerShell script: `.claude\skills\dump-module\dump_mod
 Examples:
 
 ```
-& '.claude\skills\dump-module\dump_module.ps1' -Module pps
-& '.claude\skills\dump-module\dump_module.ps1' -Module 12
-& '.claude\skills\dump-module\dump_module.ps1' -Module cost
+& '.claude\skills\dump-module\dump_module.ps1' -Module rfx
+& '.claude\skills\dump-module\dump_module.ps1' -Module 7
+& '.claude\skills\dump-module\dump_module.ps1' -Module fulfillment
 & '.claude\skills\dump-module\dump_module.ps1' -Module all
 ```
 
@@ -91,20 +91,23 @@ FILE: templates\<name>\dashboard.html
 
 ## Module registry (kept in `dump_module.ps1`)
 
-| # | Slug                                        | apps\           | templates\      |
-|---|---------------------------------------------|-----------------|-----------------|
-| 1 | `01_tenant_subscription_management`         | `tenants`       | `tenants`       |
-| 2 | `02_product_lifecycle_management`           | `plm`           | `plm`           |
-| 3 | `03_bill_of_materials`                      | `bom`           | `bom`           |
-| 4 | `04_production_planning_scheduling`         | `pps`           | `pps`           |
-| 5 | `05_material_requirements_planning`         | `mrp`           | `mrp`           |
-| 6 | `06_shop_floor_control_mes`                 | `mes`           | `mes`           |
-| 7 | `07_quality_management`                     | `qms`           | `qms`           |
-| 8 | `08_inventory_warehouse_management`         | `inventory`     | `inventory`     |
-| 9 | `09_procurement_supplier_portal`            | `procurement`   | `procurement`   |
-| 10 | `10_equipment_asset_management`            | `eam`           | `eam`           |
-| 11 | `11_labor_workforce_management`            | `labor`         | `labor`         |
-| 12 | `12_cost_management_accounting`            | `cost`          | `cost`          |
+Real module numbers follow `PMS.md` (the spec's `### N` headers are offset +1 — `### 11` = real Module 12). Modules 14–20 in the spec are not yet built, so they are not in the registry.
+
+| # | Slug                                    | apps\             | templates\        |
+|---|-----------------------------------------|-------------------|-------------------|
+| 1 | `01_tenant_subscription_management`     | `tenants`         | `tenants`         |
+| 2 | `02_user_dashboard_portal`              | `portal`          | `portal`          |
+| 3 | `03_requisition_management`             | `requisitions`    | `requisitions`    |
+| 4 | `04_approval_workflow_engine`           | `approvals`       | `approvals`       |
+| 5 | `05_vendor_management`                  | `vendors`         | `vendors`         |
+| 6 | `06_sourcing_tendering`                 | `sourcing`        | `sourcing`        |
+| 7 | `07_rfx_management`                     | `rfx`             | `rfx`             |
+| 8 | `08_eauction_management`                | `auctions`        | `auctions`        |
+| 9 | `09_contract_management`                | `contracts`       | `contracts`       |
+| 10 | `10_catalog_management`                | `catalog`         | `catalog`         |
+| 11 | `11_purchase_order_management`         | `purchase_orders` | `purchase_orders` |
+| 12 | `12_order_fulfillment_tracking`        | `fulfillment`     | `fulfillment`     |
+| 13 | `13_goods_receipt_inspection`          | `goods_receipt`   | `goods_receipt`   |
 
 If a new module is added to the codebase later, append a row to the `$registry` and `$aliases` blocks in `dump_module.ps1` so this skill can dump it.
 
