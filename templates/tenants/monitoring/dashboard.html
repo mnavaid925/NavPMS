@@ -105,9 +105,18 @@
 {% endblock %}
 
 {% block extra_js %}
+{# SQA: pass chart data via json_script, never |safe into a <script> (XSS / non-JSON repr). #}
+{{ series_users|json_script:"seriesUsers" }}
+{{ series_api_calls|json_script:"seriesApi" }}
+{{ series_storage|json_script:"seriesStorage" }}
+{{ series_sessions|json_script:"seriesSessions" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   (function() {
+    function readSeries(id) {
+      var el = document.getElementById(id);
+      return el ? JSON.parse(el.textContent) : [];
+    }
     function lineChart(id, data, label, color) {
       var el = document.getElementById(id);
       if (!el) return;
@@ -125,10 +134,10 @@
                    scales: { y: { beginAtZero: true } } }
       });
     }
-    lineChart('chartUsers',    {{ series_users|safe }},    'Active users', '#3b5de7');
-    lineChart('chartApi',      {{ series_api_calls|safe }}, 'API calls',    '#22c55e');
-    lineChart('chartStorage',  {{ series_storage|safe }},   'Storage MB',   '#f59e0b');
-    lineChart('chartSessions', {{ series_sessions|safe }},  'Sessions',     '#ef4444');
+    lineChart('chartUsers',    readSeries('seriesUsers'),    'Active users', '#3b5de7');
+    lineChart('chartApi',      readSeries('seriesApi'),      'API calls',    '#22c55e');
+    lineChart('chartStorage',  readSeries('seriesStorage'),  'Storage MB',   '#f59e0b');
+    lineChart('chartSessions', readSeries('seriesSessions'), 'Sessions',     '#ef4444');
   })();
 </script>
 {% endblock %}
