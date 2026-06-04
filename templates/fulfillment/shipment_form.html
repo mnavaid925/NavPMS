@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit Shipment {{ shipment.shipment_number }}{% else %}New Shipment{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{% if is_edit %}Edit Shipment {{ shipment.shipment_number }}{% else %}New Shipment{% endif %}</h1>
+      <p class="page-subtitle">{% if is_edit %}{{ shipment.shipment_number }}{% else %}Create a shipment, then add line items{% endif %}</p>
+    </div>
+    <a href="{% if is_edit %}{% url 'fulfillment:shipment_detail' shipment.pk %}{% else %}{% url 'fulfillment:shipment_list' %}{% endif %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="ri-save-line"></i> Save shipment
+            </button>
+            <a href="{% if is_edit %}{% url 'fulfillment:shipment_detail' shipment.pk %}{% else %}{% url 'fulfillment:shipment_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
