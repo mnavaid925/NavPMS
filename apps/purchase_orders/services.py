@@ -397,6 +397,10 @@ def record_line_receipt(po, line, received_qty, user):
             raise ValidationError('Received quantity must be greater than zero.')
 
         po = PurchaseOrder.all_objects.select_for_update().get(pk=po.pk)
+        # Re-fetch + lock the line in this transaction so two concurrent receipts on the
+        # same line (e.g. two split-delivery shipments confirmed at once) can't lose an
+        # update by both reading a stale received_quantity.
+        line = PurchaseOrderLine.all_objects.select_for_update().get(pk=line.pk)
         new_received = (line.received_quantity or Decimal('0')) + received_qty
         if new_received > (line.quantity or Decimal('0')):
             raise ValidationError(
