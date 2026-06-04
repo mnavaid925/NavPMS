@@ -35,6 +35,8 @@ INSTALLED_APPS = [
     'apps.contracts',
     'apps.catalog',
     'apps.purchase_orders',
+    'apps.fulfillment',
+    'apps.goods_receipt',
 ]
 
 MIDDLEWARE = [
@@ -127,6 +129,13 @@ PAYMENT_GATEWAY = config('PAYMENT_GATEWAY', default='mock')
 # extra hosts the setup URL may target (used for testing against a known host).
 PUNCHOUT_CONNECTOR = config('PUNCHOUT_CONNECTOR', default='cxml')
 PUNCHOUT_SSRF_ALLOWLIST = config('PUNCHOUT_SSRF_ALLOWLIST', default='')
+
+# Module 12 — Order Fulfillment freight tracking. Selects the default carrier
+# connector (mock by default; real carriers wire in via apps/fulfillment/carriers.py)
+# and an optional comma-separated SSRF allowlist of extra hosts a real carrier's
+# tracking endpoint may target.
+FREIGHT_CARRIER = config('FREIGHT_CARRIER', default='mock')
+FREIGHT_TRACKING_ALLOWLIST = config('FREIGHT_TRACKING_ALLOWLIST', default='')
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
