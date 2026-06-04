@@ -1,12 +1,12 @@
 ## dump_module.ps1
 ##
 ## Generates a consolidated <NN>_<slug>.txt file in temp/ containing all backend
-## (apps/<name>/) and frontend (templates/<name>/) code for one module.
+## (apps/<name>/) and frontend (templates/<name>/) code for one NavPMS module.
 ##
 ## Usage:
-##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module pps
-##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module 4
-##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module "cost"
+##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module rfx
+##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module 7
+##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module "fulfillment"
 ##   pwsh .claude\skills\dump-module\dump_module.ps1 -Module all      # regenerates every module
 
 [CmdletBinding()]
@@ -14,34 +14,28 @@ param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string]$Module,
 
-    [string]$RepoRoot = 'c:\xampp\htdocs\NavMSM'
+    [string]$RepoRoot = 'c:\xampp\htdocs\NavPMS'
 )
 
 $ErrorActionPreference = 'Stop'
 
 # -------- Module registry --------
 # key = output file slug; value = @(<apps_folder>, <templates_folder>, <human title>)
+# Real module numbers follow PMS.md (the spec's `### N` headers are offset +1).
 $registry = [ordered]@{
-    '01_tenant_subscription_management' = @('tenants',     'tenants',     '1. Tenant & Subscription Management')
-    '02_product_lifecycle_management'   = @('plm',         'plm',         '2. Product Lifecycle Management (PLM)')
-    '03_bill_of_materials'              = @('bom',         'bom',         '3. Bill of Materials (BOM) Management')
-    '04_production_planning_scheduling' = @('pps',         'pps',         '4. Production Planning & Scheduling')
-    '05_material_requirements_planning' = @('mrp',         'mrp',         '5. Material Requirements Planning (MRP)')
-    '06_shop_floor_control_mes'         = @('mes',         'mes',         '6. Shop Floor Control (MES)')
-    '07_quality_management'             = @('qms',         'qms',         '7. Quality Management (QMS)')
-    '08_inventory_warehouse_management' = @('inventory',   'inventory',   '8. Inventory & Warehouse Management')
-    '09_procurement_supplier_portal'    = @('procurement', 'procurement', '9. Procurement & Supplier Portal')
-    '10_equipment_asset_management'     = @('eam',         'eam',         '10. Equipment & Asset Management (EAM)')
-    '11_labor_workforce_management'     = @('labor',       'labor',       '11. Labor & Workforce Management')
-    '12_cost_management_accounting'     = @('cost',        'cost',        '12. Cost Management & Accounting')
-    '13_compliance_regulatory'          = @('compliance',  'compliance',  '13. Compliance & Regulatory Management')
-    '14_energy_utility_management'      = @('utility',     'utility',     '14. Energy & Utility Management')
-    '15_iot_scada_integration'          = @('iot',         'iot',         '15. IoT & SCADA Integration')
-    '16_business_intelligence_analytics' = @('bi',         'bi',          '16. Business Intelligence & Analytics')
-    '17_sales_customer_order'           = @('sales',       'sales',       '17. Sales & Customer Order Management')
-    '18_returns_rma_management'         = @('rma',         'rma',         '18. Returns & RMA Management')
-    '19_document_knowledge_management'  = @('dms',         'dms',         '19. Document & Knowledge Management')
-    '20_workflow_automation'            = @('wfa',         'wfa',         '20. Workflow & Business Process Automation')
+    '01_tenant_subscription_management' = @('tenants',         'tenants',         '1. Tenant & Subscription Management')
+    '02_user_dashboard_portal'          = @('portal',          'portal',          '2. User Dashboard & Portal')
+    '03_requisition_management'         = @('requisitions',    'requisitions',    '3. Requisition Management')
+    '04_approval_workflow_engine'       = @('approvals',       'approvals',       '4. Approval Workflow Engine')
+    '05_vendor_management'              = @('vendors',         'vendors',         '5. Vendor Management')
+    '06_sourcing_tendering'             = @('sourcing',        'sourcing',        '6. Sourcing & Tendering')
+    '07_rfx_management'                 = @('rfx',             'rfx',             '7. RFx Management (RFI, RFP, RFQ)')
+    '08_eauction_management'            = @('auctions',        'auctions',        '8. E-Auction Management')
+    '09_contract_management'            = @('contracts',       'contracts',       '9. Contract Management')
+    '10_catalog_management'             = @('catalog',         'catalog',         '10. Catalog Management')
+    '11_purchase_order_management'      = @('purchase_orders', 'purchase_orders', '11. Purchase Order (PO) Management')
+    '12_order_fulfillment_tracking'     = @('fulfillment',     'fulfillment',     '12. Order Fulfillment & Tracking')
+    '13_goods_receipt_inspection'       = @('goods_receipt',   'goods_receipt',   '13. Goods Receipt & Inspection')
 }
 
 # Friendly aliases -> registry key
@@ -49,69 +43,61 @@ $aliases = @{
     # numeric
     '1'  = '01_tenant_subscription_management'
     '01' = '01_tenant_subscription_management'
-    '2'  = '02_product_lifecycle_management'
-    '02' = '02_product_lifecycle_management'
-    '3'  = '03_bill_of_materials'
-    '03' = '03_bill_of_materials'
-    '4'  = '04_production_planning_scheduling'
-    '04' = '04_production_planning_scheduling'
-    '5'  = '05_material_requirements_planning'
-    '05' = '05_material_requirements_planning'
-    '6'  = '06_shop_floor_control_mes'
-    '06' = '06_shop_floor_control_mes'
-    '7'  = '07_quality_management'
-    '07' = '07_quality_management'
-    '8'  = '08_inventory_warehouse_management'
-    '08' = '08_inventory_warehouse_management'
-    '9'  = '09_procurement_supplier_portal'
-    '09' = '09_procurement_supplier_portal'
-    '10' = '10_equipment_asset_management'
-    '11' = '11_labor_workforce_management'
-    '12' = '12_cost_management_accounting'
-    '13' = '13_compliance_regulatory'
-    '14' = '14_energy_utility_management'
-    '15' = '15_iot_scada_integration'
-    '16' = '16_business_intelligence_analytics'
-    '17' = '17_sales_customer_order'
-    '18' = '18_returns_rma_management'
-    '19' = '19_document_knowledge_management'
-    '20' = '20_workflow_automation'
+    '2'  = '02_user_dashboard_portal'
+    '02' = '02_user_dashboard_portal'
+    '3'  = '03_requisition_management'
+    '03' = '03_requisition_management'
+    '4'  = '04_approval_workflow_engine'
+    '04' = '04_approval_workflow_engine'
+    '5'  = '05_vendor_management'
+    '05' = '05_vendor_management'
+    '6'  = '06_sourcing_tendering'
+    '06' = '06_sourcing_tendering'
+    '7'  = '07_rfx_management'
+    '07' = '07_rfx_management'
+    '8'  = '08_eauction_management'
+    '08' = '08_eauction_management'
+    '9'  = '09_contract_management'
+    '09' = '09_contract_management'
+    '10' = '10_catalog_management'
+    '11' = '11_purchase_order_management'
+    '12' = '12_order_fulfillment_tracking'
+    '13' = '13_goods_receipt_inspection'
     # app folder names
-    'tenants'     = '01_tenant_subscription_management'
-    'tenant'      = '01_tenant_subscription_management'
-    'plm'         = '02_product_lifecycle_management'
-    'bom'         = '03_bill_of_materials'
-    'pps'         = '04_production_planning_scheduling'
-    'mrp'         = '05_material_requirements_planning'
-    'mes'         = '06_shop_floor_control_mes'
-    'qms'         = '07_quality_management'
-    'quality'     = '07_quality_management'
-    'inventory'   = '08_inventory_warehouse_management'
-    'procurement' = '09_procurement_supplier_portal'
-    'supplier'    = '09_procurement_supplier_portal'
-    'eam'         = '10_equipment_asset_management'
-    'asset'       = '10_equipment_asset_management'
-    'labor'       = '11_labor_workforce_management'
-    'workforce'   = '11_labor_workforce_management'
-    'cost'        = '12_cost_management_accounting'
-    'accounting'  = '12_cost_management_accounting'
-    'compliance'  = '13_compliance_regulatory'
-    'regulatory'  = '13_compliance_regulatory'
-    'utility'     = '14_energy_utility_management'
-    'energy'      = '14_energy_utility_management'
-    'iot'         = '15_iot_scada_integration'
-    'scada'       = '15_iot_scada_integration'
-    'bi'          = '16_business_intelligence_analytics'
-    'analytics'   = '16_business_intelligence_analytics'
-    'sales'       = '17_sales_customer_order'
-    'customer'    = '17_sales_customer_order'
-    'rma'         = '18_returns_rma_management'
-    'returns'     = '18_returns_rma_management'
-    'dms'         = '19_document_knowledge_management'
-    'document'    = '19_document_knowledge_management'
-    'knowledge'   = '19_document_knowledge_management'
-    'wfa'         = '20_workflow_automation'
-    'workflow'    = '20_workflow_automation'
+    'tenants'         = '01_tenant_subscription_management'
+    'tenant'          = '01_tenant_subscription_management'
+    'portal'          = '02_user_dashboard_portal'
+    'dashboard'       = '02_user_dashboard_portal'
+    'requisitions'    = '03_requisition_management'
+    'requisition'     = '03_requisition_management'
+    'pr'              = '03_requisition_management'
+    'approvals'       = '04_approval_workflow_engine'
+    'approval'        = '04_approval_workflow_engine'
+    'vendors'         = '05_vendor_management'
+    'vendor'          = '05_vendor_management'
+    'supplier'        = '05_vendor_management'
+    'sourcing'        = '06_sourcing_tendering'
+    'tendering'       = '06_sourcing_tendering'
+    'rfx'             = '07_rfx_management'
+    'rfi'             = '07_rfx_management'
+    'rfp'             = '07_rfx_management'
+    'rfq'             = '07_rfx_management'
+    'auctions'        = '08_eauction_management'
+    'auction'         = '08_eauction_management'
+    'eauction'        = '08_eauction_management'
+    'contracts'       = '09_contract_management'
+    'contract'        = '09_contract_management'
+    'catalog'         = '10_catalog_management'
+    'purchase_orders' = '11_purchase_order_management'
+    'purchaseorders'  = '11_purchase_order_management'
+    'po'              = '11_purchase_order_management'
+    'fulfillment'     = '12_order_fulfillment_tracking'
+    'fulfilment'      = '12_order_fulfillment_tracking'
+    'shipping'        = '12_order_fulfillment_tracking'
+    'goods_receipt'   = '13_goods_receipt_inspection'
+    'goodsreceipt'    = '13_goods_receipt_inspection'
+    'grn'             = '13_goods_receipt_inspection'
+    'receipt'         = '13_goods_receipt_inspection'
 }
 
 # -------- Resolve which keys to process --------
@@ -143,14 +129,14 @@ if ($targetKeys.Count -eq 0) {
 Unknown module: '$Module'.
 
 Valid identifiers:
-  Number:       1..12  (or 01..12)
-  App folder:   tenants, plm, bom, pps, mrp, mes, qms, inventory, procurement, eam, labor, cost
+  Number:       1..13  (or 01..13)
+  App folder:   tenants, portal, requisitions, approvals, vendors, sourcing, rfx, auctions, contracts, catalog, purchase_orders, fulfillment, goods_receipt
   Special:      all   (regenerate every module)
 
 Examples:
-  pwsh .claude\skills\dump-module\dump_module.ps1 -Module pps
-  pwsh .claude\skills\dump-module\dump_module.ps1 -Module 4
-  pwsh .claude\skills\dump-module\dump_module.ps1 -Module cost
+  pwsh .claude\skills\dump-module\dump_module.ps1 -Module rfx
+  pwsh .claude\skills\dump-module\dump_module.ps1 -Module 7
+  pwsh .claude\skills\dump-module\dump_module.ps1 -Module fulfillment
   pwsh .claude\skills\dump-module\dump_module.ps1 -Module all
 "@
     exit 1
