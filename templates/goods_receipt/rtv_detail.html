@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ rtv.rtv_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ rtv.rtv_number }}</h1>
+      <p class="page-subtitle">
+        <a href="{% url 'goods_receipt:grn_detail' grn.pk %}" class="badge bg-light text-dark text-decoration-none">{{ grn.grn_number }}</a>
+        <span class="badge badge-soft-secondary">{{ rtv.get_status_display }}</span>
+        <span class="text-muted ms-2">{{ rtv.vendor.legal_name }}</span>
+      </p>
+    </div>
+    {% if can_manage %}
+    <div class="d-flex gap-2">
+      {% if rtv.can_authorize %}
+      <form method="post" action="{% url 'goods_receipt:rtv_authorize' rtv.pk %}" onsubmit="return confirm('Authorise this return and notify the supplier?');">
+        {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-line"></i> Authorise</button>
+      </form>
+      {% endif %}
+      {% if rtv.can_ship %}
+      <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#shipBox"><i class="ri-truck-line"></i> Mark shipped</button>
+      {% endif %}
+      {% if rtv.can_close %}
+      <form method="post" action="{% url 'goods_receipt:rtv_close' rtv.pk %}">
+        {% csrf_token %}<button class="btn btn-outline-dark"><i class="ri-archive-line"></i> Close</button>
+      </form>
+      {% endif %}
+      {% if rtv.can_cancel %}
+      <button class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#rtvCancelBox"><i class="ri-close-circle-line"></i> Cancel</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if rtv.acknowledged_at %}
+<div class="alert alert-info"><i class="ri-check-double-line"></i> Acknowledged by the supplier on {{ rtv.acknowledged_at|date:"M d, Y H:i" }}.{% if rtv.acknowledgement_note %} {{ rtv.acknowledgement_note }}{% endif %}</div>
+{% endif %}
+
+{% if can_manage and rtv.can_ship %}
+<div class="collapse mb-3" id="shipBox">
+  <div class="card border-success">
+    <div class="card-header bg-success-subtle"><i class="ri-truck-line"></i> Mark Shipped Back</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'goods_receipt:rtv_ship' rtv.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-5"><label class="form-label small">Carrier</label>{{ ship_form.carrier }}</div>
+        <div class="col-md-5"><label class="form-label small">Tracking number</label>{{ ship_form.tracking_number }}</div>
+        <div class="col-md-2"><button class="btn btn-success w-100">Ship</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_manage and rtv.can_cancel %}
+<div class="collapse mb-3" id="rtvCancelBox">
+  <div class="card border-danger">
+    <div class="card-header bg-danger-subtle"><i class="ri-close-circle-line"></i> Cancel Return</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'goods_receipt:rtv_cancel' rtv.pk %}" onsubmit="return confirm('Cancel this return?');">
+        {% csrf_token %}
+        <label class="form-label small">Reason</label>
+        {{ cancel_form.reason }}
+        <button class="btn btn-danger mt-2"><i class="ri-close-circle-line"></i> Confirm cancel</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Purchase order</small><a href="{% url 'purchase_orders:po_detail' rtv.purchase_order.pk %}">{{ rtv.purchase_order.po_number }}</a></div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">RMA #</small>{{ rtv.rma_number|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Carrier</small>{{ rtv.carrier|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Tracking #</small>{{ rtv.tracking_number|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Authorised</small>{{ rtv.authorized_at|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Shipped</small>{{ rtv.shipped_at|date:"M d, Y"|default:"—" }}</div>
+          {% if rtv.reason %}<div class="col-12 mb-2"><small class="text-muted d-block">Reason</small><span style="white-space:pre-wrap">{{ rtv.reason }}</span></div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Return Lines ({{ lines|length }})</span>
+        {% if can_manage and rtv.is_editable %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#rtvLineBox">Add line</button>
+        {% endif %}
+      </div>
+      {% if can_manage and rtv.is_editable %}
+      <div class="collapse" id="rtvLineBox">
+        <div class="card-body border-bottom">
+          <form method="post" action="{% url 'goods_receipt:rtv_line_add' rtv.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-5"><label class="form-label small">GRN line</label>{{ line_form.goods_receipt_line }}</div>
+            <div class="col-md-3"><label class="form-label small">Quantity</label>{{ line_form.quantity }}</div>
+            <div class="col-md-4"><label class="form-label small">Reason</label>{{ line_form.reason }}</div>
+            <div class="col-12"><button class="btn btn-sm btn-primary mt-2"><i class="ri-add-line"></i> Add line</button></div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>#</th><th>Description</th><th>UoM</th><th class="text-end">Quantity</th><th>Reason</th>{% if can_manage and rtv.is_editable %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for line in lines %}
+            <tr>
+              <td>{{ line.line_no }}</td>
+              <td>{{ line.description }}</td>
+              <td>{{ line.uom }}</td>
+              <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+              <td>{{ line.reason|default:"—" }}</td>
+              {% if can_manage and rtv.is_editable %}
+              <td class="text-end">
+                <form method="post" action="{% url 'goods_receipt:rtv_line_delete' rtv.pk line.id %}" class="d-inline" onsubmit="return confirm('Remove line?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{% if can_manage and rtv.is_editable %}6{% else %}5{% endif %}" class="text-center text-muted py-3">No return lines.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-information-line"></i> Summary</div>
+      <div class="card-body">
+        <div class="mb-2"><small class="text-muted d-block">Status</small><span class="badge badge-soft-secondary">{{ rtv.get_status_display }}</span></div>
+        <div class="mb-2"><small class="text-muted d-block">Total quantity</small>{{ rtv.total_quantity|floatformat:2 }}</div>
+        <div class="mb-2"><small class="text-muted d-block">Source GRN</small><a href="{% url 'goods_receipt:grn_detail' grn.pk %}">{{ grn.grn_number }}</a></div>
+        <a href="{% url 'goods_receipt:grn_detail' grn.pk %}" class="btn btn-link w-100 px-0 text-start">Back to GRN</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
