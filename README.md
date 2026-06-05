@@ -31,7 +31,11 @@ sub-modules: PO Generation, PO Dispatch & Acknowledgment, PO Change Order Manage
 PO Cancellation & Close-out, PO Line Item Tracking), and
 **Module 12 — Order Fulfillment & Tracking** (all five sub-modules: Advanced Shipping
 Notice (ASN), Real-time Freight Tracking, Delivery Confirmation, Backorder Management,
-Split Delivery Management).
+Split Delivery Management), and **Module 13 — Goods Receipt & Inspection** (all five
+sub-modules: GRN Creation, Quality Inspection Checklists, Discrepancy Reporting, Return to
+Vendor, Item Tagging & Barcoding), and **Module 14 — Invoice & Voucher Management** (all
+five sub-modules: Invoice Capture (OCR), Three-Way Matching, Dispute Resolution Workflow,
+Payment Schedule/Terms Management, Early Payment Discount Tracking).
 
 ---
 
@@ -57,11 +61,12 @@ Split Delivery Management).
 19. [Module 11 — Purchase Order Management](#module-11--purchase-order-management)
 20. [Module 12 — Order Fulfillment & Tracking](#module-12--order-fulfillment--tracking)
 21. [Module 13 — Goods Receipt & Inspection](#module-13--goods-receipt--inspection)
-22. [Routes / UI Tour](#routes--ui-tour)
-23. [Multi-tenancy Model](#multi-tenancy-model)
-24. [Payment Gateway](#payment-gateway)
-25. [Browser Compatibility](#browser-compatibility)
-26. [Roadmap](#roadmap)
+22. [Module 14 — Invoice & Voucher Management](#module-14--invoice--voucher-management)
+23. [Routes / UI Tour](#routes--ui-tour)
+24. [Multi-tenancy Model](#multi-tenancy-model)
+25. [Payment Gateway](#payment-gateway)
+26. [Browser Compatibility](#browser-compatibility)
+27. [Roadmap](#roadmap)
 
 ---
 
@@ -122,9 +127,13 @@ NavPMS/
 │   ├── fulfillment/          # Module 12: Shipment (+Line), ShipmentTrackingEvent
 │   │                         # (append-only), Backorder, ShipmentStatusEvent (append-only),
 │   │                         # ShipmentDocument + carriers.py connector registry
-│   └── goods_receipt/        # Module 13: GoodsReceipt (+Line), GoodsReceiptCheck (QA
-│                             # checklist), GoodsReceiptStatusEvent (append-only),
-│                             # ReturnToVendor (+Line), ReceiptTag (barcode/QR)
+│   ├── goods_receipt/        # Module 13: GoodsReceipt (+Line), GoodsReceiptCheck (QA
+│   │                         # checklist), GoodsReceiptStatusEvent (append-only),
+│   │                         # ReturnToVendor (+Line), ReceiptTag (barcode/QR)
+│   └── invoicing/            # Module 14: PaymentTerm, SupplierInvoice (+Line),
+│                             # SupplierInvoiceStatusEvent (append-only), InvoiceDisputeNote
+│                             # (append-only thread), PaymentVoucher (+StatusEvent) +
+│                             # ocr.py pluggable OCR-capture connector registry
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -152,13 +161,17 @@ NavPMS/
 │   │                         # board, category + punch-out + upload pages, analytics
 │   ├── purchase_orders/      # po list/form/detail, change-order + line forms, tracking board,
 │   │                         # analytics
+│   ├── invoicing/            # invoice list/capture(OCR)/form/detail (lines + 3-way match +
+│   │                         # dispute thread + vouchers + timeline), payment-term + voucher
+│   │                         # pages, analytics (AP aging + discount opportunities)
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
 │       ├── auctions/         # Vendor-side auction invitations + live bidding
 │       ├── contracts/        # Vendor-side contracts + tokenized e-signature
 │       ├── catalog/          # Vendor-side catalog list + self-service file uploads
-│       └── purchase_orders/  # Vendor-side PO inbox + acknowledge / decline
+│       ├── purchase_orders/  # Vendor-side PO inbox + acknowledge / decline
+│       └── invoicing/        # Vendor-side invoice submission + dispute thread
 ├── .env                      # Local environment (gitignored)
 ├── .env.example              # Template
 ├── manage.py
@@ -234,6 +247,9 @@ All values are read via `python-decouple` from `.env`.
 | `PUNCHOUT_SSRF_ALLOWLIST` | `` | Comma-separated extra hosts a punch-out setup URL may target (else HTTPS + public-host only). |
 | `FREIGHT_CARRIER` | `mock` | Default freight-tracking carrier connector (real carriers added in `apps/fulfillment/carriers.py`). |
 | `FREIGHT_TRACKING_ALLOWLIST` | `` | Comma-separated extra hosts a real carrier tracking endpoint may target (SSRF allowlist). |
+| `OCR_ENGINE` | `mock` | Default invoice OCR-capture connector (real engines added in `apps/invoicing/ocr.py`). |
+| `INVOICE_QTY_TOLERANCE_PCT` | `2` | Quantity tolerance (%) before a three-way-match line is flagged a variance. |
+| `INVOICE_PRICE_TOLERANCE_PCT` | `2` | Unit-price tolerance (%) before a three-way-match line is flagged a variance. |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -243,7 +259,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -259,12 +275,14 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_purchase_orders` | Creates 8 purchase orders per tenant across every status (draft / issued / acknowledged / partially received / received / closed / cancelled / with an applied change order) plus a 9th generated from the approved requisition. |
 | `python manage.py seed_fulfillment` | Creates 6 shipments per tenant against the dispatched POs (draft ASN / advised + carrier-synced in-transit / delivered + received with receipts posted to the PO / a split-delivery PO with 2 shipments + a backorder / an overdue shipment) — driven through the real services. |
 | `python manage.py seed_goods_receipt` | Creates 5 goods receipts per tenant from the open POs (draft / awaiting inspection / posted-with-tags / mixed accept-reject + Return-to-Vendor / QA-fail) — driven through the real receive→inspect→post services. |
+| `python manage.py seed_invoicing` | Creates 3 payment terms + 7 supplier (AP) invoices per tenant across every status (draft / paid-via-gateway / approved+scheduled-voucher with a live early-payment discount / submitted-with-match-exceptions+overdue / disputed-with-thread / rejected / cancelled) — driven through the real capture→match→approve→pay services. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
 | `python manage.py run_po_alerts` | Raises a one-time reminder for issued POs left unacknowledged and a one-time alert for overdue PO deliveries across all tenants (cron-friendly; the tracking board also sweeps lazily). |
 | `python manage.py run_fulfillment_alerts` | Raises a one-time alert for in-flight shipments past their estimated delivery date and for overdue backorders, and auto-cancels backorders whose PO has finished, across all tenants (cron-friendly; the tracking board also sweeps lazily). |
 | `python manage.py run_goods_receipt_alerts` | Raises a one-time alert for goods receipts left awaiting inspection and for open returns-to-vendor across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
+| `python manage.py run_invoice_alerts` | Raises a one-time alert for approved/submitted invoices past their due date and unpaid, and for invoices whose early-payment discount window is closing, across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -285,7 +303,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/) — **896 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/) — **1042 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -430,6 +448,20 @@ receive → inspect → post services:
   discrepancy, spawning a **Return-to-Vendor** that is authorised and shipped back (visible in
   the supplier's vendor portal under *Returns to Vendor*).
 - **QA-fail** — inspected with a failed QA checklist criterion, left un-posted pending a decision.
+
+### Invoice & Voucher data
+Each tenant gets **3 payment terms** (Net 30, Net 60, 2/10 Net 30) and **7 supplier (AP)
+invoices** built from the dispatched / received POs, driven through the real
+capture → three-way match → approve → pay services:
+- **Draft** — billed against a received PO, not yet submitted.
+- **Paid** — matched, approved, vouchered and **paid through the mock payment gateway**.
+- **Approved + scheduled voucher** — matched, approved, with a scheduled `PaymentVoucher` and a
+  **live early-payment discount opportunity** (2/10 Net 30, discount captured).
+- **Submitted with match exceptions + overdue** — billed above the PO price and back-dated, so it
+  shows a price variance *and* fires the overdue-payment alert.
+- **Disputed** — submitted, queried, with a buyer↔supplier dispute thread (incl. a supplier reply).
+- **Rejected** — submitted then rejected.
+- **Cancelled** — entered then cancelled.
 
 ---
 
@@ -871,6 +903,52 @@ optional `Shipment` FK records which ASN a receipt was booked from **without mod
 
 ---
 
+## Module 14 — Invoice & Voucher Management
+
+The accounts-payable surface ([apps/invoicing/](apps/invoicing/)) — the financial close of the
+procure-to-pay loop: when a supplier's invoice arrives, capture it (OCR), match it against the PO
+and the Goods Receipt, route mismatches through a dispute thread, then approve and pay it via a
+payment voucher under the agreed net terms — capturing early-payment discounts. Mirrors the Module
+11/12/13 conventions (tenant-aware models, append-only timelines).
+
+> **Naming:** `apps.tenants.Invoice` already exists — that is the *SaaS subscription* invoice (the
+> tenant pays the NavPMS platform). This module's invoice is the opposite direction (the tenant pays
+> its *suppliers*), so the model is **`SupplierInvoice`** (`SINV-<SLUG>-NNNNN`) and the payment
+> document is **`PaymentVoucher`** (`VCH-<SLUG>-NNNNN`) — there is no collision.
+
+All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Invoice Capture (OCR)** | `SupplierInvoice` (`SINV-<SLUG>-NNNNN`) + `SupplierInvoiceLine`, with a `source_file` upload and a **pluggable OCR connector registry** ([`apps/invoicing/ocr.py`](apps/invoicing/ocr.py)) modelled on the payment gateway: an `OcrEngine` Protocol + `MockOcrEngine` default selected via `OCR_ENGINE` (real engines — Tesseract/Textract/Vision — drop in with no schema change). `capture_invoice_from_file()` validates the upload (extension **whitelist** + size), runs the engine and drafts the header + lines. Buyers capture from `/invoicing/capture/`; suppliers submit from the vendor portal. |
+| **Three-Way Matching** | `run_three_way_match()` matches every invoice line against its `PurchaseOrderLine` (ordered qty + unit price) and the qty **received & accepted** against the PO (read from `PurchaseOrderLine.received_quantity`, which both the GRN posting and the fulfilment delivery confirmation feed). Per-line `match_status` ∈ {matched / qty_variance / price_variance / over_billed / no_receipt / no_po} with configurable tolerances (`INVOICE_QTY_TOLERANCE_PCT` / `INVOICE_PRICE_TOLERANCE_PCT`); an **over-billing guard** sums already-invoiced qty within this app. The invoice is **read-only** against the PO/GRN — it never re-posts (the GRN already did), so the two can't double-count. |
+| **Dispute Resolution Workflow** | `InvoiceDisputeNote` — an append-only buyer↔supplier message thread — plus the `disputed` status. `raise_dispute()` / `add_dispute_note()` / `resolve_dispute()`. The supplier sees and replies to the thread from the vendor portal (`/vendor-portal/invoices/<id>/`). |
+| **Payment Schedule / Terms Management** | `PaymentTerm` master (net days + early-payment discount %/days, e.g. *2/10 Net 30*). Submitting an invoice derives its `due_date`, `discount_due_date` and `discount_amount` from the term. A `PaymentVoucher` authorises, schedules and pays an approved invoice through the existing **mock payment gateway** ([`apps/tenants/gateways.py`](apps/tenants/gateways.py)) — idempotently (re-paying never double-charges), flipping the invoice to `paid`. |
+| **Early Payment Discount Tracking** | The analytics dashboard (`/invoicing/analytics/`) surfaces every invoice still inside its discount window with the capturable savings, alongside an **AP aging** bar chart (current / 1–30 / 31–60 / 60+) and status breakdown. `scan_invoice_alerts()` raises one-time overdue-payment and closing-discount alerts (cron `run_invoice_alerts` + a lazy sweep on the dashboard). |
+
+**Status workflow:** `draft → submitted → approved → paid`, plus `disputed` (from submitted, back to
+submitted on resolve), `rejected` and `cancelled`. A separate `match_status` (`unmatched / matched /
+exceptions`) is computed on submit; approving an invoice with exceptions requires an explicit
+**override** (recorded). The voucher runs `draft → approved → scheduled → paid` (+ `cancelled`).
+
+**Permission gate:** capture / match / approve / dispute / pay is restricted to roles `tenant_admin`,
+`procurement_manager`, `buyer` (plus Django superuser); analytics additionally allows `approver`.
+Helpers [`can_manage_invoicing`](apps/invoicing/services.py) and
+[`can_view_invoicing`](apps/invoicing/services.py) encapsulate the check.
+
+**Vendor-side gate:** [`invoice_visible_to(user, invoice)`](apps/invoicing/services.py) lets a vendor
+portal user see only their own vendor's invoices, and only once submitted (an internally-entered draft
+is never exposed). Replaces the former Module-14 vendor-portal placeholder.
+
+**Integration with Modules 11 & 13:** the invoice reads the PO line (ordered qty/price) and the
+PO line's `received_quantity` (fed by Module 13's GRN posting and Module 12's delivery confirmation)
+for the three-way match; only `active`/non-blocked vendors can be billed; a nullable `PurchaseOrder`
+FK (and per-line `PurchaseOrderLine` / `GoodsReceiptLine` FKs) record provenance. Concurrency:
+`pay_voucher()` locks the voucher row inside `@transaction.atomic` and re-checks `paid` before calling
+the gateway, so concurrent pay requests serialise (one charges, the rest no-op).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -976,6 +1054,14 @@ optional `Shipment` FK records which ASN a receipt was booked from **without mod
 | `/goods-receipt/<id>/tags/` | Printable barcode/QR labels for the accepted inventory |
 | `/goods-receipt/rtv/<id>/` | Return-to-Vendor detail (authorise → ship → close) |
 | `/goods-receipt/analytics/` | Tenant-wide goods-receipt analytics dashboard |
+| `/invoicing/list/` | Supplier invoices — search + status/match/vendor/PO filters |
+| `/invoicing/capture/` | Capture an invoice from a PDF/image (OCR) — optionally `?from_po=<id>` |
+| `/invoicing/new/` | Enter an invoice manually |
+| `/invoicing/<id>/` | Invoice detail — lines + three-way match, dispute thread, vouchers, timeline + lifecycle (submit / approve / dispute / resolve / reject / cancel) |
+| `/invoicing/<id>/voucher/new/` | Create a payment voucher from an approved invoice |
+| `/invoicing/vouchers/` | Payment vouchers — approve / schedule / **Pay now** (mock gateway) |
+| `/invoicing/terms/` | Payment-term master CRUD (net terms + early-payment discounts) |
+| `/invoicing/analytics/` | AP aging + early-payment discount opportunities dashboard |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -1000,7 +1086,9 @@ optional `Shipment` FK records which ASN a receipt was booked from **without mod
 | `/vendor-portal/shipments/new/` | Raise an ASN against a dispatched PO |
 | `/vendor-portal/shipments/<id>/` | ASN detail + send / edit / line CRUD (while draft) |
 | `/vendor-portal/returns/` | Supplier's Returns-to-Vendor inbox (read-only + acknowledge) |
-| `/vendor-portal/invoices/` | Placeholder for Module 14 |
+| `/vendor-portal/invoices/` | Supplier's invoices inbox |
+| `/vendor-portal/invoices/new/` | Submit an invoice against a dispatched PO (OCR-captured) |
+| `/vendor-portal/invoices/<id>/` | Invoice read-only view + dispute thread reply |
 | `/admin/` | Django admin |
 
 ---
@@ -1039,8 +1127,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–11 and 13 ship (Module 12 Order Fulfillment & Tracking is in the working tree,
-pending its own commit). The remaining PMS modules are not yet implemented:
+Modules 1–14 ship. The remaining PMS modules are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -1057,7 +1144,7 @@ pending its own commit). The remaining PMS modules are not yet implemented:
 | 11 | Purchase Order Management | Shipped |
 | 12 | Order Fulfillment & Tracking | Shipped |
 | 13 | Goods Receipt & Inspection | Shipped |
-| 14 | Invoice & Voucher Management | Planned |
+| 14 | Invoice & Voucher Management | Shipped |
 | 15 | Spend Analytics & Reporting | Planned |
 | 16 | Budget & Cost Management | Planned |
 | 17 | Supplier Performance & Evaluation | Planned |
