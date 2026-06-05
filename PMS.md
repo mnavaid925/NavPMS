@@ -87,11 +87,16 @@ Here is a comprehensive breakdown of a **Procurement Management System** divided
 *   **Split Delivery Management:** Handling single POs that are fulfilled across multiple shipments.
 
 ### 12. Goods Receipt & Inspection
-*   **Goods Receipt Note (GRN) Creation:** Formal logging of received items against the original PO.
-*   **Quality Inspection Checklists:** Forms for quality assurance teams to pass/fail received materials.
-*   **Discrepancy Reporting:** Logging over-shipments, under-shipments, or damaged goods.
+*   **Goods Receipt Note (GRN) Creation:** Formal logging of received items against the original PO, supporting partial and multiple receipts per line.
+*   **Receipt Tolerances:** Configurable over-/under-receipt thresholds that auto-flag quantities outside the allowed range.
+*   **Quality Inspection Checklists:** Pass/fail QC forms with sampling plans; failed items are routed to quarantine before acceptance.
+*   **Quarantine & Inspection Hold:** Received goods held in a non-usable state until QC clears them, keeping unverified stock out of inventory.
+*   **Lot, Batch & Serial Capture:** Recording of lot/batch/serial numbers and expiry dates at receipt for full traceability and recall support.
+*   **Discrepancy Reporting:** Logging of over-shipments, under-shipments, or damaged goods, with photo and document evidence attachments.
 *   **Return to Vendor (RTV) Processing:** Workflow to authorize and track the return of rejected items.
-*   **Item Tagging & Barcoding:** Generation of internal barcodes/QR codes for received inventory.
+*   **Item Tagging & Barcoding:** Generation of internal barcodes/QR codes, with handheld/mobile scanning for putaway to bin locations.
+*   **Inventory Posting:** Automatic stock update on acceptance, feeding the Three-Way Match (Invoice ↔ PO ↔ GRN) in §13.
+*   **Receipt Reversal & Audit Trail:** Cancel/reverse a posted GRN with a complete, timestamped audit history.
 
 ### 13. Invoice & Voucher Management
 *   **Invoice Capture (OCR):** Scanning and data extraction from uploaded invoice PDFs or images.
