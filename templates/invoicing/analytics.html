@@ -3,9 +3,12 @@
 {% block title %}Invoice Analytics{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1 class="page-title">Invoice &amp; Voucher Analytics</h1>
-  <p class="page-subtitle">Accounts-payable aging, early-payment discount opportunities &amp; status</p>
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">Invoice &amp; Voucher Analytics</h1>
+    <p class="page-subtitle">Accounts-payable aging, early-payment discount opportunities &amp; status</p>
+  </div>
+  <a href="{% url 'invoicing:export_unpaid_csv' %}" class="btn btn-outline-secondary"><i class="ri-download-cloud-line"></i> Export aging (CSV)</a>
 </div>
 
 <div class="row g-3 mb-3">
@@ -79,7 +82,15 @@
             <a href="{% url 'invoicing:invoice_detail' inv.pk %}" class="text-decoration-none">{{ inv.invoice_number }}</a>
             <small class="text-muted d-block">{{ inv.vendor.legal_name }} · by {{ inv.discount_due_date|date:"M d" }}</small>
           </span>
-          <span class="badge badge-soft-success">save {{ inv.discount_amount|floatformat:2 }} {{ inv.currency }}</span>
+          <span class="d-flex gap-2 align-items-center">
+            <span class="badge badge-soft-success">save {{ inv.discount_amount|floatformat:2 }} {{ inv.currency }}</span>
+            {% if can_manage and inv.can_create_voucher %}
+            <form method="post" action="{% url 'invoicing:voucher_create' inv.pk %}" class="d-inline" onsubmit="return confirm('Create a payment voucher taking the discount?');">
+              {% csrf_token %}<input type="hidden" name="quick_action" value="1">
+              <button class="btn btn-sm btn-success" title="Create voucher with discount"><i class="ri-bank-card-line"></i> Take</button>
+            </form>
+            {% endif %}
+          </span>
         </li>
         {% empty %}
         <li class="list-group-item text-muted">No discounts available right now.</li>
