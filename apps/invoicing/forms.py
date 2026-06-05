@@ -23,6 +23,22 @@ from .models import (
 )
 
 
+def _duplicate_invoice_ref_exists(tenant, vendor, ref, exclude_pk=None):
+    """True if a live (non-cancelled/rejected) invoice already uses this supplier ref.
+
+    A form-level advisory mirror of :func:`services.check_duplicate_invoice_ref` (the service
+    is the hard guard; this just surfaces the warning earlier in the UI).
+    """
+    qs = (
+        SupplierInvoice.objects
+        .filter(tenant=tenant, vendor=vendor, supplier_invoice_ref__iexact=ref)
+        .exclude(status__in=('cancelled', 'rejected'))
+    )
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
 def _active_vendor_qs(tenant):
     return (
         Vendor.objects.filter(tenant=tenant)
@@ -70,9 +86,17 @@ class InvoiceCaptureForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
-        if not cleaned.get('purchase_order') and not cleaned.get('vendor'):
+        po = cleaned.get('purchase_order')
+        if not po and not cleaned.get('vendor'):
             raise forms.ValidationError(
                 'Select a purchase order or a supplier for this invoice.')
+        vendor = (po.vendor if po and po.vendor_id else None) or cleaned.get('vendor')
+        ref = (cleaned.get('supplier_invoice_ref') or '').strip()
+        if vendor and ref and self.tenant and _duplicate_invoice_ref_exists(self.tenant, vendor, ref):
+            self.add_error(
+                'supplier_invoice_ref',
+                f'{vendor.legal_name} already has a live invoice with reference "{ref}". '
+                f'This may be a duplicate.')
         return cleaned
 
 
@@ -117,6 +141,14 @@ class SupplierInvoiceForm(forms.ModelForm):
         if po is not None and vendor is not None and po.vendor_id != vendor.id:
             self.add_error(
                 'vendor', 'The supplier must match the purchase order’s supplier.')
+        eff_vendor = vendor or getattr(self.instance, 'vendor', None)
+        ref = (cleaned.get('supplier_invoice_ref') or '').strip()
+        if eff_vendor and ref and self.tenant and _duplicate_invoice_ref_exists(
+                self.tenant, eff_vendor, ref, exclude_pk=getattr(self.instance, 'pk', None)):
+            self.add_error(
+                'supplier_invoice_ref',
+                f'{eff_vendor.legal_name} already has a live invoice with reference "{ref}". '
+                f'This may be a duplicate.')
         return cleaned
 
 
