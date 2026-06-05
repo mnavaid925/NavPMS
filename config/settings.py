@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.purchase_orders',
     'apps.fulfillment',
     'apps.goods_receipt',
+    'apps.invoicing',
 ]
 
 MIDDLEWARE = [
@@ -136,6 +137,14 @@ PUNCHOUT_SSRF_ALLOWLIST = config('PUNCHOUT_SSRF_ALLOWLIST', default='')
 # tracking endpoint may target.
 FREIGHT_CARRIER = config('FREIGHT_CARRIER', default='mock')
 FREIGHT_TRACKING_ALLOWLIST = config('FREIGHT_TRACKING_ALLOWLIST', default='')
+
+# Module 14 — Invoice & Voucher Management. Selects the default invoice OCR engine
+# (mock by default; real engines wire in via apps/invoicing/ocr.py) and the default
+# three-way-match tolerances (percent) applied when matching an invoice line's quantity
+# and unit price against the PO + Goods Receipt.
+OCR_ENGINE = config('OCR_ENGINE', default='mock')
+INVOICE_QTY_TOLERANCE_PCT = config('INVOICE_QTY_TOLERANCE_PCT', default='2', cast=float)
+INVOICE_PRICE_TOLERANCE_PCT = config('INVOICE_PRICE_TOLERANCE_PCT', default='2', cast=float)
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
