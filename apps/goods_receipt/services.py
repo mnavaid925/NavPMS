@@ -16,6 +16,7 @@ perms + numbering + lifecycle + alert sweep + analytics — and adds:
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Sum
@@ -227,16 +228,49 @@ def create_goods_receipt(*, tenant, user, purchase_order, shipment=None, **field
     raise last_exc
 
 
+def receipt_tolerance_pct(po_line):
+    """Over-receipt tolerance % for a PO line.
+
+    Reuses the PO's Module-14 three-way-match override (``qty_tolerance_pct``) when set,
+    otherwise the tenant-wide ``INVOICE_QTY_TOLERANCE_PCT`` setting (default 0).
+    """
+    override = getattr(po_line.purchase_order, 'qty_tolerance_pct', None)
+    if override is not None:
+        return Decimal(str(override))
+    return Decimal(str(getattr(settings, 'INVOICE_QTY_TOLERANCE_PCT', 0) or 0))
+
+
+def apply_receipt_tolerance(line, *, save=True):
+    """Auto-flag an over-receipt: received beyond the PO outstanding + tolerance.
+
+    Only sets ``discrepancy_type='over'`` when it is still ``'none'`` — a manual
+    discrepancy choice is never overridden. Under-delivery is normal for partial
+    receipts and is left for the user to flag. Returns True if the line was flagged.
+    """
+    if line.discrepancy_type not in ('', 'none'):
+        return False
+    pol = line.purchase_order_line
+    outstanding = pol.outstanding_quantity or Decimal('0')
+    tol = receipt_tolerance_pct(pol)
+    ceiling = outstanding * (Decimal('1') + tol / Decimal('100'))
+    if (line.received_quantity or Decimal('0')) > ceiling:
+        line.discrepancy_type = 'over'
+        if save:
+            line.save(update_fields=['discrepancy_type', 'updated_at'])
+        return True
+    return False
+
+
 def add_receipt_line(grn, *, purchase_order_line, received_quantity, shipment_line=None,
                      **fields):
-    """Add a received line to a draft GRN."""
+    """Add a received line to a draft GRN (auto-flagging an over-receipt)."""
     if not grn.is_editable:
         raise ValidationError('Lines can only be changed while the GRN is a draft.')
     received_quantity = Decimal(str(received_quantity or '0'))
     if received_quantity <= 0:
         raise ValidationError('Received quantity must be greater than zero.')
     next_no = (grn.lines.aggregate(m=Max('line_no'))['m'] or 0) + 1
-    return GoodsReceiptLine.all_objects.create(
+    line = GoodsReceiptLine.all_objects.create(
         tenant=grn.tenant, goods_receipt=grn,
         purchase_order_line=purchase_order_line,
         shipment_line=shipment_line,
@@ -247,6 +281,8 @@ def add_receipt_line(grn, *, purchase_order_line, received_quantity, shipment_li
         line_status='pending',
         **fields,
     )
+    apply_receipt_tolerance(line)
+    return line
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +456,8 @@ def generate_tags(grn, user):
             tenant=grn.tenant, goods_receipt=grn, goods_receipt_line=line,
             code=generate_tag_code(grn, line, seq),
             quantity=accepted, uom=line.uom, generated_by=user,
+            bin_location=line.bin_location, lot_number=line.lot_number,
+            expiry_date=line.expiry_date,
         )
         created.append(tag)
     return created
