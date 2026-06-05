@@ -40,6 +40,13 @@
           <span class="tag-code">{{ tag.code }}</span>
           <span class="tag-meta">Qty: {{ tag.quantity|floatformat:2 }} {{ tag.uom }}</span>
         </div>
+        {% if tag.bin_location or tag.lot_number or tag.expiry_date %}
+        <div class="tag-meta mt-1">
+          {% if tag.bin_location %}<span class="me-2">Bin: {{ tag.bin_location }}</span>{% endif %}
+          {% if tag.lot_number %}<span class="me-2">Lot: {{ tag.lot_number }}</span>{% endif %}
+          {% if tag.expiry_date %}<span>Exp: {{ tag.expiry_date|date:"M d, Y" }}</span>{% endif %}
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
