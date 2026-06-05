@@ -63,6 +63,19 @@ _DEFAULT_QTY_TOL = Decimal('2')
 _DEFAULT_PRICE_TOL = Decimal('2')
 # Days before the early-payment discount lapses that the "closing soon" alert fires.
 DISCOUNT_ALERT_WINDOW_DAYS = 3
+# Days a dispute may remain open before an escalation alert fires. Overridable per tenant via
+# the INVOICE_DISPUTE_SLA_DAYS setting (read at sweep time so a change needs no restart).
+_DEFAULT_DISPUTE_SLA_DAYS = 5
+# OCR captures below this confidence (percent) are flagged for manual review (see
+# SupplierInvoice.needs_manual_ocr_review). Overridable via the OCR_MIN_CONFIDENCE setting.
+_DEFAULT_OCR_MIN_CONFIDENCE = Decimal('70')
+
+
+def _dispute_sla_days():
+    try:
+        return int(getattr(settings, 'INVOICE_DISPUTE_SLA_DAYS', _DEFAULT_DISPUTE_SLA_DAYS))
+    except (TypeError, ValueError):
+        return _DEFAULT_DISPUTE_SLA_DAYS
 
 
 # ---------------------------------------------------------------------------
@@ -151,14 +164,30 @@ def record_voucher_event(voucher, status, user, note=''):
     )
 
 
-def _notify(user, *, tenant, link, category, priority, title, message):
-    """Create a portal Notification (no-op if there is no recipient)."""
+def _notify(user, *, tenant, link, category, priority, title, message, send_email=False):
+    """Create a portal Notification (no-op if there is no recipient).
+
+    When ``send_email`` is set AND the ``INVOICE_EMAIL_ALERTS`` setting is enabled, also send a
+    plain-text email to the recipient (best-effort: any delivery failure is swallowed so it can
+    never block the surrounding transaction). The portal Notification is always created.
+    """
     if not user:
         return None
-    return Notification.all_objects.create(
+    notification = Notification.all_objects.create(
         tenant=tenant, user=user, category=category, priority=priority,
         title=title[:160], message=message, link_url=link,
     )
+    if send_email and getattr(user, 'email', '') and getattr(settings, 'INVOICE_EMAIL_ALERTS', False):
+        from django.core.mail import send_mail
+        body = message
+        if link:
+            body += f'\n\nOpen: {link}'
+        body += f'\n\n— Automated alert from {getattr(settings, "APP_NAME", "NavPMS")}.'
+        try:
+            send_mail(title[:160], body, None, [user.email], fail_silently=True)
+        except Exception:
+            pass
+    return notification
 
 
 def _invoice_owner(invoice):
@@ -167,8 +196,8 @@ def _invoice_owner(invoice):
     return owner or invoice.created_by
 
 
-def _notify_owner(invoice, *, category, priority, title, message):
-    """Notify the internal owner (buyer) of the invoice."""
+def _notify_owner(invoice, *, category, priority, title, message, send_email=False):
+    """Notify the internal owner (buyer) of the invoice, optionally by email too."""
     owner = _invoice_owner(invoice)
     if not owner:
         return None
@@ -177,7 +206,7 @@ def _notify_owner(invoice, *, category, priority, title, message):
     except Exception:
         link = ''
     return _notify(owner, tenant=invoice.tenant, link=link, category=category,
-                   priority=priority, title=title, message=message)
+                   priority=priority, title=title, message=message, send_email=send_email)
 
 
 def _notify_vendor(invoice, *, category, priority, title, message):
@@ -269,12 +298,37 @@ def apply_payment_term(invoice):
 # ---------------------------------------------------------------------------
 # 1. Invoice creation + capture (OCR) + lines
 # ---------------------------------------------------------------------------
+def check_duplicate_invoice_ref(tenant, vendor, supplier_invoice_ref):
+    """Hard-block a duplicate supplier invoice (AP fraud / double-entry guard).
+
+    Scoped to ``(tenant, vendor, supplier_invoice_ref)`` (case-insensitive, whitespace-trimmed)
+    and ignoring cancelled/rejected invoices (those may legitimately be re-submitted). A blank
+    supplier ref is never a duplicate — non-PO docs and OCR misses must still be capturable.
+    """
+    if not vendor or not (supplier_invoice_ref or '').strip():
+        return
+    ref = supplier_invoice_ref.strip()
+    existing = (
+        SupplierInvoice.all_objects
+        .filter(tenant=tenant, vendor=vendor, supplier_invoice_ref__iexact=ref)
+        .exclude(status__in=('cancelled', 'rejected'))
+        .first()
+    )
+    if existing:
+        raise ValidationError(
+            f'An invoice from {vendor.legal_name} with reference "{ref}" already exists '
+            f'({existing.invoice_number}, {existing.get_status_display()}). '
+            f'This looks like a duplicate submission.'
+        )
+
+
 def create_invoice(*, tenant, user, vendor, purchase_order=None, **fields):
     """Create a draft supplier invoice with a collision-safe number."""
     if purchase_order is not None and purchase_order.vendor_id:
         vendor = purchase_order.vendor
     if vendor is None:
         raise ValidationError('A supplier is required to create an invoice.')
+    check_duplicate_invoice_ref(tenant, vendor, fields.get('supplier_invoice_ref', ''))
     fields.pop('vendor', None)
     fields.pop('tenant', None)
     last_exc = None
@@ -388,6 +442,13 @@ def capture_invoice_from_file(*, tenant, user, source_file, purchase_order=None,
         target_type='SupplierInvoice', target_id=str(invoice.id),
         message=f'{invoice.invoice_number} captured via {result.engine} OCR',
     )
+    if invoice.needs_manual_ocr_review:
+        record_audit(
+            tenant, user, 'supplier_invoice.captured_low_confidence', level='warning',
+            target_type='SupplierInvoice', target_id=str(invoice.id),
+            message=f'{invoice.invoice_number} OCR confidence {result.confidence}% '
+                    f'is below threshold — manual review recommended.',
+        )
     return invoice
 
 
@@ -427,12 +488,22 @@ def run_three_way_match(invoice, *, qty_tol=None, price_tol=None):
     header ``match_status`` (``matched`` only if every line matched). Purely read-only against
     the PO and GRN — it computes a payment gate, it does not mutate them.
     """
+    # Tolerance resolution order: explicit argument > per-PO override > tenant setting > default.
+    po = invoice.purchase_order
+    if qty_tol is None and po is not None and po.qty_tolerance_pct is not None:
+        qty_tol = po.qty_tolerance_pct
+    if price_tol is None and po is not None and po.price_tolerance_pct is not None:
+        price_tol = po.price_tolerance_pct
     qty_tol = Decimal(str(
         qty_tol if qty_tol is not None
         else getattr(settings, 'INVOICE_QTY_TOLERANCE_PCT', _DEFAULT_QTY_TOL)))
     price_tol = Decimal(str(
         price_tol if price_tol is not None
         else getattr(settings, 'INVOICE_PRICE_TOLERANCE_PCT', _DEFAULT_PRICE_TOL)))
+
+    # A PO-backed invoice in a different currency than its PO is a financial red flag —
+    # treated as a header-level exception (the per-line amounts are not comparable).
+    currency_mismatch = bool(po is not None and po.currency and po.currency != invoice.currency)
 
     has_line = False
     has_exception = False
@@ -490,11 +561,12 @@ def run_three_way_match(invoice, *, qty_tol=None, price_tol=None):
 
     if not has_line:
         invoice.match_status = 'unmatched'
-    elif has_exception:
+    elif has_exception or currency_mismatch:
         invoice.match_status = 'exceptions'
     else:
         invoice.match_status = 'matched'
-    invoice.save(update_fields=['match_status', 'updated_at'])
+    invoice.currency_mismatch = currency_mismatch
+    invoice.save(update_fields=['match_status', 'currency_mismatch', 'updated_at'])
     return invoice
 
 
@@ -717,6 +789,12 @@ def create_voucher(invoice, user, *, take_discount=None, payment_method='bank_tr
         raise ValidationError('Only an approved invoice can be vouchered for payment.')
     if invoice.vouchers.exclude(status='cancelled').exists():
         raise ValidationError('A payment voucher already exists for this invoice.')
+    po = invoice.purchase_order
+    if po is not None and po.currency and po.currency != invoice.currency:
+        raise ValidationError(
+            f'Cannot create a voucher: invoice currency ({invoice.currency}) does not match '
+            f'the PO currency ({po.currency}). Resolve the currency mismatch first.'
+        )
 
     if take_discount is None:
         take_discount = invoice.discount_is_available
@@ -812,6 +890,25 @@ def pay_voucher(voucher, user, *, payment_method=None, reference=''):
             return voucher
         if not voucher.can_pay:
             raise ValidationError('Only an approved or scheduled voucher can be paid.')
+
+        # Re-validate the early-payment discount at payment time (TOCTOU-safe): a voucher may
+        # have sat in draft/approved/scheduled until after the discount window closed. We do
+        # NOT silently pay a stale discount — surface it so the user decides (cancel + recreate,
+        # or adjust). Locked inside the same transaction as the charge.
+        if voucher.take_discount and voucher.discount_taken and voucher.discount_taken > 0:
+            inv = voucher.supplier_invoice
+            window_open = (
+                inv.discount_due_date is not None
+                and timezone.localdate() <= inv.discount_due_date
+                and inv.discount_amount and inv.discount_amount > 0
+            )
+            if not window_open:
+                raise ValidationError(
+                    f'The early-payment discount for {inv.invoice_number} '
+                    f'(due {inv.discount_due_date}) has closed since this voucher was created. '
+                    f'Cancel and recreate the voucher to pay the full amount, or adjust it.'
+                )
+
         result = gw.charge(
             amount=voucher.amount, currency=voucher.currency,
             description=f'AP payment {voucher.voucher_number} to {voucher.vendor.legal_name}',
@@ -895,7 +992,7 @@ def scan_invoice_alerts(tenant=None, now=None):
     and lazily by the analytics dashboard.
     """
     if tenant is None:
-        totals = {'overdue': 0, 'discount': 0}
+        totals = {'overdue': 0, 'discount': 0, 'dispute_sla': 0}
         for t in Tenant.objects.all():
             set_current_tenant(t)
             counts = scan_invoice_alerts(tenant=t, now=now)
@@ -905,7 +1002,7 @@ def scan_invoice_alerts(tenant=None, now=None):
 
     now = now or timezone.now()
     today = timezone.localdate()
-    counts = {'overdue': 0, 'discount': 0}
+    counts = {'overdue': 0, 'discount': 0, 'dispute_sla': 0}
 
     overdue = SupplierInvoice.all_objects.filter(
         tenant=tenant, status__in=('submitted', 'approved'),
@@ -916,7 +1013,8 @@ def scan_invoice_alerts(tenant=None, now=None):
             inv, category='deadline', priority='high',
             title=f'Invoice overdue: {inv.invoice_number}',
             message=f'{inv.invoice_number} from {inv.vendor.legal_name} '
-                    f'({inv.total_amount} {inv.currency}) was due on {inv.due_date}.')
+                    f'({inv.total_amount} {inv.currency}) was due on {inv.due_date}.',
+            send_email=True)
         inv.overdue_alerted_at = now
         inv.save(update_fields=['overdue_alerted_at', 'updated_at'])
         record_audit(
@@ -938,10 +1036,36 @@ def scan_invoice_alerts(tenant=None, now=None):
             inv, category='deadline', priority='normal',
             title=f'Early-payment discount closing: {inv.invoice_number}',
             message=f'Pay {inv.invoice_number} by {inv.discount_due_date} to save '
-                    f'{inv.discount_amount} {inv.currency}.')
+                    f'{inv.discount_amount} {inv.currency}.',
+            send_email=True)
         inv.discount_alerted_at = now
         inv.save(update_fields=['discount_alerted_at', 'updated_at'])
         counts['discount'] += 1
+
+    # Dispute SLA escalation: a dispute open longer than the SLA raises a one-time alert.
+    sla_days = _dispute_sla_days()
+    sla_cutoff = now - timedelta(days=sla_days)
+    aging_disputes = SupplierInvoice.all_objects.filter(
+        tenant=tenant, status='disputed',
+        disputed_at__isnull=False, disputed_at__lt=sla_cutoff,
+        dispute_sla_alerted_at__isnull=True,
+    ).select_related('purchase_order', 'vendor', 'disputed_by')
+    for inv in aging_disputes:
+        days_open = (now - inv.disputed_at).days if inv.disputed_at else 0
+        _notify_owner(
+            inv, category='deadline', priority='high',
+            title=f'Dispute SLA exceeded: {inv.invoice_number}',
+            message=f'Invoice {inv.invoice_number} from {inv.vendor.legal_name} has been '
+                    f'disputed for {days_open} days (SLA {sla_days} days). Please resolve it.',
+            send_email=True)
+        inv.dispute_sla_alerted_at = now
+        inv.save(update_fields=['dispute_sla_alerted_at', 'updated_at'])
+        record_audit(
+            tenant, None, 'supplier_invoice.dispute_sla_exceeded', level='warning',
+            target_type='SupplierInvoice', target_id=str(inv.id),
+            message=f'{inv.invoice_number} dispute SLA exceeded ({days_open} days)',
+        )
+        counts['dispute_sla'] += 1
 
     return counts
 
