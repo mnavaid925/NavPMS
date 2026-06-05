@@ -197,6 +197,21 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbInvoicing" role="button" aria-expanded="false">
+          <i class="ri-bill-line"></i> <span class="flex-grow-1">Invoices</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbInvoicing">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_list' %}">All Invoices</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_capture' %}">Capture Invoice</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:voucher_list' %}">Payment Vouchers</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:term_list' %}">Payment Terms</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
