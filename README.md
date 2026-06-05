@@ -127,8 +127,9 @@ NavPMS/
 │   ├── fulfillment/          # Module 12: Shipment (+Line), ShipmentTrackingEvent
 │   │                         # (append-only), Backorder, ShipmentStatusEvent (append-only),
 │   │                         # ShipmentDocument + carriers.py connector registry
-│   ├── goods_receipt/        # Module 13: GoodsReceipt (+Line), GoodsReceiptCheck (QA
-│   │                         # checklist), GoodsReceiptStatusEvent (append-only),
+│   ├── goods_receipt/        # Module 13: GoodsReceipt (+Line w/ lot/batch/serial/expiry/bin),
+│   │                         # GoodsReceiptCheck (QA checklist), GoodsReceiptStatusEvent
+│   │                         # (append-only), GoodsReceiptAttachment (evidence),
 │   │                         # ReturnToVendor (+Line), ReceiptTag (barcode/QR)
 │   └── invoicing/            # Module 14: PaymentTerm, SupplierInvoice (+Line),
 │                             # SupplierInvoiceStatusEvent (append-only), InvoiceDisputeNote
@@ -248,8 +249,11 @@ All values are read via `python-decouple` from `.env`.
 | `FREIGHT_CARRIER` | `mock` | Default freight-tracking carrier connector (real carriers added in `apps/fulfillment/carriers.py`). |
 | `FREIGHT_TRACKING_ALLOWLIST` | `` | Comma-separated extra hosts a real carrier tracking endpoint may target (SSRF allowlist). |
 | `OCR_ENGINE` | `mock` | Default invoice OCR-capture connector (real engines added in `apps/invoicing/ocr.py`). |
-| `INVOICE_QTY_TOLERANCE_PCT` | `2` | Quantity tolerance (%) before a three-way-match line is flagged a variance. |
-| `INVOICE_PRICE_TOLERANCE_PCT` | `2` | Unit-price tolerance (%) before a three-way-match line is flagged a variance. |
+| `INVOICE_QTY_TOLERANCE_PCT` | `2` | Quantity tolerance (%) before a three-way-match line is flagged a variance (per-PO override available). |
+| `INVOICE_PRICE_TOLERANCE_PCT` | `2` | Unit-price tolerance (%) before a three-way-match line is flagged a variance (per-PO override available). |
+| `OCR_MIN_CONFIDENCE` | `70` | OCR captures below this confidence (%) are flagged "needs manual review" in the UI. |
+| `INVOICE_DISPUTE_SLA_DAYS` | `5` | Days a dispute may stay open before `scan_invoice_alerts` raises a one-time escalation alert. |
+| `INVOICE_EMAIL_ALERTS` | `False` | Opt-in: also email the invoice owner on overdue / closing-discount / dispute-SLA alerts (needs a real `EMAIL_BACKEND`). |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -879,18 +883,19 @@ estimated delivery date (idempotent via `delivery_alerted_at`). Driven by the cr
 ## Module 13 — Goods Receipt & Inspection
 
 The receiving surface ([apps/goods_receipt/](apps/goods_receipt/)) — when ordered goods arrive, log a
-Goods Receipt Note (GRN) against the PO, inspect items against a QA checklist, post the accepted
-quantity back to the PO, return rejected items to the supplier, and tag accepted inventory with
-internal barcodes. Mirrors the Module 11/12 conventions (tenant-aware models, `GRN-<SLUG>-NNNNN`
-numbering, append-only timeline). All five PMS sub-modules:
+Goods Receipt Note (GRN) against the PO, capture lot/batch/serial + expiry for traceability, inspect
+items against a QA checklist, attach photo/document evidence, post the accepted quantity back to the
+PO, return rejected items to the supplier, and tag accepted inventory with internal barcodes
+(stamped with the putaway bin). Mirrors the Module 11/12 conventions (tenant-aware models,
+`GRN-<SLUG>-NNNNN` numbering, append-only timeline). All five PMS sub-modules:
 
 | Sub-module | Implementation |
 |-----------|----------------|
-| **Goods Receipt Note (GRN) Creation** | `GoodsReceipt` (`GRN-<SLUG>-NNNNN`) + `GoodsReceiptLine` (received / accepted / rejected / posted quantities). `create_goods_receipt()` raises a draft GRN against a dispatched, still-open PO (optionally provenance-linked to a fulfilment `Shipment`); `mark_received()` moves `draft → received`. |
+| **Goods Receipt Note (GRN) Creation** | `GoodsReceipt` (`GRN-<SLUG>-NNNNN`) + `GoodsReceiptLine` (received / accepted / rejected / posted quantities, plus `lot_number` / `batch_number` / `serial_number` / `expiry_date` for recall traceability and a `bin_location` putaway destination). `create_goods_receipt()` raises a draft GRN against a dispatched, still-open PO (optionally provenance-linked to a fulfilment `Shipment`); `mark_received()` moves `draft → received`. |
 | **Quality Inspection Checklists** | A fixed pass/fail QA checklist (`GoodsReceiptCheck`: packaging intact / quantity matches / no damage / labelling correct / documentation present) plus a per-line accepted/rejected split. `record_inspection()` derives the overall `pass` / `partial` / `fail` result and moves `received → inspected`. |
-| **Discrepancy Reporting** | Each line carries a `discrepancy_type` (short / over / damaged / wrong item / quality failure) and a rejection reason, surfaced on the GRN and rolled into the analytics "top discrepancies". |
+| **Discrepancy Reporting** | Each line carries a `discrepancy_type` (short / over / damaged / wrong item / quality failure) and a rejection reason. `apply_receipt_tolerance()` auto-flags an **over-receipt** when the received quantity exceeds the PO outstanding beyond the tolerance (the PO's `qty_tolerance_pct`, falling back to `INVOICE_QTY_TOLERANCE_PCT`) — never overriding a manual choice. Damage photos / packing slips / COAs attach via `GoodsReceiptAttachment`. All surfaced on the GRN and rolled into the analytics "top discrepancies". |
 | **Return to Vendor (RTV) Processing** | `create_rtv_from_rejections()` opens a `ReturnToVendor` (`RTV-<SLUG>-NNNNN`) for the rejected lines; `authorise → ship → close`. The authorised return is surfaced to the supplier in the vendor portal (*Returns to Vendor*), where they can acknowledge it. |
-| **Item Tagging & Barcoding** | `post_goods_receipt()` posts the accepted quantity to the PO line via Module 11's `record_line_receipt()` — *idempotently* (a `posted_quantity` watermark) and *guarded* (never over-receipts, so it can't double-count with Module 12) — and generates a `ReceiptTag` (internal Code128/QR code) per accepted line, rendered on a print-friendly label sheet. |
+| **Item Tagging & Barcoding** | `post_goods_receipt()` posts the accepted quantity to the PO line via Module 11's `record_line_receipt()` — *idempotently* (a `posted_quantity` watermark) and *guarded* (never over-receipts, so it can't double-count with Module 12) — and generates a `ReceiptTag` (internal Code128/QR code, stamped with the line's `bin_location` / `lot_number` / `expiry_date`) per accepted line, rendered on a print-friendly label sheet. |
 
 **Status workflow:** `draft → received → under_inspection → inspected → posted → closed`, plus
 `cancelled`. A posted GRN can no longer be cancelled — rejected goods flow through the RTV channel
@@ -930,6 +935,28 @@ All five PMS sub-modules:
 submitted on resolve), `rejected` and `cancelled`. A separate `match_status` (`unmatched / matched /
 exceptions`) is computed on submit; approving an invoice with exceptions requires an explicit
 **override** (recorded). The voucher runs `draft → approved → scheduled → paid` (+ `cancelled`).
+
+**Financial-integrity & AP hardening:**
+
+- **Currency consistency** — a PO-backed invoice whose currency differs from its PO is flagged
+  (`currency_mismatch`) as a three-way-match exception and **cannot** be vouchered until resolved.
+- **Discount re-validation at payment** — `pay_voucher` re-checks the early-payment discount window
+  inside the locked transaction, so a voucher created with a discount that has since lapsed is not
+  silently paid at the stale amount.
+- **Duplicate-invoice guard** — `check_duplicate_invoice_ref` hard-blocks a second live invoice with
+  the same `(vendor, supplier_invoice_ref)` (case-insensitive; cancelled/rejected and blank refs are
+  exempt); the capture/create forms also surface it as an early soft warning.
+- **Per-PO tolerance overrides** — a `PurchaseOrder` may set `qty_tolerance_pct` / `price_tolerance_pct`
+  that take precedence over the tenant-wide `INVOICE_*_TOLERANCE_PCT` defaults.
+- **Dispute SLA escalation** — `scan_invoice_alerts` raises a one-time alert for disputes open longer
+  than `INVOICE_DISPUTE_SLA_DAYS`.
+- **OCR low-confidence routing** — captures below `OCR_MIN_CONFIDENCE` are flagged
+  (`needs_manual_ocr_review`) with a badge + draft banner, and an audit event.
+- **Opt-in email alerts** — overdue / closing-discount / dispute-SLA alerts can also email the invoice
+  owner when `INVOICE_EMAIL_ALERTS` is on (in addition to the in-app notification).
+- **Operational tools** — one-click "take discount" on the analytics dashboard, a streaming **CSV
+  export** of the unpaid AP-aging list (`/invoicing/export/unpaid/`), and **batch** schedule/pay of
+  selected vouchers from the voucher list (each through the existing TOCTOU-safe service).
 
 **Permission gate:** capture / match / approve / dispute / pay is restricted to roles `tenant_admin`,
 `procurement_manager`, `buyer` (plus Django superuser); analytics additionally allows `approver`.
