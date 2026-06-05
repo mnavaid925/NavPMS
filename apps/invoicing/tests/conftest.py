@@ -177,7 +177,8 @@ def build_invoice(tenant, user, vendor, *, po_number, term=None,
     po = make_received_po(tenant, user, vendor, number=po_number, received=received)
     inv = inv_services.create_invoice(
         tenant=tenant, user=user, vendor=vendor, purchase_order=po, payment_term=term,
-        currency='USD', invoice_date=timezone.localdate(), supplier_invoice_ref='SUP-1')
+        currency='USD', invoice_date=timezone.localdate(),
+        supplier_invoice_ref=f'SUP-{po_number}')
     for pol in po.lines.all():
         inv_services.add_invoice_line(
             inv, purchase_order_line=pol, quantity=pol.received_quantity,
