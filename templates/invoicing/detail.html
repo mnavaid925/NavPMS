@@ -1,0 +1,311 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">
+        {{ invoice.invoice_number }}
+        {% include 'invoicing/_status_badge.html' with status=invoice.status %}
+        {% include 'invoicing/_match_badge.html' with match_status=invoice.match_status %}
+      </h1>
+      <p class="page-subtitle">
+        {{ invoice.vendor.legal_name }}
+        {% if invoice.purchase_order %} · <a href="{% url 'purchase_orders:po_detail' invoice.purchase_order.pk %}">{{ invoice.purchase_order.po_number }}</a>{% endif %}
+        {% if invoice.supplier_invoice_ref %} · supplier ref {{ invoice.supplier_invoice_ref }}{% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if can_manage and invoice.is_editable %}
+      <a href="{% url 'invoicing:invoice_edit' invoice.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+      <form method="post" action="{% url 'invoicing:invoice_submit' invoice.pk %}" class="d-inline" onsubmit="return confirm('Submit this invoice for three-way matching?');">
+        {% csrf_token %}<button class="btn btn-primary"><i class="ri-send-plane-line"></i> Submit</button>
+      </form>
+      {% endif %}
+      {% if can_manage and invoice.can_approve %}
+      <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#approveBox"><i class="ri-check-line"></i> Approve</button>
+      <button class="btn btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#disputeBox"><i class="ri-error-warning-line"></i> Dispute</button>
+      {% endif %}
+      {% if can_manage and invoice.can_resolve %}
+      <form method="post" action="{% url 'invoicing:invoice_resolve' invoice.pk %}" class="d-inline">
+        {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-double-line"></i> Resolve dispute</button>
+      </form>
+      {% endif %}
+      {% if can_manage and invoice.can_create_voucher %}
+      <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#voucherBox"><i class="ri-bank-card-line"></i> Create voucher</button>
+      {% endif %}
+      <a href="{% url 'invoicing:invoice_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+    </div>
+  </div>
+</div>
+
+{% if invoice.has_exceptions and invoice.status == 'submitted' %}
+<div class="alert alert-warning"><i class="ri-error-warning-line"></i>
+  This invoice has <strong>{{ invoice.exception_line_count }}</strong> three-way-match exception(s).
+  Resolve them, raise a dispute, or approve with override.</div>
+{% endif %}
+{% if invoice.match_override %}
+<div class="alert alert-info"><i class="ri-information-line"></i> Approved with a manual match override.</div>
+{% endif %}
+
+{# --- Collapsible action panels --- #}
+{% if can_manage and invoice.can_approve %}
+<div class="collapse mb-3" id="approveBox">
+  <div class="card border-success">
+    <div class="card-header bg-success-subtle"><i class="ri-check-line"></i> Approve for payment</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'invoicing:invoice_approve' invoice.pk %}">
+        {% csrf_token %}
+        {% if invoice.has_exceptions %}
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="override" value="1" id="ovr" required>
+          <label class="form-check-label" for="ovr">I have reviewed the match exceptions and approve anyway (override).</label>
+        </div>
+        {% endif %}
+        <button class="btn btn-success"><i class="ri-check-line"></i> Confirm approval</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="collapse mb-3" id="disputeBox">
+  <div class="card border-warning">
+    <div class="card-header bg-warning-subtle"><i class="ri-error-warning-line"></i> Raise a dispute with the supplier</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'invoicing:invoice_dispute' invoice.pk %}">
+        {% csrf_token %}
+        <textarea name="reason" class="form-control mb-2" rows="2" placeholder="Describe the discrepancy…" required></textarea>
+        <button class="btn btn-warning"><i class="ri-error-warning-line"></i> Mark disputed</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if can_manage and invoice.can_create_voucher %}
+<div class="collapse mb-3" id="voucherBox">
+  <div class="card border-success">
+    <div class="card-header bg-success-subtle"><i class="ri-bank-card-line"></i> Create payment voucher</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'invoicing:voucher_create' invoice.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-4">
+          <label class="form-label small">Method</label>
+          <select name="payment_method" class="form-select form-select-sm">
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="card">Card</option>
+            <option value="cheque">Cheque</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Scheduled date</label>
+          <input type="date" name="scheduled_date" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="take_discount" value="1" id="td" {% if invoice.discount_is_available %}checked{% endif %}>
+            <label class="form-check-label small" for="td">
+              Take {{ invoice.discount_amount|floatformat:2 }} {{ invoice.currency }} discount
+              {% if not invoice.discount_is_available %}<span class="text-muted">(window closed)</span>{% endif %}
+            </label>
+          </div>
+        </div>
+        <div class="col-12"><button class="btn btn-success btn-sm"><i class="ri-bank-card-line"></i> Create voucher</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    {# --- Overview --- #}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Vendor</small>{{ invoice.vendor.legal_name }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Purchase order</small>{% if invoice.purchase_order %}<a href="{% url 'purchase_orders:po_detail' invoice.purchase_order.pk %}">{{ invoice.purchase_order.po_number }}</a>{% else %}—{% endif %}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Supplier ref</small>{{ invoice.supplier_invoice_ref|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Invoice date</small>{{ invoice.invoice_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Payment term</small>{{ invoice.payment_term.code|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Captured by OCR</small>{% if invoice.ocr_engine %}{{ invoice.ocr_engine }} ({{ invoice.ocr_confidence|floatformat:0 }}%){% else %}Manual{% endif %}</div>
+          {% if invoice.source_file %}<div class="col-12 mb-2"><small class="text-muted d-block">Source file</small><a href="{{ invoice.source_file.url }}" target="_blank" rel="noopener"><i class="ri-file-text-line"></i> {{ invoice.source_file.name }}</a></div>{% endif %}
+          {% if invoice.notes %}<div class="col-12 mb-2"><small class="text-muted d-block">Notes</small><span style="white-space:pre-wrap">{{ invoice.notes }}</span></div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# --- Lines + three-way match --- #}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Billed lines ({{ lines|length }})</span>
+        <span class="d-flex gap-2">
+          {% if can_manage and not invoice.is_finished and invoice.status != 'draft' %}
+          <form method="post" action="{% url 'invoicing:invoice_match' invoice.pk %}" class="d-inline">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="ri-refresh-line"></i> Re-run match</button>
+          </form>
+          {% endif %}
+          {% if can_manage and invoice.is_editable %}
+          <a href="{% url 'invoicing:line_add' invoice.pk %}" class="btn btn-sm btn-outline-primary">Add line</a>
+          {% endif %}
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit price</th>
+              <th class="text-end">Line total</th><th class="text-end">PO qty</th><th class="text-end">Received</th>
+              <th>Match</th>{% if invoice.is_editable %}<th class="text-end">Actions</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+            <tr>
+              <td>{{ line.line_no }}</td>
+              <td>{{ line.description }}{% if line.match_note %}<br><small class="text-muted">{{ line.match_note }}</small>{% endif %}</td>
+              <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+              <td class="text-end">{{ line.unit_price|floatformat:2 }}</td>
+              <td class="text-end">{{ line.line_total|floatformat:2 }}</td>
+              <td class="text-end">{{ line.matched_po_qty|floatformat:2 }}</td>
+              <td class="text-end">{{ line.matched_received_qty|floatformat:2 }}</td>
+              <td>
+                {% if line.match_status == 'matched' %}<span class="badge badge-soft-success">Matched</span>
+                {% elif line.match_status == 'pending' %}<span class="badge badge-soft-secondary">—</span>
+                {% else %}<span class="badge badge-soft-danger">{{ line.get_match_status_display }}</span>{% endif %}
+              </td>
+              {% if invoice.is_editable %}
+              <td class="text-end">
+                {% if can_manage %}
+                <a href="{% url 'invoicing:line_edit' invoice.pk line.id %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'invoicing:line_delete' invoice.pk line.id %}" class="d-inline" onsubmit="return confirm('Delete line?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="text-center text-muted py-3">No lines.{% if can_manage and invoice.is_editable %} <a href="{% url 'invoicing:line_add' invoice.pk %}">Add one</a>.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# --- Dispute thread --- #}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-chat-3-line"></i> Supplier communication ({{ dispute_notes|length }})</div>
+      <div class="card-body">
+        {% for note in dispute_notes %}
+        <div class="d-flex {% if note.is_from_vendor %}justify-content-start{% else %}justify-content-end{% endif %} mb-2">
+          <div class="p-2 rounded {% if note.is_from_vendor %}bg-light{% else %}bg-primary-subtle{% endif %}" style="max-width:75%">
+            <div class="small fw-semibold">{% if note.is_from_vendor %}{{ invoice.vendor.legal_name }}{% else %}{{ note.author|default:"Buyer" }}{% endif %}
+              <span class="text-muted fw-normal">· {{ note.created_at|date:"M d, H:i" }}</span></div>
+            <div style="white-space:pre-wrap">{{ note.body }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-muted small mb-2">No messages yet.</p>
+        {% endfor %}
+        {% if can_manage and not invoice.is_finished %}
+        <form method="post" action="{% url 'invoicing:invoice_dispute_note' invoice.pk %}" class="d-flex gap-2 mt-2">
+          {% csrf_token %}
+          <input type="text" name="body" class="form-control form-control-sm" placeholder="Message the supplier…" required>
+          <button class="btn btn-sm btn-outline-primary"><i class="ri-send-plane-line"></i> Send</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# --- Vouchers --- #}
+    {% if vouchers %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-bank-card-line"></i> Payment vouchers</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Voucher</th><th>Status</th><th class="text-end">Amount</th><th>Method</th><th>Paid</th></tr></thead>
+          <tbody>
+            {% for v in vouchers %}
+            <tr>
+              <td><a href="{% url 'invoicing:voucher_detail' v.pk %}" class="text-decoration-none">{{ v.voucher_number }}</a></td>
+              <td>{% include 'invoicing/_voucher_badge.html' with status=v.status %}</td>
+              <td class="text-end">{{ v.amount|floatformat:2 }} {{ v.currency }}</td>
+              <td>{{ v.get_payment_method_display }}</td>
+              <td>{{ v.paid_date|date:"M d, Y"|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# --- Sidebar --- #}
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-money-dollar-circle-line"></i> Summary</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted small">Subtotal</span><span>{{ invoice.subtotal|floatformat:2 }} {{ invoice.currency }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted small">Tax</span><span>{{ invoice.tax_amount|floatformat:2 }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted small">Shipping</span><span>{{ invoice.shipping_amount|floatformat:2 }}</span></div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between mb-2"><span class="fw-semibold">Total</span><span class="fw-semibold">{{ invoice.total_amount|floatformat:2 }} {{ invoice.currency }}</span></div>
+        <div class="d-flex justify-content-between mb-1"><span class="text-muted small">Due date</span><span>{% if invoice.is_overdue %}<span class="text-danger">{{ invoice.due_date|date:"M d, Y" }}</span>{% else %}{{ invoice.due_date|date:"M d, Y"|default:"—" }}{% endif %}</span></div>
+        {% if invoice.discount_amount and invoice.discount_amount > 0 %}
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted small">Early-pay discount</span>
+          <span class="{% if invoice.discount_is_available %}text-success{% else %}text-muted{% endif %}">{{ invoice.discount_amount|floatformat:2 }} by {{ invoice.discount_due_date|date:"M d" }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if can_manage and invoice.can_reject %}
+    <div class="card mb-3">
+      <div class="card-header text-danger"><i class="ri-close-circle-line"></i> Reject</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'invoicing:invoice_reject' invoice.pk %}" onsubmit="return confirm('Reject this invoice?');">
+          {% csrf_token %}
+          <textarea name="reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Reason…" required></textarea>
+          <button class="btn btn-outline-danger btn-sm w-100"><i class="ri-close-circle-line"></i> Reject invoice</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    {% if can_manage and invoice.can_cancel %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <form method="post" action="{% url 'invoicing:invoice_cancel' invoice.pk %}" onsubmit="return confirm('Cancel this invoice?');">
+          {% csrf_token %}
+          <input type="text" name="reason" class="form-control form-control-sm mb-2" placeholder="Cancellation reason (optional)">
+          <button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-prohibited-line"></i> Cancel invoice</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {# --- Timeline --- #}
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for ev in status_events %}
+        <li class="list-group-item py-2">
+          <div class="d-flex justify-content-between">
+            <span>{% include 'invoicing/_status_badge.html' with status=ev.status %}</span>
+            <small class="text-muted">{{ ev.created_at|date:"M d, H:i" }}</small>
+          </div>
+          {% if ev.note %}<small class="text-muted d-block">{{ ev.note }}{% if ev.actor %} · {{ ev.actor }}{% endif %}</small>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
