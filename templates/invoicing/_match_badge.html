@@ -1,0 +1,3 @@
+{% if match_status == 'matched' %}<span class="badge badge-soft-success"><i class="ri-check-double-line"></i> Matched</span>
+{% elif match_status == 'exceptions' %}<span class="badge badge-soft-danger"><i class="ri-error-warning-line"></i> Exceptions</span>
+{% else %}<span class="badge badge-soft-secondary">Not matched</span>{% endif %}
