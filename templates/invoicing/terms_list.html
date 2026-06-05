@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Payment Terms{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Payment Terms</h1>
+    <p class="page-subtitle">Net terms &amp; early-payment discounts applied to supplier invoices</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'invoicing:invoice_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Invoices</a>
+    {% if can_manage %}
+    <a href="{% url 'invoicing:term_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Term</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Code</th><th>Name</th><th class="text-end">Net days</th>
+          <th>Early-payment discount</th><th>Active</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in terms %}
+        <tr>
+          <td class="fw-semibold">{{ t.code }}</td>
+          <td>{{ t.name }}</td>
+          <td class="text-end">{{ t.net_days }}</td>
+          <td>{% if t.has_discount %}{{ t.discount_percent }}% if paid within {{ t.discount_days }} days{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{% if t.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}</td>
+          <td class="text-end">
+            {% if can_manage %}
+            <a href="{% url 'invoicing:term_edit' t.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'invoicing:term_delete' t.pk %}" class="d-inline" onsubmit="return confirm('Delete payment term {{ t.code }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No payment terms yet.{% if can_manage %} <a href="{% url 'invoicing:term_create' %}">Create one</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
