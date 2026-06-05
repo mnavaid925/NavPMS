@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Invoice Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Invoice &amp; Voucher Analytics</h1>
+  <p class="page-subtitle">Accounts-payable aging, early-payment discount opportunities &amp; status</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total payable</div>
+      <div class="stat-value">{{ metrics.total_payable|floatformat:2|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Awaiting approval</div>
+      <div class="stat-value text-warning">{{ metrics.awaiting_approval }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Match exceptions</div>
+      <div class="stat-value text-danger">{{ metrics.match_exceptions }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Open disputes</div>
+      <div class="stat-value">{{ metrics.open_disputes }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Discount opportunities</div>
+      <div class="stat-value text-success">{{ metrics.discount_opportunity_count }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Capturable savings</div>
+      <div class="stat-value text-success">{{ metrics.discount_savings|floatformat:2|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Vouchers paid</div>
+      <div class="stat-value">{{ metrics.vouchers_paid }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total paid</div>
+      <div class="stat-value">{{ metrics.total_paid|floatformat:2|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-funds-line"></i> AP aging (unpaid balance by bucket)</div>
+      <div class="card-body"><canvas id="agingChart" height="130"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-discount-percent-line"></i> Early-payment discount opportunities</div>
+      <ul class="list-group list-group-flush">
+        {% for inv in metrics.discount_opportunities %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            <a href="{% url 'invoicing:invoice_detail' inv.pk %}" class="text-decoration-none">{{ inv.invoice_number }}</a>
+            <small class="text-muted d-block">{{ inv.vendor.legal_name }} · by {{ inv.discount_due_date|date:"M d" }}</small>
+          </span>
+          <span class="badge badge-soft-success">save {{ inv.discount_amount|floatformat:2 }} {{ inv.currency }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No discounts available right now.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-bar-chart-grouped-line"></i> Invoices by status</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Status</th><th class="text-end">Count</th></tr></thead>
+          <tbody>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='draft' %}</td><td class="text-end">{{ metrics.draft }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='submitted' %}</td><td class="text-end">{{ metrics.submitted }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='approved' %}</td><td class="text-end">{{ metrics.approved }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='disputed' %}</td><td class="text-end">{{ metrics.disputed }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='paid' %}</td><td class="text-end">{{ metrics.paid }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='rejected' %}</td><td class="text-end">{{ metrics.rejected }}</td></tr>
+            <tr><td>{% include 'invoicing/_status_badge.html' with status='cancelled' %}</td><td class="text-end">{{ metrics.cancelled }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent invoices</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Invoice</th><th>Vendor</th><th>Status</th><th>Match</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for inv in recent_invoices %}
+            <tr>
+              <td><a href="{% url 'invoicing:invoice_detail' inv.pk %}" class="text-decoration-none">{{ inv.invoice_number }}</a></td>
+              <td>{{ inv.vendor.legal_name|default:"—" }}</td>
+              <td>{% include 'invoicing/_status_badge.html' with status=inv.status %}</td>
+              <td>{% include 'invoicing/_match_badge.html' with match_status=inv.match_status %}</td>
+              <td class="text-end">{{ inv.total_amount|floatformat:2 }} {{ inv.currency }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No invoices yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# SQA: pass chart data via json_script, never |safe into a <script> (XSS / non-JSON repr). #}
+{{ aging_chart|json_script:"agingData" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    var el = document.getElementById('agingChart');
+    if (!el) return;
+    var data = JSON.parse(document.getElementById('agingData').textContent);
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'Unpaid balance',
+          data: data.amounts,
+          backgroundColor: ['#22c55e', '#f59e0b', '#f97316', '#ef4444']
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } },
+                 scales: { y: { beginAtZero: true } } }
+    });
+  })();
+</script>
+{% endblock %}
