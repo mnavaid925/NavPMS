@@ -244,6 +244,79 @@ class TestPosting:
             services.post_goods_receipt(grn, tenant_admin)
 
 
+# ---------- Receipt tolerance (auto over-receipt flag) ----------
+class TestReceiptTolerance:
+    def test_over_receipt_auto_flagged(self, tenant, tenant_admin, vendor_a):
+        """Receiving beyond the PO outstanding (tolerance 0) flags discrepancy='over'."""
+        set_current_tenant(tenant)
+        po = make_open_po(
+            tenant, tenant_admin, vendor_a, number='PO-ACME-70001',
+            lines=[('Widget', 'unit', Decimal('10'), Decimal('1.00'))])
+        pol = po.lines.first()
+        grn = services.create_goods_receipt(
+            tenant=tenant, user=tenant_admin, purchase_order=po)
+        line = services.add_receipt_line(
+            grn, purchase_order_line=pol, received_quantity=Decimal('12'))
+        assert line.discrepancy_type == 'over'
+
+    def test_within_tolerance_not_flagged(self, tenant, tenant_admin, vendor_a):
+        """A PO tolerance override widens the ceiling so an over-receipt is not flagged."""
+        set_current_tenant(tenant)
+        po = make_open_po(
+            tenant, tenant_admin, vendor_a, number='PO-ACME-70002',
+            lines=[('Widget', 'unit', Decimal('10'), Decimal('1.00'))])
+        po.qty_tolerance_pct = Decimal('25')  # ceiling = 12.5
+        po.save(update_fields=['qty_tolerance_pct'])
+        pol = po.lines.first()
+        grn = services.create_goods_receipt(
+            tenant=tenant, user=tenant_admin, purchase_order=po)
+        line = services.add_receipt_line(
+            grn, purchase_order_line=pol, received_quantity=Decimal('12'))
+        assert line.discrepancy_type == 'none'
+
+    def test_manual_discrepancy_not_overridden(self, tenant, tenant_admin, vendor_a):
+        set_current_tenant(tenant)
+        po = make_open_po(
+            tenant, tenant_admin, vendor_a, number='PO-ACME-70003',
+            lines=[('Widget', 'unit', Decimal('10'), Decimal('1.00'))])
+        pol = po.lines.first()
+        grn = services.create_goods_receipt(
+            tenant=tenant, user=tenant_admin, purchase_order=po)
+        line = services.add_receipt_line(
+            grn, purchase_order_line=pol, received_quantity=Decimal('12'),
+            discrepancy_type='damaged')
+        assert line.discrepancy_type == 'damaged'  # manual choice preserved
+
+
+# ---------- Tag propagation (bin / lot / expiry) ----------
+class TestTagPropagation:
+    def test_tags_inherit_bin_and_lot(self, tenant, tenant_admin, vendor_a):
+        import datetime
+        set_current_tenant(tenant)
+        po = make_open_po(
+            tenant, tenant_admin, vendor_a, number='PO-ACME-71001',
+            lines=[('Widget', 'unit', Decimal('10'), Decimal('1.00'))])
+        pol = po.lines.first()
+        grn = services.create_goods_receipt(
+            tenant=tenant, user=tenant_admin, purchase_order=po)
+        line = services.add_receipt_line(
+            grn, purchase_order_line=pol, received_quantity=Decimal('6'),
+            bin_location='A-12-3', lot_number='LOT-9',
+            expiry_date=datetime.date(2030, 1, 1))
+        grn.refresh_from_db()
+        services.mark_received(grn, tenant_admin)
+        grn.refresh_from_db()
+        services.record_inspection(
+            grn, tenant_admin,
+            line_results={line.id: {'accepted': Decimal('6'), 'rejected': Decimal('0')}})
+        grn.refresh_from_db()
+        services.post_goods_receipt(grn, tenant_admin)
+        tag = ReceiptTag.objects.filter(goods_receipt=grn).first()
+        assert tag.bin_location == 'A-12-3'
+        assert tag.lot_number == 'LOT-9'
+        assert tag.expiry_date == datetime.date(2030, 1, 1)
+
+
 # ---------- Close / cancel ----------
 class TestCloseCancel:
     def test_close_posted(self, posted_grn, tenant_admin):
