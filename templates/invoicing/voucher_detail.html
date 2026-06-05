@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ voucher.voucher_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h1 class="page-title">{{ voucher.voucher_number }} {% include 'invoicing/_voucher_badge.html' with status=voucher.status %}</h1>
+      <p class="page-subtitle">{{ voucher.vendor.legal_name }} · invoice
+        <a href="{% url 'invoicing:invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a></p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if can_manage and voucher.can_approve %}
+      <form method="post" action="{% url 'invoicing:voucher_approve' voucher.pk %}" class="d-inline">
+        {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-line"></i> Approve</button>
+      </form>
+      {% endif %}
+      {% if can_manage and voucher.can_schedule %}
+      <button class="btn btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#schedBox"><i class="ri-calendar-line"></i> Schedule</button>
+      {% endif %}
+      {% if can_manage and voucher.can_pay %}
+      <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#payBox"><i class="ri-bank-card-line"></i> Pay now</button>
+      {% endif %}
+      <a href="{% url 'invoicing:voucher_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+    </div>
+  </div>
+</div>
+
+{% if voucher.status == 'paid' %}
+<div class="alert alert-success"><i class="ri-check-double-line"></i>
+  Paid {{ voucher.amount|floatformat:2 }} {{ voucher.currency }} on {{ voucher.paid_date|date:"M d, Y" }}
+  via {{ voucher.get_payment_method_display }}{% if voucher.gateway_ref %} (gateway ref {{ voucher.gateway_ref }}){% endif %}.</div>
+{% endif %}
+
+{% if can_manage and voucher.can_schedule %}
+<div class="collapse mb-3" id="schedBox">
+  <div class="card border-primary"><div class="card-header bg-primary-subtle"><i class="ri-calendar-line"></i> Schedule payment</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'invoicing:voucher_schedule' voucher.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-5"><label class="form-label small">Payment date</label><input type="date" name="scheduled_date" class="form-control form-control-sm"></div>
+        <div class="col-md-3"><button class="btn btn-primary btn-sm w-100"><i class="ri-calendar-check-line"></i> Schedule</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_manage and voucher.can_pay %}
+<div class="collapse mb-3" id="payBox">
+  <div class="card border-success"><div class="card-header bg-success-subtle"><i class="ri-bank-card-line"></i> Pay through the gateway</div>
+    <div class="card-body">
+      <form method="post" action="{% url 'invoicing:voucher_pay' voucher.pk %}" class="row g-2 align-items-end" onsubmit="return confirm('Pay {{ voucher.amount|floatformat:2 }} {{ voucher.currency }} now?');">
+        {% csrf_token %}
+        <div class="col-md-4"><label class="form-label small">Method</label>
+          <select name="payment_method" class="form-select form-select-sm">
+            {% for value, label in payment_method_choices %}
+            <option value="{{ value }}" {% if voucher.payment_method == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="col-md-5"><label class="form-label small">Reference</label><input type="text" name="reference" class="form-control form-control-sm" placeholder="Cheque no. / remittance ref"></div>
+        <div class="col-md-3"><button class="btn btn-success btn-sm w-100"><i class="ri-secure-payment-line"></i> Pay {{ voucher.amount|floatformat:2 }}</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-information-line"></i> Voucher details</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Invoice</small><a href="{% url 'invoicing:invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a></div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Vendor</small>{{ voucher.vendor.legal_name }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Method</small>{{ voucher.get_payment_method_display }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Invoice total</small>{{ invoice.total_amount|floatformat:2 }} {{ invoice.currency }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Discount taken</small>{{ voucher.discount_taken|floatformat:2 }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Amount to pay</small><span class="fw-semibold">{{ voucher.amount|floatformat:2 }} {{ voucher.currency }}</span></div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Scheduled</small>{{ voucher.scheduled_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Paid</small>{{ voucher.paid_date|date:"M d, Y"|default:"—" }}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Gateway ref</small>{{ voucher.gateway_ref|default:"—" }}</div>
+          {% if voucher.reference %}<div class="col-12 mb-2"><small class="text-muted d-block">Reference</small>{{ voucher.reference }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    {% if can_manage and voucher.can_cancel %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <form method="post" action="{% url 'invoicing:voucher_cancel' voucher.pk %}" onsubmit="return confirm('Cancel this voucher?');">
+          {% csrf_token %}
+          <input type="text" name="reason" class="form-control form-control-sm mb-2" placeholder="Cancellation reason (optional)">
+          <button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-prohibited-line"></i> Cancel voucher</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for ev in status_events %}
+        <li class="list-group-item py-2">
+          <div class="d-flex justify-content-between">
+            <span>{% include 'invoicing/_voucher_badge.html' with status=ev.status %}</span>
+            <small class="text-muted">{{ ev.created_at|date:"M d, H:i" }}</small>
+          </div>
+          {% if ev.note %}<small class="text-muted d-block">{{ ev.note }}{% if ev.actor %} · {{ ev.actor }}{% endif %}</small>{% endif %}
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted small">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
