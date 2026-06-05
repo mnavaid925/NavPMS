@@ -750,11 +750,3 @@ def portal_contacts(request):
         'contacts': vendor.contacts.all(),
         'form': form,
     })
-
-
-@vendor_required
-def portal_invoices(request):
-    """Placeholder until Module 14 (Invoice & Voucher Management) ships."""
-    return render(request, 'vendor_portal/invoices.html', {
-        'vendor': request.user.vendor,
-    })
