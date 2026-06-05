@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Capture Invoice (OCR){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">Capture Invoice</h1>
+      <p class="page-subtitle">Upload a supplier invoice PDF or image — the lines are extracted for matching</p>
+    </div>
+    <a href="{% url 'invoicing:invoice_list' %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary"><i class="ri-scan-line"></i> Capture &amp; extract</button>
+            <a href="{% url 'invoicing:invoice_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-information-line"></i> How it works</div>
+      <div class="card-body small text-muted">
+        <ol class="ps-3 mb-2">
+          <li>Pick the purchase order this invoice bills against.</li>
+          <li>Upload the supplier's PDF/image.</li>
+          <li>The OCR engine drafts the header &amp; lines.</li>
+          <li>Review, then submit for three-way matching.</li>
+        </ol>
+        <p class="mb-0">Extracted totals are never trusted for payment — the amount paid is
+        re-derived from the matched lines.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
