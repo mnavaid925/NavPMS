@@ -5,7 +5,12 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from apps.core.models import set_current_tenant
-from apps.goods_receipt.models import GoodsReceipt, GoodsReceiptLine, ReceiptTag
+from apps.goods_receipt.models import (
+    GoodsReceipt,
+    GoodsReceiptAttachment,
+    GoodsReceiptLine,
+    ReceiptTag,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -79,6 +84,28 @@ class TestTags:
         assert tags.count() == posted_grn.lines.count()
         for tag in tags:
             assert tag.code.startswith(posted_grn.grn_number + '-L')
+
+
+class TestTraceabilityFields:
+    def test_line_traceability_defaults_blank(self, draft_grn):
+        line = draft_grn.lines.first()
+        assert line.lot_number == ''
+        assert line.batch_number == ''
+        assert line.serial_number == ''
+        assert line.bin_location == ''
+        assert line.expiry_date is None
+
+
+class TestAttachment:
+    def test_create_and_str(self, draft_grn, tenant):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        set_current_tenant(tenant)
+        att = GoodsReceiptAttachment.all_objects.create(
+            tenant=tenant, goods_receipt=draft_grn, kind='photo',
+            file=SimpleUploadedFile('p.txt', b'x'), caption='Damage')
+        assert att.caption == 'Damage'
+        assert str(att) == 'Damage'
+        att.file.delete(save=False)
 
 
 class TestConstraints:
