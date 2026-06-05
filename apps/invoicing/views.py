@@ -5,13 +5,17 @@ Function-based views mirroring the goods_receipt / purchase_orders modules:
 to ``request.tenant``, a list with search + filters + ``Paginator(qs, 20)``, and lifecycle
 actions that delegate to :mod:`apps.invoicing.services` and surface ``ValidationError.messages``.
 """
+import csv
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.purchase_orders.models import PurchaseOrder
@@ -44,6 +48,13 @@ from .models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+class Echo:
+    """A write-only file-like object that returns what it is given (CSV streaming buffer)."""
+
+    def write(self, value):
+        return value
+
+
 def _has_named_url(name):
     try:
         reverse(name)
@@ -541,6 +552,21 @@ def voucher_create(request, pk):
         return denied
 
     invoice = _get_invoice(request, pk)
+
+    # Quick action from the analytics dashboard: one click to voucher an approved invoice and
+    # take its early-payment discount (no full form).
+    if request.POST.get('quick_action') == '1':
+        try:
+            voucher = services.create_voucher(invoice, request.user, take_discount=True)
+            messages.success(
+                request,
+                f'Voucher {voucher.voucher_number} created with the early-payment discount.')
+            return redirect('invoicing:voucher_detail', pk=voucher.pk)
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+        return redirect('invoicing:analytics_dashboard')
+
     form = CreateVoucherForm(request.POST)
     if not form.is_valid():
         messages.error(request, 'Invalid voucher details.')
@@ -685,6 +711,109 @@ def voucher_cancel(request, pk):
         for msg in exc.messages:
             messages.error(request, msg)
     return redirect('invoicing:voucher_detail', pk=voucher.pk)
+
+
+def _run_voucher_batch(request, action_fn, *, verb, **kwargs):
+    """Apply a per-voucher service action to the selected vouchers, reporting partial success.
+
+    Each voucher is processed through the existing TOCTOU-safe service function, so a failure on
+    one (wrong status, gateway decline) never rolls back the others — it is reported per voucher.
+    """
+    ids = request.POST.getlist('voucher_ids')
+    if not ids:
+        messages.warning(request, 'Select at least one voucher first.')
+        return redirect('invoicing:voucher_list')
+    vouchers = PaymentVoucher.objects.filter(tenant=request.tenant, pk__in=ids)
+    ok = 0
+    for voucher in vouchers:
+        try:
+            action_fn(voucher, request.user, **kwargs)
+            ok += 1
+        except ValidationError as exc:
+            messages.error(request, f'{voucher.voucher_number}: {exc.messages[0]}')
+    if ok:
+        messages.success(request, f'{ok} voucher(s) {verb}.')
+    return redirect('invoicing:voucher_list')
+
+
+@login_required
+@require_POST
+def batch_schedule_vouchers(request):
+    denied = _require_manage(request)
+    if denied:
+        return denied
+    scheduled_date = request.POST.get('scheduled_date') or None
+    return _run_voucher_batch(
+        request, services.schedule_voucher, verb='scheduled', scheduled_date=scheduled_date)
+
+
+@login_required
+@require_POST
+def batch_pay_vouchers(request):
+    denied = _require_manage(request)
+    if denied:
+        return denied
+    return _run_voucher_batch(request, services.pay_voucher, verb='paid')
+
+
+@login_required
+def export_unpaid_invoices_csv(request):
+    """Stream the unpaid (submitted/approved) invoices as a CSV AP-aging report.
+
+    Honours the same search / vendor / PO filters as ``invoice_list`` so the export matches
+    what the user is looking at. Aging buckets mirror ``services.tenant_invoice_metrics``.
+    """
+    denied = _require_view(request)
+    if denied:
+        return denied
+
+    qs = SupplierInvoice.objects.filter(
+        tenant=request.tenant, status__in=('submitted', 'approved')
+    ).select_related('vendor', 'purchase_order').order_by('due_date')
+
+    q = request.GET.get('q', '').strip()
+    vendor = request.GET.get('vendor', '')
+    po = request.GET.get('po', '')
+    if q:
+        qs = qs.filter(
+            Q(invoice_number__icontains=q)
+            | Q(supplier_invoice_ref__icontains=q)
+            | Q(purchase_order__po_number__icontains=q)
+            | Q(vendor__legal_name__icontains=q))
+    if vendor:
+        qs = qs.filter(vendor_id=vendor)
+    if po:
+        qs = qs.filter(purchase_order_id=po)
+
+    today = timezone.localdate()
+
+    def rows():
+        writer = csv.writer(Echo())
+        yield writer.writerow([
+            'Invoice #', 'Supplier ref', 'Vendor', 'PO', 'Status', 'Due date',
+            'Days overdue', 'Aging bucket', 'Currency', 'Total', 'Net payable'])
+        for inv in qs:
+            overdue_days = (today - inv.due_date).days if inv.due_date else 0
+            if overdue_days <= 0:
+                bucket = 'Current'
+            elif overdue_days <= 30:
+                bucket = '1-30 days'
+            elif overdue_days <= 60:
+                bucket = '31-60 days'
+            else:
+                bucket = '60+ days'
+            yield writer.writerow([
+                inv.invoice_number, inv.supplier_invoice_ref or '',
+                inv.vendor.legal_name if inv.vendor else '',
+                inv.purchase_order.po_number if inv.purchase_order else '',
+                inv.get_status_display(),
+                inv.due_date.strftime('%Y-%m-%d') if inv.due_date else '',
+                overdue_days if overdue_days > 0 else 0, bucket,
+                inv.currency, f'{inv.total_amount:.2f}', f'{inv.net_payable:.2f}'])
+
+    response = StreamingHttpResponse(rows(), content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="unpaid-invoices.csv"'
+    return response
 
 
 # ---------------------------------------------------------------------------
