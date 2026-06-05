@@ -213,7 +213,18 @@
             {% for line in lines %}
             <tr>
               <td>{{ line.line_no }}</td>
-              <td>{{ line.description }}</td>
+              <td>
+                {{ line.description }}
+                {% if line.lot_number or line.batch_number or line.serial_number or line.expiry_date or line.bin_location %}
+                <div class="small text-muted">
+                  {% if line.lot_number %}<span class="me-2">Lot: {{ line.lot_number }}</span>{% endif %}
+                  {% if line.batch_number %}<span class="me-2">Batch: {{ line.batch_number }}</span>{% endif %}
+                  {% if line.serial_number %}<span class="me-2">S/N: {{ line.serial_number }}</span>{% endif %}
+                  {% if line.expiry_date %}<span class="me-2">Exp: {{ line.expiry_date|date:"M d, Y" }}</span>{% endif %}
+                  {% if line.bin_location %}<span class="me-2"><i class="ri-map-pin-line"></i> {{ line.bin_location }}</span>{% endif %}
+                </div>
+                {% endif %}
+              </td>
               <td>PO line {{ line.purchase_order_line.line_no }}</td>
               <td>{{ line.uom }}</td>
               <td class="text-end">{{ line.received_quantity|floatformat:2 }}</td>
@@ -292,15 +303,67 @@
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
-          <thead><tr><th>Code</th><th>Line</th><th class="text-end">Qty</th></tr></thead>
+          <thead><tr><th>Code</th><th>Line</th><th>Bin</th><th class="text-end">Qty</th></tr></thead>
           <tbody>
             {% for tag in tags %}
-            <tr><td><code>{{ tag.code }}</code></td><td>{{ tag.goods_receipt_line.description }}</td><td class="text-end">{{ tag.quantity|floatformat:2 }} {{ tag.uom }}</td></tr>
+            <tr><td><code>{{ tag.code }}</code></td><td>{{ tag.goods_receipt_line.description }}</td><td>{% if tag.bin_location %}<i class="ri-map-pin-line"></i> {{ tag.bin_location }}{% else %}—{% endif %}</td><td class="text-end">{{ tag.quantity|floatformat:2 }} {{ tag.uom }}</td></tr>
             {% empty %}
-            <tr><td colspan="3" class="text-center text-muted py-2">No tags yet. Tags are generated when the GRN is posted.</td></tr>
+            <tr><td colspan="4" class="text-center text-muted py-2">No tags yet. Tags are generated when the GRN is posted.</td></tr>
             {% endfor %}
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Evidence attachments -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-attachment-2"></i> Evidence &amp; Documents ({{ attachments|length }})</div>
+      <div class="card-body">
+        {% if attachments %}
+        <ul class="list-group list-group-flush mb-3">
+          {% for att in attachments %}
+          <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+            <span>
+              {% if att.kind == 'photo' %}<i class="ri-image-line text-muted"></i>{% else %}<i class="ri-file-text-line text-muted"></i>{% endif %}
+              <a href="{{ att.file.url }}" target="_blank" class="text-decoration-none">{{ att.caption|default:att.file.name }}</a>
+              {% if att.goods_receipt_line %}<span class="small text-muted ms-1">· line {{ att.goods_receipt_line.line_no }}</span>{% endif %}
+              <span class="small text-muted ms-1">· {{ att.uploaded_by|default:"—" }} · {{ att.created_at|date:"M d, Y" }}</span>
+            </span>
+            {% if can_manage %}
+            <form method="post" action="{% url 'goods_receipt:attachment_delete' grn.pk att.pk %}" class="d-inline" onsubmit="return confirm('Remove this attachment?');">
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Remove"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small">No evidence uploaded. Attach damage photos, packing slips, or a certificate of analysis.</p>
+        {% endif %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'goods_receipt:attachment_add' grn.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <div class="col-md-3">
+            <label class="form-label small">Type</label>
+            {{ attachment_form.kind }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Related line</label>
+            {{ attachment_form.goods_receipt_line }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">File</label>
+            {{ attachment_form.file }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Caption</label>
+            {{ attachment_form.caption }}
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-outline-primary mt-2"><i class="ri-upload-2-line"></i> Upload</button>
+          </div>
+        </form>
+        {% endif %}
       </div>
     </div>
 
