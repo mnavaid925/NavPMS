@@ -22,6 +22,7 @@ urlpatterns = [
     path('purchase-orders/', include('apps.purchase_orders.urls')),
     path('fulfillment/', include('apps.fulfillment.urls')),
     path('goods-receipt/', include('apps.goods_receipt.urls')),
+    path('invoicing/', include('apps.invoicing.urls')),
 ]
 
 if settings.DEBUG:
