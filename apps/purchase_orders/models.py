@@ -210,6 +210,20 @@ class PurchaseOrder(TenantAwareModel, TimeStampedModel):
         help_text='Set when the overdue-delivery alert was raised.',
     )
 
+    # Module 14 — per-PO three-way-match tolerance overrides. When set, these take precedence
+    # over the tenant-wide INVOICE_QTY_TOLERANCE_PCT / INVOICE_PRICE_TOLERANCE_PCT defaults in
+    # invoicing.services.run_three_way_match; leave blank to use the tenant default.
+    qty_tolerance_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Quantity tolerance % for three-way match. Blank = use the tenant default.',
+    )
+    price_tolerance_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Price tolerance % for three-way match. Blank = use the tenant default.',
+    )
+
     class Meta:
         ordering = ['-created_at']
         unique_together = [('tenant', 'po_number')]
