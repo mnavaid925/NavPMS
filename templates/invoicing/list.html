@@ -12,6 +12,9 @@
     <a href="{% url 'invoicing:analytics_dashboard' %}" class="btn btn-outline-secondary">
       <i class="ri-bar-chart-box-line"></i> Analytics
     </a>
+    <a href="{% url 'invoicing:export_unpaid_csv' %}{% if querystring %}?{{ querystring }}{% endif %}" class="btn btn-outline-secondary">
+      <i class="ri-download-cloud-line"></i> Export CSV
+    </a>
     {% if can_manage %}
     <a href="{% url 'invoicing:invoice_capture' %}" class="btn btn-outline-primary">
       <i class="ri-scan-line"></i> Capture (OCR)
