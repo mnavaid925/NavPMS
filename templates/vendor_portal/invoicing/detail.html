@@ -1,0 +1,80 @@
+{% extends 'vendor_portal/base.html' %}
+{% load humanize %}
+{% block title %}{{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ invoice.invoice_number }} {% include 'invoicing/_status_badge.html' with status=invoice.status %}</h4>
+    <div class="small text-muted">{% if invoice.purchase_order %}PO {{ invoice.purchase_order.po_number }}{% endif %}{% if invoice.supplier_invoice_ref %} · your ref {{ invoice.supplier_invoice_ref }}{% endif %}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'vendor_portal:invoices' %}"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+{% if invoice.status == 'disputed' %}
+<div class="alert alert-warning"><i class="ri-error-warning-line"></i> There is a query on this invoice. Please review the messages below and reply.</div>
+{% elif invoice.status == 'approved' %}
+<div class="alert alert-info"><i class="ri-check-line"></i> This invoice has been approved and is awaiting payment.</div>
+{% elif invoice.status == 'paid' %}
+<div class="alert alert-success"><i class="ri-check-double-line"></i> This invoice has been paid.</div>
+{% elif invoice.status == 'rejected' %}
+<div class="alert alert-danger"><i class="ri-close-circle-line"></i> This invoice was rejected{% if invoice.reject_reason %}: {{ invoice.reject_reason }}{% endif %}.</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-information-line"></i> Overview</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Total</small>{{ invoice.total_amount|floatformat:2 }} {{ invoice.currency }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Invoice date</small>{{ invoice.invoice_date|date:"M d, Y"|default:"—" }}</div>
+      <div class="col-md-4 mb-2"><small class="text-muted d-block">Due date</small>{{ invoice.due_date|date:"M d, Y"|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-list-check-2"></i> Lines</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>#</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit price</th><th class="text-end">Total</th></tr></thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>{{ line.line_no }}</td>
+          <td>{{ line.description }}</td>
+          <td class="text-end">{{ line.quantity|floatformat:2 }}</td>
+          <td class="text-end">{{ line.unit_price|floatformat:2 }}</td>
+          <td class="text-end">{{ line.line_total|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No lines.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="ri-chat-3-line"></i> Messages</div>
+  <div class="card-body">
+    {% for note in dispute_notes %}
+    <div class="d-flex {% if note.is_from_vendor %}justify-content-end{% else %}justify-content-start{% endif %} mb-2">
+      <div class="p-2 rounded {% if note.is_from_vendor %}bg-primary-subtle{% else %}bg-light{% endif %}" style="max-width:75%">
+        <div class="small fw-semibold">{% if note.is_from_vendor %}You{% else %}Buyer{% endif %}
+          <span class="text-muted fw-normal">· {{ note.created_at|date:"M d, H:i" }}</span></div>
+        <div style="white-space:pre-wrap">{{ note.body }}</div>
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted small mb-2">No messages yet.</p>
+    {% endfor %}
+    {% if invoice.status != 'paid' and invoice.status != 'cancelled' and invoice.status != 'rejected' %}
+    <form method="post" action="{% url 'vendor_portal:invoice_dispute_reply' invoice.pk %}" class="d-flex gap-2 mt-2">
+      {% csrf_token %}
+      <input type="text" name="body" class="form-control form-control-sm" placeholder="Reply to the buyer…" required>
+      <button class="btn btn-sm btn-primary"><i class="ri-send-plane-line"></i> Send</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
