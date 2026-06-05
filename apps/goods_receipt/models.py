@@ -316,6 +316,15 @@ class GoodsReceiptLine(TenantAwareModel, TimeStampedModel):
     line_status = models.CharField(
         max_length=12, choices=GRN_LINE_STATUS_CHOICES, default='pending',
     )
+
+    # Traceability — lot/batch/serial + expiry captured at receipt (recall support).
+    lot_number = models.CharField(max_length=80, blank=True)
+    batch_number = models.CharField(max_length=80, blank=True)
+    serial_number = models.CharField(max_length=120, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    # Putaway destination — where the accepted stock lands (propagated to the tag).
+    bin_location = models.CharField(max_length=80, blank=True)
+
     notes = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -534,6 +543,10 @@ class ReceiptTag(TenantAwareModel, TimeStampedModel):
     code = models.CharField(max_length=80)
     quantity = _qty_field()
     uom = models.CharField(max_length=30, default='unit')
+    # Copied from the source line at generation so the printed label is self-contained.
+    bin_location = models.CharField(max_length=80, blank=True)
+    lot_number = models.CharField(max_length=80, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
     generated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='receipt_tags',
@@ -548,3 +561,46 @@ class ReceiptTag(TenantAwareModel, TimeStampedModel):
 
     def __str__(self):
         return self.code
+
+
+# ---------- 3. Evidence attachments (photos / supplier documents) ----------
+
+ATTACHMENT_KIND_CHOICES = [
+    ('photo', 'Photo'),
+    ('document', 'Document'),
+]
+
+
+class GoodsReceiptAttachment(TenantAwareModel, TimeStampedModel):
+    """A photo or supplier document attached to a GRN (e.g. damage evidence, packing slip, COA).
+
+    Optionally tied to a specific received line so discrepancy evidence sits next to the
+    line it documents.
+    """
+
+    KIND_CHOICES = ATTACHMENT_KIND_CHOICES
+
+    goods_receipt = models.ForeignKey(
+        GoodsReceipt, on_delete=models.CASCADE, related_name='attachments',
+    )
+    goods_receipt_line = models.ForeignKey(
+        GoodsReceiptLine, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='attachments',
+        help_text='Optional — the received line this evidence documents.',
+    )
+    kind = models.CharField(max_length=10, choices=ATTACHMENT_KIND_CHOICES, default='photo')
+    file = models.FileField(upload_to='goods_receipt/attachments/%Y/%m/')
+    caption = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='goods_receipt_attachments',
+    )
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['tenant', 'goods_receipt']),
+        ]
+
+    def __str__(self):
+        return self.caption or self.file.name
