@@ -22,6 +22,7 @@ from apps.vendors.models import Vendor
 from . import services
 from .forms import (
     CancelRTVForm,
+    GoodsReceiptAttachmentForm,
     GoodsReceiptForm,
     GoodsReceiptLineForm,
     ReturnToVendorForm,
@@ -34,6 +35,7 @@ from .models import (
     GRN_QA_CRITERIA,
     GRN_STATUS_CHOICES,
     GoodsReceipt,
+    GoodsReceiptAttachment,
     GoodsReceiptLine,
     ReturnToVendor,
     ReturnToVendorLine,
@@ -205,6 +207,8 @@ def grn_detail(request, pk):
         'tags': grn.tags.select_related('goods_receipt_line').all(),
         'returns': grn.returns.all(),
         'status_events': grn.status_events.select_related('actor').all()[:30],
+        'attachments': grn.attachments.select_related('goods_receipt_line', 'uploaded_by'),
+        'attachment_form': GoodsReceiptAttachmentForm(goods_receipt=grn),
         'cancel_form': CancelRTVForm(),
         'can_manage': services.can_manage_goods_receipt(request.user),
     }
@@ -406,6 +410,11 @@ def line_add(request, pk):
                     received_quantity=form.cleaned_data['received_quantity'],
                     shipment_line=form.cleaned_data.get('shipment_line'),
                     discrepancy_type=form.cleaned_data.get('discrepancy_type', 'none'),
+                    lot_number=form.cleaned_data.get('lot_number', ''),
+                    batch_number=form.cleaned_data.get('batch_number', ''),
+                    serial_number=form.cleaned_data.get('serial_number', ''),
+                    expiry_date=form.cleaned_data.get('expiry_date'),
+                    bin_location=form.cleaned_data.get('bin_location', ''),
                     notes=form.cleaned_data.get('notes', ''),
                 )
                 messages.success(request, 'Received line added.')
@@ -445,6 +454,7 @@ def line_edit(request, pk, line_pk):
             if not obj.uom or obj.uom == 'unit':
                 obj.uom = pol.uom
             obj.save()
+            services.apply_receipt_tolerance(obj)
             messages.success(request, 'Received line updated.')
             return redirect('goods_receipt:grn_detail', pk=grn.pk)
     else:
@@ -503,6 +513,58 @@ def grn_generate_tags(request, pk):
         return redirect('goods_receipt:grn_detail', pk=grn.pk)
     created = services.generate_tags(grn, request.user)
     messages.success(request, f'{len(created)} tag(s) generated.')
+    return redirect('goods_receipt:grn_detail', pk=grn.pk)
+
+
+# ---------------------------------------------------------------------------
+# 3. Evidence attachments (photos / supplier documents)
+# ---------------------------------------------------------------------------
+@login_required
+@require_POST
+def attachment_add(request, pk):
+    denied = _require_manage(request)
+    if denied:
+        return denied
+
+    grn = _get_grn(request, pk)
+    form = GoodsReceiptAttachmentForm(request.POST, request.FILES, goods_receipt=grn)
+    if form.is_valid():
+        attachment = form.save(commit=False)
+        attachment.tenant = request.tenant
+        attachment.goods_receipt = grn
+        attachment.uploaded_by = request.user
+        attachment.save()
+        services.record_audit(
+            request.tenant, request.user, 'goods_receipt.attachment.added',
+            target_type='GoodsReceipt', target_id=str(grn.pk),
+            message=f'Attachment added to {grn.grn_number}.', request=request,
+        )
+        messages.success(request, 'Attachment uploaded.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect('goods_receipt:grn_detail', pk=grn.pk)
+
+
+@login_required
+@require_POST
+def attachment_delete(request, pk, att_pk):
+    denied = _require_manage(request)
+    if denied:
+        return denied
+
+    grn = _get_grn(request, pk)
+    attachment = get_object_or_404(
+        GoodsReceiptAttachment, pk=att_pk, goods_receipt=grn, tenant=request.tenant)
+    attachment.file.delete(save=False)
+    attachment.delete()
+    services.record_audit(
+        request.tenant, request.user, 'goods_receipt.attachment.deleted', level='warning',
+        target_type='GoodsReceipt', target_id=str(grn.pk),
+        message=f'Attachment removed from {grn.grn_number}.', request=request,
+    )
+    messages.success(request, 'Attachment removed.')
     return redirect('goods_receipt:grn_detail', pk=grn.pk)
 
 
