@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Supplier Invoices{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Supplier Invoices</h1>
+    <p class="page-subtitle">Capture, three-way match, approve &amp; pay accounts-payable invoices</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'invoicing:analytics_dashboard' %}" class="btn btn-outline-secondary">
+      <i class="ri-bar-chart-box-line"></i> Analytics
+    </a>
+    {% if can_manage %}
+    <a href="{% url 'invoicing:invoice_capture' %}" class="btn btn-outline-primary">
+      <i class="ri-scan-line"></i> Capture (OCR)
+    </a>
+    <a href="{% url 'invoicing:invoice_create' %}" class="btn btn-primary">
+      <i class="ri-add-line"></i> New Invoice
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Invoice #, supplier ref, PO or vendor">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Match</label>
+        <select name="match_status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in match_status_choices %}
+          <option value="{{ value }}" {% if request.GET.match_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Vendor</label>
+        <select name="vendor" class="form-select">
+          <option value="">All</option>
+          {% for v in vendors %}
+          <option value="{{ v.pk }}" {% if request.GET.vendor == v.pk|stringformat:"d" %}selected{% endif %}>{{ v.legal_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Supplier ref</th>
+          <th>Vendor</th>
+          <th>PO</th>
+          <th>Status</th>
+          <th>Match</th>
+          <th class="text-end">Total</th>
+          <th>Due</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td><a href="{% url 'invoicing:invoice_detail' inv.pk %}" class="fw-semibold text-decoration-none">{{ inv.invoice_number }}</a></td>
+          <td>{{ inv.supplier_invoice_ref|default:"—" }}</td>
+          <td>{{ inv.vendor.legal_name|default:"—" }}</td>
+          <td>{% if inv.purchase_order %}<a href="{% url 'purchase_orders:po_detail' inv.purchase_order.pk %}" class="text-decoration-none">{{ inv.purchase_order.po_number }}</a>{% else %}—{% endif %}</td>
+          <td>{% include 'invoicing/_status_badge.html' with status=inv.status %}</td>
+          <td>{% include 'invoicing/_match_badge.html' with match_status=inv.match_status %}</td>
+          <td class="text-end">{{ inv.total_amount|floatformat:2|intcomma }} {{ inv.currency }}</td>
+          <td>{% if inv.is_overdue %}<span class="text-danger">{{ inv.due_date|date:"M d, Y" }}</span>{% else %}{{ inv.due_date|date:"M d, Y"|default:"—" }}{% endif %}</td>
+          <td class="text-end">
+            <a href="{% url 'invoicing:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            {% if can_manage and inv.is_editable %}
+            <a href="{% url 'invoicing:invoice_edit' inv.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'invoicing:invoice_delete' inv.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ inv.invoice_number }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-4">
+            No invoices yet.{% if can_manage %} <a href="{% url 'invoicing:invoice_capture' %}">Capture one</a>.{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
