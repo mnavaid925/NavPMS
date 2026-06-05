@@ -10,6 +10,7 @@
         {{ invoice.invoice_number }}
         {% include 'invoicing/_status_badge.html' with status=invoice.status %}
         {% include 'invoicing/_match_badge.html' with match_status=invoice.match_status %}
+        {% if invoice.needs_manual_ocr_review %}<span class="badge badge-soft-warning" title="OCR confidence below threshold — review before submitting"><i class="ri-error-warning-line"></i> Needs OCR review</span>{% endif %}
       </h1>
       <p class="page-subtitle">
         {{ invoice.vendor.legal_name }}
@@ -48,6 +49,17 @@
 {% endif %}
 {% if invoice.match_override %}
 <div class="alert alert-info"><i class="ri-information-line"></i> Approved with a manual match override.</div>
+{% endif %}
+{% if invoice.currency_mismatch %}
+<div class="alert alert-warning"><i class="ri-error-warning-line"></i>
+  <strong>Currency mismatch.</strong> This invoice is in {{ invoice.currency }} but its purchase order
+  {% if invoice.purchase_order %}({{ invoice.purchase_order.po_number }}) {% endif %}is in
+  {{ invoice.purchase_order.currency }}. Verify before approving — a voucher cannot be created until this is resolved.</div>
+{% endif %}
+{% if invoice.status == 'draft' and invoice.needs_manual_ocr_review %}
+<div class="alert alert-warning"><i class="ri-error-warning-line"></i>
+  <strong>Low OCR confidence ({{ invoice.ocr_confidence|floatformat:0 }}%).</strong>
+  Review the captured lines, quantities and prices before submitting.</div>
 {% endif %}
 
 {# --- Collapsible action panels --- #}
@@ -131,7 +143,7 @@
           <div class="col-md-4 mb-2"><small class="text-muted d-block">Supplier ref</small>{{ invoice.supplier_invoice_ref|default:"—" }}</div>
           <div class="col-md-4 mb-2"><small class="text-muted d-block">Invoice date</small>{{ invoice.invoice_date|date:"M d, Y"|default:"—" }}</div>
           <div class="col-md-4 mb-2"><small class="text-muted d-block">Payment term</small>{{ invoice.payment_term.code|default:"—" }}</div>
-          <div class="col-md-4 mb-2"><small class="text-muted d-block">Captured by OCR</small>{% if invoice.ocr_engine %}{{ invoice.ocr_engine }} ({{ invoice.ocr_confidence|floatformat:0 }}%){% else %}Manual{% endif %}</div>
+          <div class="col-md-4 mb-2"><small class="text-muted d-block">Captured by OCR</small>{% if invoice.ocr_engine %}<span class="{% if invoice.needs_manual_ocr_review %}text-warning fw-semibold{% endif %}">{{ invoice.ocr_engine }} ({{ invoice.ocr_confidence|floatformat:0 }}%){% if invoice.needs_manual_ocr_review %} — below threshold{% endif %}</span>{% else %}Manual{% endif %}</div>
           {% if invoice.source_file %}<div class="col-12 mb-2"><small class="text-muted d-block">Source file</small><a href="{{ invoice.source_file.url }}" target="_blank" rel="noopener"><i class="ri-file-text-line"></i> {{ invoice.source_file.name }}</a></div>{% endif %}
           {% if invoice.notes %}<div class="col-12 mb-2"><small class="text-muted d-block">Notes</small><span style="white-space:pre-wrap">{{ invoice.notes }}</span></div>{% endif %}
         </div>
