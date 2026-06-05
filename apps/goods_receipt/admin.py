@@ -7,6 +7,7 @@ from django.contrib import admin
 
 from .models import (
     GoodsReceipt,
+    GoodsReceiptAttachment,
     GoodsReceiptCheck,
     GoodsReceiptLine,
     GoodsReceiptStatusEvent,
@@ -22,9 +23,16 @@ class GoodsReceiptLineInline(admin.TabularInline):
     fields = [
         'line_no', 'purchase_order_line', 'description', 'uom', 'received_quantity',
         'accepted_quantity', 'rejected_quantity', 'posted_quantity', 'discrepancy_type',
+        'lot_number', 'batch_number', 'serial_number', 'expiry_date', 'bin_location',
         'line_status',
     ]
     readonly_fields = ['posted_quantity']
+
+
+class GoodsReceiptAttachmentInline(admin.TabularInline):
+    model = GoodsReceiptAttachment
+    extra = 0
+    fields = ['kind', 'goods_receipt_line', 'file', 'caption', 'uploaded_by']
 
 
 class GoodsReceiptCheckInline(admin.TabularInline):
@@ -48,7 +56,7 @@ class GoodsReceiptAdmin(admin.ModelAdmin):
         'grn_number', 'received_at', 'inspected_at', 'posted_at', 'cancelled_at',
         'closed_at', 'inspection_alerted_at',
     ]
-    inlines = [GoodsReceiptLineInline, GoodsReceiptCheckInline]
+    inlines = [GoodsReceiptLineInline, GoodsReceiptCheckInline, GoodsReceiptAttachmentInline]
 
 
 class ReturnToVendorLineInline(admin.TabularInline):
@@ -74,10 +82,24 @@ class ReturnToVendorAdmin(admin.ModelAdmin):
 
 @admin.register(ReceiptTag)
 class ReceiptTagAdmin(admin.ModelAdmin):
-    list_display = ['code', 'goods_receipt', 'goods_receipt_line', 'quantity', 'tenant']
+    list_display = [
+        'code', 'goods_receipt', 'goods_receipt_line', 'quantity', 'bin_location',
+        'lot_number', 'tenant',
+    ]
     list_filter = ['tenant']
-    search_fields = ['code', 'goods_receipt__grn_number']
+    search_fields = ['code', 'goods_receipt__grn_number', 'bin_location', 'lot_number']
     readonly_fields = ['code', 'generated_by']
+
+
+@admin.register(GoodsReceiptAttachment)
+class GoodsReceiptAttachmentAdmin(admin.ModelAdmin):
+    list_display = [
+        'goods_receipt', 'kind', 'goods_receipt_line', 'caption', 'uploaded_by',
+        'created_at', 'tenant',
+    ]
+    list_filter = ['tenant', 'kind']
+    search_fields = ['goods_receipt__grn_number', 'caption']
+    readonly_fields = ['uploaded_by']
 
 
 @admin.register(GoodsReceiptCheck)
