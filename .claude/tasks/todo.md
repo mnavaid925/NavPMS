@@ -1,3 +1,92 @@
+# Module 14 — Invoice & Voucher Management (`apps/invoicing/`)
+
+**Created:** 2026-06-05
+**Scope:** New app `apps/invoicing/` at `/invoicing/` — the accounts-payable layer closing the P2P
+loop after Module 13 (Goods Receipt). Mirrors M13 conventions. Full design spec:
+`C:\Users\user\.claude\plans\cheerful-rolling-walrus.md`.
+
+> **Naming:** `apps.tenants.Invoice` already exists (SaaS billing). AP model = **`SupplierInvoice`**
+> (`SINV-<SLUG>-NNNNN`); payment doc = **`PaymentVoucher`** (`VCH-<SLUG>-NNNNN`). The invoice is
+> **read-only** against PO/GRN — never re-posts to the PO (GRN already did).
+>
+> **Decisions locked:** OCR = mock pluggable connector (`ocr.py`, mirrors `gateways.py`); voucher
+> payment = reuse `tenants/gateways.py` mock gateway; scope = full module.
+
+| Sub-module (spec) | Implementation |
+|---|---|
+| **Invoice Capture (OCR)** | `SupplierInvoice.source_file` + `ocr.py` (OcrEngine Protocol + MockOcrEngine, `OCR_ENGINE` env) → `capture_invoice_from_file()` extracts header+lines to a draft. File whitelist-validated (`upload_error`). |
+| **Three-Way Matching** | `run_three_way_match()` — invoice line vs PO line (ordered qty/price) vs GRN accepted qty; tolerances; over-billing guard computed in-app. Sets per-line + header `match_status`. |
+| **Dispute Resolution** | `InvoiceDisputeNote` append-only buyer↔supplier thread; `disputed` status; vendor portal reply. |
+| **Payment Terms** | `PaymentTerm` master (net days, discount %/days) → due_date / discount_due_date / discount_amount; `PaymentVoucher` schedules + pays via gateway. |
+| **Early Payment Discount** | Analytics dashboard: discount-window opportunities + AP aging buckets. |
+
+## Status workflows
+- Invoice `status`: `draft → submitted → approved → paid`, plus `disputed` (↔ submitted), `rejected`, `cancelled`.
+- Invoice `match_status`: `unmatched / matched / exceptions`.
+- Voucher `status`: `draft → approved → scheduled → paid`, plus `cancelled`.
+
+## Tasks
+- [ ] Scaffold `apps/invoicing/` (`__init__`, `apps.py`, migrations pkg, management pkgs)
+- [ ] `models.py` — PaymentTerm, SupplierInvoice(+Line), SupplierInvoiceStatusEvent, InvoiceDisputeNote, PaymentVoucher(+StatusEvent)
+- [ ] `ocr.py` — OcrEngine Protocol + MockOcrEngine + registry + `get_ocr_engine()`
+- [ ] `services.py` — numbering, capture, 3-way match, lifecycle, vouchers (gateway), alerts, metrics, perms/visibility
+- [ ] `forms.py`, `views.py`, `urls.py`, `admin.py`, `portal_views.py`
+- [ ] Migration (`makemigrations invoicing`)
+- [ ] `templates/invoicing/*` + `templates/vendor_portal/invoicing/*` (replace `vendor_portal/invoices.html`)
+- [ ] Vendor-portal wiring (`vendors/portal_urls.py`, `vendors/views.py`) — replace placeholder
+- [ ] Global wiring (settings INSTALLED_APPS + env, `config/urls.py`, `sidebar.html`, `seed_data.py`)
+- [ ] `seed_invoicing` + `run_invoice_alerts` commands
+- [ ] Tests (`conftest`, `test_models`, `test_services`, `test_views`, `test_security`)
+- [ ] `makemigrations` + `migrate` + `pytest apps/invoicing` + `seed_invoicing --flush`
+- [ ] README (module section, routes, commands, env, seeded data, roadmap, TOC)
+- [x] Per-file PowerShell commit snippets
+
+## Review
+
+**Status: complete & verified (2026-06-06).**
+
+- New app `apps/invoicing/` — 7 models (`PaymentTerm`, `SupplierInvoice` (+`SupplierInvoiceLine`),
+  `SupplierInvoiceStatusEvent` append-only, `InvoiceDisputeNote` append-only thread, `PaymentVoucher`
+  (+`PaymentVoucherStatusEvent` append-only)), a pluggable OCR connector (`ocr.py`: `OcrEngine`
+  Protocol + `MockOcrEngine` + `get_ocr_engine()`), full service layer (`next_invoice_number`/
+  `next_voucher_number`, `capture_invoice_from_file`, `run_three_way_match`, `submit`/`approve`/
+  `raise_dispute`/`add_dispute_note`/`resolve_dispute`/`reject`/`cancel`, `create_voucher`/`approve`/
+  `schedule`/`pay_voucher` via the mock gateway, `scan_invoice_alerts`, `tenant_invoice_metrics`,
+  perms + `invoice_visible_to`), views + portal_views, forms, admin, urls, seed + alerts commands.
+- 13 internal templates (`templates/invoicing/`) + 3 vendor-portal templates
+  (`templates/vendor_portal/invoicing/`); replaced + removed the Module-14 placeholder.
+- Wiring: `INSTALLED_APPS`, `/invoicing/` mount, sidebar "Invoices" group (after Goods Receipt),
+  `seed_data` orchestrator extended, vendor-portal routes repointed (dead `portal_invoices` view +
+  placeholder template removed), three new env vars (`OCR_ENGINE` + two tolerances). README updated
+  end to end (Module 14 → Shipped, intro, TOC, structure, routes, commands, env, seeded data).
+
+**Design decisions (locked with the user):** OCR = mock pluggable connector; voucher payment reuses
+the existing `tenants/gateways.py` mock gateway; full module in one session.
+
+**Key design call:** the invoice is **read-only** against the PO/GRN — it never re-posts to the PO
+(the GRN already did), so the two receiving paths can't double-count. Over-billing is guarded by
+summing already-invoiced qty *within the app*. `SupplierInvoice` (not `Invoice`) avoids the
+`apps.tenants.Invoice` (SaaS billing) collision.
+
+**Bug found & fixed during verification:** the three-way match originally matched only against
+`GoodsReceiptLine.accepted_quantity`, but demo POs received their goods via **Module 12 fulfilment**
+(no GRN) — so matched invoices falsely showed `no_receipt`. Fixed by sourcing the "received" leg from
+the authoritative `PurchaseOrderLine.received_quantity` (fed by *both* GRN posting and fulfilment
+confirmation, each posting only accepted qty); renamed the field `matched_grn_qty → matched_received_qty`.
+Also hardened `pay_voucher` to lock-then-check (TOCTOU-safe, per the fulfilment lesson).
+
+**Verification performed:**
+- `manage.py check` — 0 issues; `makemigrations --check` — no missing migrations.
+- `seed_invoicing --flush` — 3 payment terms + 7 invoices/tenant across every status; idempotent
+  re-run skips; the paid invoice charges through the mock gateway (`gateway_ref` set), the discount is
+  captured (2/10 Net 30), and the overdue alert fires once (idempotent on re-sweep).
+- **pytest: 61 invoicing tests pass; full project suite 1042 pass (0 failures)** — shared-file edits
+  broke nothing.
+
+**Files:** 22 new app files + 16 new templates + 8 modified + 1 deleted = 47.
+
+---
+
 # Module 11 — Purchase Order (PO) Management
 
 **Created:** 2026-06-03
