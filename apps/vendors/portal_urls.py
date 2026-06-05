@@ -14,6 +14,7 @@ from apps.catalog import portal_views as catalog_portal
 from apps.purchase_orders import portal_views as po_portal
 from apps.fulfillment import portal_views as fulfillment_portal
 from apps.goods_receipt import portal_views as goods_receipt_portal
+from apps.invoicing import portal_views as invoicing_portal
 
 app_name = 'vendor_portal'
 
@@ -30,7 +31,13 @@ urlpatterns = [
          name='purchase_order_acknowledge'),
     path('purchase-orders/<int:pk>/decline/', po_portal.portal_po_decline,
          name='purchase_order_decline'),
-    path('invoices/', views.portal_invoices, name='invoices'),
+    # Module 14 — Invoice & Voucher Management (vendor-side: submit + dispute)
+    path('invoices/', invoicing_portal.portal_invoice_list, name='invoices'),
+    path('invoices/new/', invoicing_portal.portal_invoice_create, name='invoice_create'),
+    path('invoices/<int:pk>/', invoicing_portal.portal_invoice_detail,
+         name='invoice_detail'),
+    path('invoices/<int:pk>/reply/', invoicing_portal.portal_dispute_reply,
+         name='invoice_dispute_reply'),
 
     # Module 6 — Sourcing & Tendering (vendor-side)
     path('sourcing/', sourcing_portal.portal_invitations,
