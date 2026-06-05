@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit line{% else %}Add line{% endif %} · {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">{% if is_edit %}Edit billed line{% else %}Add billed line{% endif %}</h1>
+      <p class="page-subtitle">{{ invoice.invoice_number }}{% if invoice.purchase_order %} · {{ invoice.purchase_order.po_number }}{% endif %}</p>
+    </div>
+    <a href="{% url 'invoicing:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">
+      <i class="ri-arrow-left-line"></i> Back
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {{ form|crispy }}
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save line</button>
+            <a href="{% url 'invoicing:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
