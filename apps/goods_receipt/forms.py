@@ -17,6 +17,7 @@ from apps.purchase_orders.models import (
 
 from .models import (
     GoodsReceipt,
+    GoodsReceiptAttachment,
     GoodsReceiptLine,
     ReturnToVendor,
     ReturnToVendorLine,
@@ -74,10 +75,12 @@ class GoodsReceiptLineForm(forms.ModelForm):
         model = GoodsReceiptLine
         fields = [
             'purchase_order_line', 'shipment_line', 'received_quantity',
-            'discrepancy_type', 'notes',
+            'lot_number', 'batch_number', 'serial_number', 'expiry_date',
+            'bin_location', 'discrepancy_type', 'notes',
         ]
         widgets = {
             'received_quantity': forms.NumberInput(attrs={'min': 0, 'step': '0.01'}),
+            'expiry_date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.TextInput(),
         }
 
@@ -87,6 +90,10 @@ class GoodsReceiptLineForm(forms.ModelForm):
         self.goods_receipt = goods_receipt
         self.fields['shipment_line'].required = False
         self.fields['notes'].required = False
+        for f in ('lot_number', 'batch_number', 'serial_number', 'expiry_date',
+                  'bin_location'):
+            self.fields[f].required = False
+        self.fields['bin_location'].help_text = 'Putaway destination for accepted stock.'
         self.fields['purchase_order_line'].label = 'PO line'
         if goods_receipt is not None:
             self.fields['purchase_order_line'].queryset = (
@@ -174,3 +181,31 @@ class CancelRTVForm(forms.Form):
         if not reason:
             raise forms.ValidationError('Please give a reason.')
         return reason
+
+
+# ---------- Evidence attachments ----------
+
+class GoodsReceiptAttachmentForm(forms.ModelForm):
+    class Meta:
+        model = GoodsReceiptAttachment
+        fields = ['kind', 'goods_receipt_line', 'file', 'caption']
+        widgets = {
+            'caption': forms.TextInput(attrs={'placeholder': 'e.g. Damaged carton, packing slip'}),
+        }
+
+    def __init__(self, *args, goods_receipt=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.goods_receipt = goods_receipt
+        self.fields['caption'].required = False
+        self.fields['goods_receipt_line'].required = False
+        self.fields['goods_receipt_line'].label = 'Related line (optional)'
+        self.fields['goods_receipt_line'].empty_label = '— whole receipt —'
+        if goods_receipt is not None:
+            self.fields['goods_receipt_line'].queryset = goods_receipt.lines.all()
+        else:
+            self.fields['goods_receipt_line'].queryset = GoodsReceiptLine.objects.none()
+        # Bootstrap classes (this form is rendered field-by-field, not via crispy).
+        self.fields['kind'].widget.attrs['class'] = 'form-select form-select-sm'
+        self.fields['goods_receipt_line'].widget.attrs['class'] = 'form-select form-select-sm'
+        self.fields['file'].widget.attrs['class'] = 'form-control form-control-sm'
+        self.fields['caption'].widget.attrs['class'] = 'form-control form-control-sm'
