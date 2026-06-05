@@ -174,6 +174,58 @@ class TestTags:
         assert b'JsBarcode' in resp.content
 
 
+# ---------- Lines (traceability) ----------
+class TestLineTraceability:
+    def test_line_add_with_lot_and_bin(self, client, buyer_user, tenant, tenant_admin,
+                                       vendor_a):
+        from .conftest import make_open_po
+        from apps.goods_receipt import services
+        set_current_tenant(tenant)
+        po = make_open_po(tenant, tenant_admin, vendor_a, number='PO-ACME-72001')
+        grn = services.create_goods_receipt(
+            tenant=tenant, user=tenant_admin, purchase_order=po)
+        client.force_login(buyer_user)
+        pol = po.lines.first()
+        resp = client.post(reverse('goods_receipt:line_add', args=[grn.pk]), {
+            'purchase_order_line': pol.pk, 'received_quantity': '3',
+            'lot_number': 'LOT-7', 'bin_location': 'B-2', 'discrepancy_type': 'none',
+        })
+        assert resp.status_code == 302
+        line = grn.lines.first()
+        assert line.lot_number == 'LOT-7'
+        assert line.bin_location == 'B-2'
+
+
+# ---------- Attachments ----------
+class TestAttachments:
+    def test_upload_and_delete(self, client, buyer_user, draft_grn, tenant):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.goods_receipt.models import GoodsReceiptAttachment
+        client.force_login(buyer_user)
+        upload = SimpleUploadedFile('damage.txt', b'evidence', content_type='text/plain')
+        resp = client.post(
+            reverse('goods_receipt:attachment_add', args=[draft_grn.pk]),
+            {'kind': 'document', 'caption': 'Damaged carton', 'file': upload})
+        assert resp.status_code == 302
+        set_current_tenant(tenant)
+        att = GoodsReceiptAttachment.all_objects.filter(goods_receipt=draft_grn).first()
+        assert att is not None and att.caption == 'Damaged carton'
+        resp = client.post(
+            reverse('goods_receipt:attachment_delete', args=[draft_grn.pk, att.pk]))
+        assert resp.status_code == 302
+        assert not GoodsReceiptAttachment.all_objects.filter(pk=att.pk).exists()
+
+    def test_upload_denied_for_approver(self, client, approver, draft_grn):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        client.force_login(approver)
+        upload = SimpleUploadedFile('x.txt', b'x', content_type='text/plain')
+        resp = client.post(
+            reverse('goods_receipt:attachment_add', args=[draft_grn.pk]),
+            {'kind': 'document', 'file': upload})
+        assert resp.status_code == 302  # manage-gated redirect
+        assert not draft_grn.attachments.exists()
+
+
 # ---------- RTV ----------
 class TestRTVViews:
     def test_rtv_create(self, client, buyer_user, inspected_grn, tenant):
