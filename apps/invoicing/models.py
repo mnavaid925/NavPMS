@@ -276,6 +276,12 @@ class SupplierInvoice(TenantAwareModel, TimeStampedModel):
     match_override = models.BooleanField(
         default=False, help_text='True if approved despite three-way-match exceptions.',
     )
+    # 2. Currency consistency (set by run_three_way_match): the invoice currency drifting from
+    # its PO currency is a financial red flag — surfaced as a match exception, never silently
+    # paid (see services.run_three_way_match / create_voucher).
+    currency_mismatch = models.BooleanField(
+        default=False, help_text="True if the invoice currency differs from its PO's currency.",
+    )
 
     # 3. Dispute
     disputed_at = models.DateTimeField(null=True, blank=True)
@@ -295,6 +301,9 @@ class SupplierInvoice(TenantAwareModel, TimeStampedModel):
     # Alert idempotency guards (used by scan_invoice_alerts)
     overdue_alerted_at = models.DateTimeField(null=True, blank=True)
     discount_alerted_at = models.DateTimeField(null=True, blank=True)
+    # Set once when a dispute has been open past INVOICE_DISPUTE_SLA_DAYS — a permanent guard
+    # so the escalation alert fires exactly once per dispute.
+    dispute_sla_alerted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -305,6 +314,7 @@ class SupplierInvoice(TenantAwareModel, TimeStampedModel):
             models.Index(fields=['tenant', 'vendor']),
             models.Index(fields=['tenant', 'purchase_order']),
             models.Index(fields=['tenant', 'due_date']),
+            models.Index(fields=['tenant', 'status', 'disputed_at']),
         ]
 
     def __str__(self):
@@ -420,6 +430,19 @@ class SupplierInvoice(TenantAwareModel, TimeStampedModel):
             return None
         from django.utils import timezone
         return (self.discount_due_date - timezone.localdate()).days
+
+    @property
+    def needs_manual_ocr_review(self):
+        """True if this invoice was OCR-captured below the configured confidence threshold.
+
+        Derived from ``ocr_confidence`` against ``OCR_MIN_CONFIDENCE`` (default 70) — no stored
+        flag, so a settings change re-evaluates every invoice. Manual entries (no confidence)
+        and high-confidence captures are never flagged.
+        """
+        if self.ocr_confidence is None:
+            return False
+        threshold = Decimal(str(getattr(settings, 'OCR_MIN_CONFIDENCE', '70')))
+        return self.ocr_confidence < threshold
 
 
 # ---------------------------------------------------------------------------
