@@ -34,6 +34,11 @@ urlpatterns = [
     path('<int:pk>/tags/', views.tags_print, name='tags_print'),
     path('<int:pk>/tags/generate/', views.grn_generate_tags, name='grn_generate_tags'),
 
+    # Evidence attachments
+    path('<int:pk>/attachments/add/', views.attachment_add, name='attachment_add'),
+    path('<int:pk>/attachments/<int:att_pk>/delete/', views.attachment_delete,
+         name='attachment_delete'),
+
     # Return to Vendor
     path('<int:pk>/rtv/new/', views.rtv_create, name='rtv_create'),
     path('rtv/<int:pk>/', views.rtv_detail, name='rtv_detail'),
