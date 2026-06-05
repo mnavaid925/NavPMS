@@ -34,9 +34,14 @@ urlpatterns = [
     path('<int:pk>/lines/<int:line_pk>/edit/', views.line_edit, name='line_edit'),
     path('<int:pk>/lines/<int:line_pk>/delete/', views.line_delete, name='line_delete'),
 
+    # Invoice export
+    path('export/unpaid/', views.export_unpaid_invoices_csv, name='export_unpaid_csv'),
+
     # Payment vouchers
     path('<int:pk>/voucher/new/', views.voucher_create, name='voucher_create'),
     path('vouchers/', views.voucher_list, name='voucher_list'),
+    path('vouchers/batch/schedule/', views.batch_schedule_vouchers, name='batch_schedule_vouchers'),
+    path('vouchers/batch/pay/', views.batch_pay_vouchers, name='batch_pay_vouchers'),
     path('vouchers/<int:pk>/', views.voucher_detail, name='voucher_detail'),
     path('vouchers/<int:pk>/approve/', views.voucher_approve, name='voucher_approve'),
     path('vouchers/<int:pk>/schedule/', views.voucher_schedule, name='voucher_schedule'),
