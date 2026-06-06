@@ -26,6 +26,7 @@ urlpatterns = [
     path('spend-analytics/', include('apps.spend_analytics.urls')),
     path('budget/', include('apps.budget.urls')),
     path('supplier-performance/', include('apps.supplier_performance.urls')),
+    path('compliance/', include('apps.compliance.urls')),
 ]
 
 if settings.DEBUG:
