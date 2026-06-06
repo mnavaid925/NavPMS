@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'apps.budget',
     'apps.supplier_performance',
     'apps.compliance',
+    'apps.inventory',
+    'apps.dms',
 ]
 
 MIDDLEWARE = [
@@ -182,6 +184,26 @@ CREDIT_SCORE_DROP_ALERT = config('CREDIT_SCORE_DROP_ALERT', default='10', cast=f
 FRAUD_SPLIT_PO_WINDOW_DAYS = config('FRAUD_SPLIT_PO_WINDOW_DAYS', default='14', cast=int)
 FRAUD_ROUND_AMOUNT_FLOOR = config('FRAUD_ROUND_AMOUNT_FLOOR', default='5000', cast=float)
 POLICY_ACK_REMINDER_DAYS = config('POLICY_ACK_REMINDER_DAYS', default='14', cast=int)
+
+# Module 19 — Inventory & Warehouse Integration. INVENTORY_AUTO_REORDER toggles whether the cron
+# (run_inventory_alerts) auto-generates draft requisitions for items at/below their reorder point;
+# INVENTORY_EXPIRY_ALERT_DAYS is the window (days ahead) within which a stock lot's expiry raises a
+# one-time near-expiry alert; INVENTORY_DEFAULT_WAREHOUSE_CODE is the warehouse auto-created to land
+# received stock when a goods receipt has no mapped bin.
+INVENTORY_AUTO_REORDER = config('INVENTORY_AUTO_REORDER', default=True, cast=bool)
+INVENTORY_EXPIRY_ALERT_DAYS = config('INVENTORY_EXPIRY_ALERT_DAYS', default='30', cast=int)
+INVENTORY_DEFAULT_WAREHOUSE_CODE = config('INVENTORY_DEFAULT_WAREHOUSE_CODE', default='WH-MAIN')
+
+# Module 20 — Document & Knowledge Management. Selects the pluggable text-extraction engine that
+# turns uploaded files into the searchable index field (mock by default = local, no dependency;
+# `local` parses real PDFs via pypdf; hosted engines wire in via apps/dms/extraction.py), with an
+# optional comma-separated SSRF allowlist of extra hosts a real (remote) extractor may target.
+# DMS_MAX_INDEX_CHARS caps stored extracted text (chars) so a huge PDF cannot bloat the row/index;
+# DMS_UPLOAD_MAX_MB caps uploaded file size.
+DMS_EXTRACTION_ENGINE = config('DMS_EXTRACTION_ENGINE', default='mock')
+DMS_EXTRACTION_ALLOWLIST = config('DMS_EXTRACTION_ALLOWLIST', default='')
+DMS_MAX_INDEX_CHARS = config('DMS_MAX_INDEX_CHARS', default='200000', cast=int)
+DMS_UPLOAD_MAX_MB = config('DMS_UPLOAD_MAX_MB', default='10', cast=int)
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
