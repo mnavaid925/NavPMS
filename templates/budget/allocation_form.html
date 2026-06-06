@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Allocation{% else %}Add Allocation{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit allocation{% else %}Add allocation{% endif %}</h1>
+  <p class="page-subtitle">{{ budget.budget_number }} — {{ budget.name }}</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-6">
+        <label class="form-label">{{ form.account_code.label }}</label>
+        {{ form.account_code }}
+        {% for e in form.account_code.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ form.vendor_category.label }}</label>
+        {{ form.vendor_category }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Allocated amount</label>
+        {{ form.allocated_amount }}
+        {% for e in form.allocated_amount.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Line #</label>
+        {{ form.line_no }}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Notes</label>
+        {{ form.notes }}
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'budget:budget_detail' budget.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
