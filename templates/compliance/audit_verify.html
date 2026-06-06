@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Audit Integrity{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h1 class="page-title">Audit Trail Integrity</h1>
+  <a href="{% url 'compliance:audit_log' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back to trail</a>
+</div>
+
+{% if result.ok %}
+<div class="card border-success">
+  <div class="card-body text-center py-5">
+    <div class="display-5 text-success mb-2"><i class="ri-shield-check-line"></i></div>
+    <h3 class="text-success">Chain intact</h3>
+    <p class="text-muted mb-0">Verified {{ result.checked }} hash-chained audit entr{{ result.checked|pluralize:"y,ies" }}. No tampering detected.</p>
+  </div>
+</div>
+{% else %}
+<div class="card border-danger">
+  <div class="card-body text-center py-5">
+    <div class="display-5 text-danger mb-2"><i class="ri-error-warning-line"></i></div>
+    <h3 class="text-danger">Integrity check FAILED</h3>
+    <p class="text-muted">The hash chain breaks at entry
+      {% if broken_entry %}<a href="{% url 'compliance:audit_detail' broken_entry.pk %}">#{{ broken_entry.pk }}</a>{% else %}#{{ result.first_broken_id }}{% endif %}
+      ({{ result.first_broken_at|date:"Y-m-d H:i:s" }}).</p>
+    <p class="mb-0">{{ result.checked }} entr{{ result.checked|pluralize:"y,ies" }} verified clean before the break. A row at or before this point was altered or deleted.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
