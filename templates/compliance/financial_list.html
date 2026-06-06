@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Financial Risk{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Supplier Financial Risk</h1>
+    <p class="page-subtitle">Credit-score monitoring and exposure across your vendors</p>
+  </div>
+</div>
+
+{% if can_manage %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" action="{% url 'compliance:financial_monitor' %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-9">
+        <label class="form-label">Add a vendor to monitoring</label>
+        {{ monitor_form.vendor }}
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-radar-line"></i> Monitor &amp; refresh</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Vendor name">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Risk band</label>
+        <select name="band" class="form-select">
+          <option value="">All</option>
+          {% for value, label in band_choices %}
+          <option value="{{ value }}" {% if band == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Monitored</label>
+        <select name="monitored" class="form-select">
+          <option value="">All</option>
+          <option value="yes" {% if monitored == 'yes' %}selected{% endif %}>Monitored</option>
+          <option value="no" {% if monitored == 'no' %}selected{% endif %}>Paused</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>Vendor</th><th>Band</th><th class="text-end">Score</th><th>Outlook</th><th class="text-end">Exposure</th><th class="text-end">Overdue</th><th>Monitored</th><th>Last check</th></tr>
+      </thead>
+      <tbody>
+        {% for p in profiles %}
+        <tr>
+          <td><a href="{% url 'compliance:financial_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.vendor.legal_name }}</a></td>
+          <td><span class="badge badge-soft-{{ p.band_color }}">{{ p.get_band_display }}</span></td>
+          <td class="text-end">{{ p.credit_score|floatformat:0 }}</td>
+          <td>{{ p.get_outlook_display }}</td>
+          <td class="text-end">${{ p.exposure_amount|floatformat:0|intcomma }}</td>
+          <td class="text-end {% if p.overdue_invoice_amount > 0 %}text-danger{% endif %}">${{ p.overdue_invoice_amount|floatformat:0|intcomma }}</td>
+          <td>{% if p.monitored %}<span class="badge badge-soft-success">Yes</span>{% else %}<span class="badge badge-soft-secondary">Paused</span>{% endif %}</td>
+          <td class="small text-muted">{{ p.last_checked_at|date:"Y-m-d"|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No vendors monitored yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3"><ul class="pagination justify-content-center">
+  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}
