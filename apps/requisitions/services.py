@@ -134,6 +134,13 @@ def submit_requisition(requisition, user, *, request=None):
     If a matching approval rule exists the requisition is driven by the engine;
     otherwise it falls back to the simple admin approve/reject path.
     """
+    # Module 16: real-time budget-availability check FIRST, before any status mutation. In 'warn'
+    # mode it only flags + alerts the budget owner and returns; in 'block' mode it raises
+    # ValidationError so the requisition is left untouched (the BudgetCheck evidence still persists,
+    # as it is written outside this flow). Lazy import avoids an app-load cycle.
+    from apps.budget.services import check_requisition_budget
+    check_requisition_budget(requisition, user, request=request)
+
     from_status = requisition.status
     requisition.status = 'submitted'
     requisition.submitted_at = timezone.now()
