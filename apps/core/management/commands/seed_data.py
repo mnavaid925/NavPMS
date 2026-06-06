@@ -38,6 +38,8 @@ class Command(BaseCommand):
             ('seed_budget', 'Budget periods + budgets + allocations (under/near/over) + availability checks'),
             ('seed_supplier_performance', 'KPI definitions + multi-period scorecards + 360° feedback + an improvement plan'),
             ('seed_compliance', 'Restricted-party lists + screenings + financial risk + fraud rules/alerts + policies'),
+            ('seed_inventory', 'Warehouses + bins + stock on-hand from receipts + goods issues + cycle counts + auto-reorder'),
+            ('seed_documents', 'Document repository + versions (indexed text) + policy library + best-practice templates'),
         ]
 
         for cmd, label in steps:
