@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Inventory{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Inventory &amp; Warehouse</h1>
+    <p class="page-subtitle">On-hand stock, reorder automation, goods issues &amp; cycle counts</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary"><i class="ri-stack-line"></i> Stock Levels</a>
+    {% if can_manage %}
+    <a href="{% url 'inventory:reorder_board' %}" class="btn btn-primary"><i class="ri-refresh-line"></i> Reorder</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">On-hand value</div>
+    <div class="stat-value">${{ metrics.total_value|floatformat:2|intcomma }}</div>
+    <div class="text-muted small">{{ metrics.item_count }} stock item(s) · {{ metrics.warehouse_count }} warehouse(s)</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Below reorder point</div>
+    <div class="stat-value {% if metrics.below_reorder_count %}text-warning{% endif %}">{{ metrics.below_reorder_count }}</div>
+    <a href="{% url 'inventory:stock_list' %}?show=below" class="small text-decoration-none">View items</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Out of stock</div>
+    <div class="stat-value {% if metrics.out_of_stock_count %}text-danger{% endif %}">{{ metrics.out_of_stock_count }}</div>
+    <a href="{% url 'inventory:stock_list' %}?show=out" class="small text-decoration-none">View items</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Expiring soon</div>
+    <div class="stat-value {% if metrics.near_expiry_count %}text-warning{% endif %}">{{ metrics.near_expiry_count }}</div>
+    <div class="text-muted small">{{ metrics.unsynced_count }} receipt(s) awaiting sync</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-building-line"></i> Stock value by warehouse</div>
+      <div class="card-body">
+        {% if metrics.wh_labels %}<canvas id="whChart" height="160"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No stock on hand yet.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-exchange-line"></i> Movements by type (90 days)</div>
+      <div class="card-body">
+        <canvas id="typeChart" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-0">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="ri-alarm-warning-line"></i> Low-stock items</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Item</th><th class="text-end">Available</th><th class="text-end">Reorder pt</th></tr></thead>
+          <tbody>
+            {% for si in metrics.low_stock_items %}
+            <tr>
+              <td><a href="{% url 'inventory:stock_item_detail' si.pk %}" class="text-decoration-none">{{ si.sku|default:si.name }}</a></td>
+              <td class="text-end">{{ si.available_quantity }}</td>
+              <td class="text-end">{{ si.reorder_point }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-4">Nothing below its reorder point.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent movements</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Ref</th><th>Item</th><th>Type</th><th class="text-end">Qty</th></tr></thead>
+          <tbody>
+            {% for m in metrics.recent_movements %}
+            <tr>
+              <td><a href="{% url 'inventory:movement_detail' m.pk %}" class="text-decoration-none">{{ m.number }}</a></td>
+              <td class="small">{{ m.stock_item.sku|default:m.stock_item.name }}</td>
+              <td><span class="badge badge-soft-{{ m.type_color }}">{{ m.get_movement_type_display }}</span></td>
+              <td class="text-end {% if m.is_inbound %}text-success{% else %}text-danger{% endif %}">{{ m.quantity }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-4">No movements yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.wh_labels|json_script:"whLabels" }}
+{{ metrics.wh_data|json_script:"whData" }}
+{{ metrics.type_labels|json_script:"typeLabels" }}
+{{ metrics.type_data|json_script:"typeData" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    var wh = document.getElementById('whChart');
+    if (wh) new Chart(wh, {
+      type: 'bar',
+      data: { labels: read('whLabels'),
+        datasets: [{ label: 'Value', data: read('whData'), backgroundColor: '#3b5de7' }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+    var ty = document.getElementById('typeChart');
+    if (ty) new Chart(ty, {
+      type: 'doughnut',
+      data: { labels: read('typeLabels'),
+        datasets: [{ data: read('typeData'),
+          backgroundColor: ['#22c55e', '#ef4444', '#0dcaf0', '#f59e0b', '#6c757d', '#6c757d', '#3b5de7'] }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  })();
+</script>
+{% endblock %}
