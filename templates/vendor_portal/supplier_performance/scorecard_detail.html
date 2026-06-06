@@ -1,0 +1,33 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}{{ card.scorecard_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">{{ card.scorecard_number }} — {{ card.period_label }}</h4>
+  <a href="{% url 'vendor_portal:performance_scorecards' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="card mb-3"><div class="card-body d-flex justify-content-between align-items-center">
+  <div><div class="text-muted small">Overall score</div><div class="h3 mb-0">{{ card.overall_score }} / 100</div></div>
+  <span class="badge bg-{% if card.rating_band == 'excellent' %}success{% elif card.rating_band == 'good' %}primary{% elif card.rating_band == 'acceptable' %}info{% elif card.rating_band == 'poor' %}warning text-dark{% else %}danger{% endif %} fs-6">{{ card.rating_band|capfirst }}</span>
+</div></div>
+
+<div class="card">
+  <div class="card-header">KPI breakdown</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>KPI</th><th>Evidence</th><th class="text-end">Raw</th><th class="text-end">Score</th></tr></thead>
+      <tbody>
+        {% for ln in lines %}
+        <tr>
+          <td>{{ ln.kpi_name|default:ln.kpi_code }}</td>
+          <td class="text-muted small">{{ ln.data_points }}</td>
+          <td class="text-end">{% if ln.raw_value is not None %}{{ ln.raw_value|floatformat:2 }}{{ ln.unit }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if ln.score is not None %}{{ ln.score }}{% else %}n/a{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
