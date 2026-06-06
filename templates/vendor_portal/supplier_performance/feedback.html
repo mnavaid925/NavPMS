@@ -1,0 +1,26 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}Feedback{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Buyer Feedback</h4>
+<p class="text-muted">Aggregate ratings from {{ count }} internal review(s). Individual reviewers are anonymised.</p>
+
+{% if count %}
+<div class="row g-3">
+  <div class="col-md-3"><div class="card"><div class="card-body text-center">
+    <div class="text-muted small">Overall</div><div class="h3 mb-0">{{ agg.overall|floatformat:1 }}<small>/5</small></div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body text-center">
+    <div class="text-muted small">Quality</div><div class="h3 mb-0">{{ agg.quality|floatformat:1|default:"—" }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body text-center">
+    <div class="text-muted small">Delivery</div><div class="h3 mb-0">{{ agg.delivery|floatformat:1|default:"—" }}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body text-center">
+    <div class="text-muted small">Communication</div><div class="h3 mb-0">{{ agg.communication|floatformat:1|default:"—" }}</div>
+  </div></div></div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-5">No feedback has been submitted yet.</div></div>
+{% endif %}
+{% endblock %}
