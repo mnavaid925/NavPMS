@@ -1,5 +1,6 @@
 """Forms for Module 1 (plans, subscriptions, branding, security, onboarding)."""
 from django import forms
+from django.db.models import Q
 
 from apps.core.models import Tenant
 from .models import (
@@ -29,6 +30,17 @@ class SubscriptionAssignForm(forms.ModelForm):
     class Meta:
         model = Subscription
         fields = ('plan', 'billing_cycle', 'auto_renew')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # A tenant admin may only self-assign active, public plans (mirrors the
+        # onboarding picker). The currently-assigned plan stays selectable so a
+        # grandfathered subscription on a now-hidden plan can still be edited.
+        allowed = Q(is_active=True, is_public=True)
+        current = getattr(self.instance, 'plan_id', None)
+        if current:
+            allowed |= Q(pk=current)
+        self.fields['plan'].queryset = Plan.objects.filter(allowed).distinct()
 
 
 class BrandingForm(forms.ModelForm):
