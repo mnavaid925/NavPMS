@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.goods_receipt',
     'apps.invoicing',
     'apps.spend_analytics',
+    'apps.budget',
 ]
 
 MIDDLEWARE = [
@@ -153,6 +154,15 @@ INVOICE_DISPUTE_SLA_DAYS = config('INVOICE_DISPUTE_SLA_DAYS', default='5', cast=
 # Opt-in: also email the invoice owner on overdue / closing-discount / dispute-SLA alerts
 # (in addition to the in-app portal notification). Off by default; needs a real EMAIL_BACKEND.
 INVOICE_EMAIL_ALERTS = config('INVOICE_EMAIL_ALERTS', default=False, cast=bool)
+
+# Module 16 — Budget & Cost Management. Controls the real-time budget-availability check fired
+# when a requisition is submitted: 'warn' (default) flags an over-budget requisition + alerts the
+# budget owner but lets it through; 'block' raises a validation error and stops the submission.
+# The variance tolerance (percent) and warn-utilization threshold drive the variance flags and the
+# one-time over-budget cron alert (scan_budget_alerts).
+BUDGET_ENFORCEMENT = config('BUDGET_ENFORCEMENT', default='warn')
+BUDGET_VARIANCE_TOLERANCE_PCT = config('BUDGET_VARIANCE_TOLERANCE_PCT', default='10', cast=float)
+BUDGET_WARN_UTILIZATION_PCT = config('BUDGET_WARN_UTILIZATION_PCT', default='90', cast=float)
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
