@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Scorecards{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Scorecards</h1>
+    <p class="page-subtitle">Period-bound supplier evaluations computed from delivery, quality, responsiveness and feedback</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'supplier_performance:dashboard' %}" class="btn btn-outline-secondary"><i class="ri-dashboard-line"></i> Dashboard</a>
+    <a href="{% url 'supplier_performance:trending' %}" class="btn btn-outline-secondary"><i class="ri-line-chart-line"></i> Trending</a>
+    {% if can_manage %}
+    <a href="{% url 'supplier_performance:scorecard_generate' %}" class="btn btn-primary"><i class="ri-add-line"></i> Generate Scorecard</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Scorecard #, vendor or period">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rating band</label>
+        <select name="band" class="form-select">
+          <option value="">All</option>
+          {% for value, label in band_choices %}
+          <option value="{{ value }}" {% if band == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>Scorecard</th><th>Vendor</th><th>Period</th><th>Status</th><th class="text-end">Score</th><th class="text-end">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for c in scorecards %}
+        <tr>
+          <td><a href="{% url 'supplier_performance:scorecard_detail' c.pk %}" class="fw-semibold text-decoration-none">{{ c.scorecard_number }}</a>{% if c.is_current %} <span class="badge bg-info">current</span>{% endif %}</td>
+          <td>{{ c.vendor.legal_name }}</td>
+          <td>{{ c.period_label }}</td>
+          <td><span class="badge bg-{% if c.status == 'final' %}success{% elif c.status == 'draft' %}secondary{% else %}light text-dark{% endif %}">{{ c.get_status_display }}</span></td>
+          <td class="text-end">{% include 'supplier_performance/_score_badge.html' with band=c.rating_band score=c.overall_score %}</td>
+          <td class="text-end">
+            <a href="{% url 'supplier_performance:scorecard_detail' c.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            {% if can_manage %}
+            <form method="post" action="{% url 'supplier_performance:scorecard_delete' c.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ c.scorecard_number }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No scorecards yet.{% if can_manage %} <a href="{% url 'supplier_performance:scorecard_generate' %}">Generate one</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3"><ul class="pagination justify-content-center">
+  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}
