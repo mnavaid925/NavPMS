@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Maverick Spend Tracking{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Maverick Spend Tracking</h1>
+    <p class="page-subtitle">Purchases outside preferred suppliers / active contracts / a PO ({{ basis }} basis)</p>
+  </div>
+  <a href="{% url 'spend_analytics:export_records' fmt='csv' %}?basis={{ basis }}&maverick=1{% if start %}&start={{ start }}{% endif %}{% if end %}&end={{ end }}{% endif %}" class="btn btn-outline-secondary">
+    <i class="ri-file-text-line"></i> Export CSV
+  </a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Maverick spend</div>
+      <div class="stat-value text-danger">${{ metrics.maverick_spend|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Maverick %</div>
+      <div class="stat-value">{{ metrics.maverick_pct }}%</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Maverick records</div>
+      <div class="stat-value">{{ metrics.maverick_count|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Total spend</div>
+      <div class="stat-value">${{ metrics.total_spend|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-error-warning-line"></i> By reason
+        <span class="text-muted small">(records may match multiple)</span></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Reason</th><th class="text-end">Spend</th><th class="text-end">Records</th></tr></thead>
+          <tbody>
+            {% for r in metrics.by_reason %}
+            <tr>
+              <td>{{ r.label }}</td>
+              <td class="text-end">${{ r.total|floatformat:2|intcomma }}</td>
+              <td class="text-end">{{ r.count|intcomma }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-bar-chart-2-line"></i> Maverick spend by reason</div>
+      <div class="card-body">
+        {% if metrics.values %}<canvas id="reasonChart" height="200"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No maverick spend in this period.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Source ref, supplier or item">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Basis</label>
+        <select name="basis" class="form-select">
+          {% for value, label in basis_choices %}
+          <option value="{{ value }}" {% if basis == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Reason</label>
+        <select name="reason" class="form-select">
+          <option value="">All reasons</option>
+          {% for value, label in reason_choices %}
+          <option value="{{ value }}" {% if request.GET.reason == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Supplier</label>
+        <select name="vendor" class="form-select">
+          <option value="">All</option>
+          {% for v in vendors %}
+          <option value="{{ v.pk }}" {% if request.GET.vendor == v.pk|stringformat:"d" %}selected{% endif %}>{{ v.legal_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for c in categories %}
+          <option value="{{ c.pk }}" {% if request.GET.category == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>Source</th><th>Date</th><th>Supplier</th><th>Category</th><th>Reasons</th><th class="text-end">Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td class="fw-semibold">{{ r.source_ref }}</td>
+          <td>{{ r.spend_date|date:"M d, Y"|default:"—" }}</td>
+          <td>{{ r.vendor_name|default:"—" }}</td>
+          <td>{{ r.vendor_category.name|default:"—" }}</td>
+          <td>{% for reason in r.maverick_reasons %}<span class="badge badge-soft-danger me-1">{{ reason }}</span>{% endfor %}</td>
+          <td class="text-end">${{ r.amount|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No maverick spend matches these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.labels|json_script:"reasonLabels" }}
+{{ metrics.values|json_script:"reasonValues" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('reasonChart');
+    if (!el) return;
+    var labels = JSON.parse(document.getElementById('reasonLabels').textContent);
+    var values = JSON.parse(document.getElementById('reasonValues').textContent);
+    if (!values.length) return;
+    new Chart(el, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'Maverick spend', data: values,
+        backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6'] }] },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } } }
+    });
+  })();
+</script>
+{% endblock %}
