@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.core.models import Tenant
@@ -15,10 +15,34 @@ from .models import (
 )
 
 
+def _invoice_prefix(tenant: Tenant) -> str:
+    """Canonical invoice-number prefix for a tenant.
+
+    Strip hyphens first, then truncate to 6 chars, so the seed command and the
+    service layer always mint the same prefix for a given tenant.
+    """
+    slug = (tenant.slug or 'x').upper().replace('-', '')[:6]
+    return f'INV-{slug}-'
+
+
 def _next_invoice_number(tenant: Tenant) -> str:
-    count = Invoice.objects.filter(tenant=tenant).count() + 1
-    slug = (tenant.slug or 'x')[:6].upper().replace('-', '')
-    return f'INV-{slug}-{count:05d}'
+    """Next invoice number from MAX(suffix)+1 (not COUNT()+1).
+
+    COUNT()+1 reuses an already-issued number after any invoice is deleted, which
+    violates the unique constraint on Invoice.number. Deriving from the highest
+    existing suffix is delete-safe; create_invoice_for_subscription wraps the
+    insert in a retry loop to absorb the residual race between concurrent issuers.
+    """
+    prefix = _invoice_prefix(tenant)
+    highest = 0
+    for number in (
+        Invoice.objects.filter(tenant=tenant, number__startswith=prefix)
+        .values_list('number', flat=True)
+    ):
+        suffix = number.rsplit('-', 1)[-1]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return f'{prefix}{highest + 1:05d}'
 
 
 def start_trial_for_new_tenant(tenant: Tenant) -> Subscription:
@@ -68,67 +92,96 @@ def create_invoice_for_subscription(
     amount = sub.amount_for_cycle
     tax = (amount * tax_rate).quantize(Decimal('0.01'))
     total = amount + tax
+    money = str(amount.quantize(Decimal('0.01')))
     line_items = [{
         'description': f'{sub.plan.name} subscription',
         'period_start': period_start.strftime('%Y-%m-%d'),
         'period_end': period_end.strftime('%Y-%m-%d'),
         'quantity': 1,
-        'unit_price': float(amount),
-        'amount': float(amount),
+        'unit_price': money,
+        'amount': money,
     }]
-    invoice = Invoice.objects.create(
-        tenant=sub.tenant,
-        subscription=sub,
-        number=_next_invoice_number(sub.tenant),
-        status='sent',
-        subtotal=amount,
-        tax=tax,
-        total=total,
-        currency=sub.plan.currency,
-        line_items=line_items,
-        issued_at=timezone.now(),
-        due_at=timezone.now() + timedelta(days=14),
-    )
+    invoice = None
+    for attempt in range(5):
+        try:
+            with transaction.atomic():
+                invoice = Invoice.objects.create(
+                    tenant=sub.tenant,
+                    subscription=sub,
+                    number=_next_invoice_number(sub.tenant),
+                    status='sent',
+                    subtotal=amount,
+                    tax=tax,
+                    total=total,
+                    currency=sub.plan.currency,
+                    line_items=line_items,
+                    issued_at=timezone.now(),
+                    due_at=timezone.now() + timedelta(days=14),
+                )
+            break
+        except IntegrityError:
+            # A concurrent issuer grabbed the same number; recompute and retry.
+            if attempt == 4:
+                raise
     record_audit(sub.tenant, None, 'invoice.created',
                  target_type='Invoice', target_id=str(invoice.id),
                  message=f'Invoice {invoice.number} for {total} {invoice.currency}')
     return invoice
 
 
-def charge_invoice(invoice: Invoice, *, user=None) -> Transaction:
-    """Run the configured payment gateway against an invoice."""
+def charge_invoice(invoice: Invoice, *, user=None) -> Transaction | None:
+    """Charge an invoice through the configured gateway, exactly once.
+
+    The invoice row is locked with select_for_update and its status re-checked
+    INSIDE the transaction, and the gateway is only called after that check, so
+    concurrent pay requests (double-click, retries, two tabs) serialize: the
+    first charges, the rest see status='paid' and return the existing transaction
+    without charging again. Returns None only in the degenerate case where the
+    invoice is already paid but has no recorded transaction.
+    """
     gw = get_gateway()
-    result = gw.charge(
-        amount=invoice.total, currency=invoice.currency,
-        description=f'NavPMS invoice {invoice.number}',
-        customer_ref=invoice.tenant.slug,
-        metadata={'tenant_id': invoice.tenant_id, 'invoice_id': invoice.id},
-    )
     with transaction.atomic():
+        inv = Invoice.objects.select_for_update().get(pk=invoice.pk)
+        if inv.status == 'paid':
+            invoice.status = inv.status
+            invoice.paid_at = inv.paid_at
+            return (
+                inv.transactions.filter(status='succeeded')
+                .order_by('-created_at').first()
+            )
+        result = gw.charge(
+            amount=inv.total, currency=inv.currency,
+            description=f'NavPMS invoice {inv.number}',
+            customer_ref=inv.tenant.slug,
+            metadata={'tenant_id': inv.tenant_id, 'invoice_id': inv.id},
+        )
         tx = Transaction.objects.create(
-            tenant=invoice.tenant,
-            invoice=invoice,
+            tenant=inv.tenant,
+            invoice=inv,
             gateway=gw.name,
             gateway_ref=result.gateway_ref,
-            amount=invoice.total,
-            currency=invoice.currency,
+            amount=inv.total,
+            currency=inv.currency,
             status='succeeded' if result.ok else 'failed',
             method='card',
             message=result.message,
         )
         if result.ok:
-            invoice.status = 'paid'
-            invoice.paid_at = timezone.now()
-            invoice.save(update_fields=['status', 'paid_at', 'updated_at'])
-            if invoice.subscription:
-                invoice.subscription.status = 'active'
-                invoice.subscription.save(update_fields=['status', 'updated_at'])
+            inv.status = 'paid'
+            inv.paid_at = timezone.now()
+            inv.save(update_fields=['status', 'paid_at', 'updated_at'])
+            if inv.subscription:
+                inv.subscription.status = 'active'
+                inv.subscription.save(update_fields=['status', 'updated_at'])
     record_audit(
-        invoice.tenant, user, 'invoice.charged',
+        inv.tenant, user, 'invoice.charged',
         level='info' if result.ok else 'warning',
-        target_type='Invoice', target_id=str(invoice.id),
+        target_type='Invoice', target_id=str(inv.id),
         message=f'Charge {result.gateway_ref} -> {"OK" if result.ok else "FAIL"}',
     )
+    # Keep the caller's in-memory instance consistent with the locked copy.
+    invoice.status = inv.status
+    invoice.paid_at = inv.paid_at
     return tx
 
 
