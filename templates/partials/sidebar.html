@@ -212,6 +212,20 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbSpendAnalytics" role="button" aria-expanded="false">
+          <i class="ri-bar-chart-box-line"></i> <span class="flex-grow-1">Spend Analytics</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbSpendAnalytics">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'spend_analytics:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'spend_analytics:category_analysis' %}">Category Analysis</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'spend_analytics:maverick_tracking' %}">Maverick Spend</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'spend_analytics:report_list' %}">Report Builder</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
