@@ -1,3 +1,58 @@
+# Module 16 — Budget & Cost Management (`apps/budget/`)
+
+**Created:** 2026-06-06
+**Plan:** `C:\Users\user\.claude\plans\partitioned-finding-sifakis.md`
+
+New app `apps/budget/` at `/budget/` — the financial-control layer across the P2P loop. Five
+sub-modules: Budget Allocation & Mapping, Budget Availability Check, Commitment Accounting,
+Variance Analysis, Forecasting & Projection.
+
+**Locked decisions (user-confirmed, all recommended):** dimension = reuse `requisitions.AccountCode`;
+consumption = compute-on-read (no ledger, no reversal hooks); availability check = soft-warn by
+default with `BUDGET_ENFORCEMENT='block'` toggle; full module in one session.
+
+## Review
+
+**Status: complete & verified (2026-06-06).**
+
+- New app `apps/budget/` — 5 models (`BudgetPeriod`, `Budget` (+`BudgetAllocation`),
+  `BudgetStatusEvent` append-only, `BudgetCheck` append-only availability-check log), full service
+  layer (`next_budget_number`, `can_manage_budget`/`can_view_budget`, lifecycle
+  `activate_budget`/`close_budget`/`set_period_status`, **compute-on-read** consumption
+  (`allocation_consumption`/`budget_consumption` deriving actual/committed/reserved from invoice/PO/
+  requisition lines), `tenant_budget_metrics`, `variance_report`, `forecast`,
+  `check_requisition_budget` + `latest_check_status`, `scan_budget_alerts`, export-row builders),
+  views + forms + admin + urls, `seed_budget` + `run_budget_alerts` commands.
+- 12 templates under `templates/budget/` (dashboard, period + budget list/form/detail, allocation
+  form, variance, forecast, check log, `_status_badge`, `_requisition_budget_banner`).
+- **Integration:** `requisitions.submit_requisition` calls the availability check FIRST (before any
+  status mutation, so a `block` leaves the requisition untouched while the `BudgetCheck` evidence
+  persists); the submit view catches the block `ValidationError`; the requisition detail view +
+  template surface a live over-budget banner. CSV/XLSX helpers reused from `spend_analytics.exports`.
+- **Wiring:** `INSTALLED_APPS`, `/budget/` mount, sidebar "Budget & Costs" group (after Spend
+  Analytics), `seed_data` orchestrator extended, 3 new env vars (`BUDGET_ENFORCEMENT`,
+  `BUDGET_VARIANCE_TOLERANCE_PCT`, `BUDGET_WARN_UTILIZATION_PCT`). README updated end to end
+  (Module 16 → Shipped, intro, TOC, structure, env, commands, seeded data, routes, roadmap, test count).
+
+**Design call (consumption is data-honest):** committed/actual read the authoritative PO/invoice
+line `account_code`. In the existing demo data those lines carry no cost centre, so seeded
+committed/actual show low — this matches `spend_analytics` and is NOT faked; the deterministic
+commitment / over-budget / block paths are proven by the test suite instead. No cross-module changes
+were made to backfill account codes (Minimal Impact).
+
+**Verification performed:**
+- `manage.py check` — 0 issues; `makemigrations --check` — no missing migrations; `migrate` clean on MySQL.
+- `seed_budget --flush` — period + active budget + allocations + a real availability check per
+  tenant; idempotent re-run skips; degrades gracefully for tenants without account codes.
+- **pytest: 38 budget tests pass; full project suite 1165 pass (0 failures)** — the requisitions
+  submit hook broke nothing. Tests cover consumption math (incl. committed dropping when a PO closes
+  — no double count), warn vs block enforcement, own-reservation exclusion, forecast, variance flags,
+  alert idempotency, full CRUD + lifecycle, export content-types, role gates, cross-tenant IDOR 404s.
+
+**Files:** ~30 new app/template/test files + 8 modified.
+
+---
+
 # Module 15 — Spend Analytics & Reporting (`apps/spend_analytics/`)
 
 **Created:** 2026-06-06
