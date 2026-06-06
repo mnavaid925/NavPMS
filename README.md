@@ -42,7 +42,9 @@ and **Module 16 — Budget & Cost Management** (all five sub-modules: Budget All
 Budget Availability Check, Commitment Accounting, Variance Analysis, Forecasting & Projection),
 and **Module 17 — Supplier Performance & Evaluation** (all five sub-modules: KPI Definition & Setup,
 Scorecard Generation, 360-Degree Feedback Collection, Performance Improvement Plans, Benchmarking &
-Trending).
+Trending), and **Module 18 — Risk & Compliance Management** (all five sub-modules: Regulatory
+Compliance Checks, Supplier Financial Risk Monitoring, Audit Trail & Logging (tamper-evident
+hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment).
 
 ---
 
@@ -72,11 +74,12 @@ Trending).
 23. [Module 15 — Spend Analytics & Reporting](#module-15--spend-analytics--reporting)
 24. [Module 16 — Budget & Cost Management](#module-16--budget--cost-management)
 25. [Module 17 — Supplier Performance & Evaluation](#module-17--supplier-performance--evaluation)
-26. [Routes / UI Tour](#routes--ui-tour)
-27. [Multi-tenancy Model](#multi-tenancy-model)
-28. [Payment Gateway](#payment-gateway)
-29. [Browser Compatibility](#browser-compatibility)
-29. [Roadmap](#roadmap)
+26. [Module 18 — Risk & Compliance Management](#module-18--risk--compliance-management)
+27. [Routes / UI Tour](#routes--ui-tour)
+28. [Multi-tenancy Model](#multi-tenancy-model)
+29. [Payment Gateway](#payment-gateway)
+30. [Browser Compatibility](#browser-compatibility)
+31. [Roadmap](#roadmap)
 
 ---
 
@@ -152,10 +155,14 @@ NavPMS/
 │   │                         # BudgetStatusEvent (append-only), BudgetCheck (append-only
 │   │                         # availability-check log) + services (compute-on-read consumption,
 │   │                         # availability check, variance, forecast, alerts)
-│   └── supplier_performance/ # Module 17: KpiDefinition, Scorecard (+ScorecardLine snapshot),
-│                             # PerformanceFeedback, ImprovementPlan (+PIPAction +PIPStatusEvent
-│                             # append-only) + services (KPI engine, scorecard generation,
-│                             # trending/benchmarking, feedback, PIP lifecycle, cron)
+│   ├── supplier_performance/ # Module 17: KpiDefinition, Scorecard (+ScorecardLine snapshot),
+│   │                         # PerformanceFeedback, ImprovementPlan (+PIPAction +PIPStatusEvent
+│   │                         # append-only) + services (KPI engine, scorecard generation,
+│   │                         # trending/benchmarking, feedback, PIP lifecycle, cron)
+│   └── compliance/           # Module 18: RestrictedPartyEntry, ComplianceScreening (+ScreeningMatch),
+│                             # FinancialRiskProfile (+Snapshot history), FraudRule + FraudAlert
+│                             # (+event log), Policy (+Version +Acknowledgment) + screening.py /
+│                             # credit.py pluggable connectors (reuses tenants.AuditLog hash-chain)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -282,6 +289,15 @@ All values are read via `python-decouple` from `.env`.
 | `BUDGET_ENFORCEMENT` | `warn` | Budget-availability check on requisition submit: `warn` (flag + alert the owner, but allow) or `block` (raise a validation error and stop the submission). |
 | `BUDGET_VARIANCE_TOLERANCE_PCT` | `10` | Utilization (%) below 100 at which the variance report flags a cost centre "near limit". |
 | `BUDGET_WARN_UTILIZATION_PCT` | `90` | Utilization (%) at which `scan_budget_alerts` raises a one-time over-budget / high-burn alert. |
+| `SCREENING_PROVIDER` | `mock` | Default restricted-party screening connector (real OFAC/SAM providers wire in via `apps/compliance/screening.py`). |
+| `SCREENING_ALLOWLIST` | `` | Comma-separated extra hosts a real screening endpoint may target (SSRF allowlist; else HTTPS + public-host only). |
+| `SCREENING_MATCH_THRESHOLD` | `85` | Fuzzy-match percent at/above which a screening records a hit. |
+| `CREDIT_PROVIDER` | `mock` | Default supplier credit-score connector (real providers wire in via `apps/compliance/credit.py`). |
+| `CREDIT_ALLOWLIST` | `` | Comma-separated extra hosts a real credit endpoint may target (SSRF allowlist). |
+| `CREDIT_SCORE_DROP_ALERT` | `10` | Credit-score drop (points) that raises a financial-risk alert on refresh. |
+| `FRAUD_SPLIT_PO_WINDOW_DAYS` | `14` | Window (days) the split-PO fraud detector groups a vendor+buyer's POs over. |
+| `FRAUD_ROUND_AMOUNT_FLOOR` | `5000` | Minimum PO/invoice total the round-amount fraud detector considers. |
+| `POLICY_ACK_REMINDER_DAYS` | `14` | Paces the cron policy-acknowledgment reminder digest. |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -291,7 +307,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -311,6 +327,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_spend_analytics` | Materializes the `SpendRecord` fact table per tenant from the seeded approved/paid invoices (actual) + non-cancelled POs (committed) via the real `sync_spend_facts`, and creates 3 demo saved reports (category doughnut / monthly-trend line / maverick-by-supplier bar). |
 | `python manage.py seed_budget` | Creates an `FY2026` period + an active operating budget per tenant with allocations across the seeded cost centres, then runs a couple of real availability checks against the seeded requisitions (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_supplier_performance` | Provisions the default KPI set + final scorecards for 3 vendors across 3 rolling quarters (so trending renders a line), seeds submitted 360° feedback inside each window, and opens an in-progress improvement plan for the weakest vendor — driven through the real services (idempotent; `--flush` to re-seed). |
+| `python manage.py seed_compliance` | Seeds restricted-party lists (incl. a deliberate match on a real vendor name), runs screenings, builds financial-risk profiles + snapshots, creates the 5 default fraud rules + a deliberate shared-bank-account conflict, runs one fraud scan, and publishes 2 acknowledged policies per tenant — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -321,6 +338,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_spend_sync` | Resyncs the `SpendRecord` fact table from invoices + POs across all tenants (`--tenant <slug>` for one) — cron-friendly; the dashboard also resyncs lazily when stale. |
 | `python manage.py run_budget_alerts` | Raises a one-time over-budget / high-utilization alert (audit + owner notification) for each active budget across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent via `Budget.over_budget_alerted_at`. |
 | `python manage.py run_scorecards` | Generates a final scorecard for every active vendor over a period (defaults to the trailing calendar quarter; `--period-start/-end`, `--label`, `--tenant <slug>`) and, with `--pip-sweep`, raises a one-time alert per overdue improvement plan across all tenants — cron-friendly; idempotent via `ImprovementPlan.alerted_at`. |
+| `python manage.py scan_compliance_alerts` | Refreshes due financial-risk profiles (alerting on a score drop / band worsening), runs the fraud-rule scan (deduplicated by alert signature), and sends a policy-acknowledgment reminder digest to each policy owner with outstanding sign-offs, across all tenants (`--tenant <slug>` for one) — cron-friendly. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -341,7 +359,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/) — **1165 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/) — **1274 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -524,6 +542,17 @@ points and the latest card becomes each vendor's current score (denormalised ont
 Submitted **360° feedback** is dated inside each window (with one outstanding request for the inbox),
 and an in-progress **improvement plan** (`PIP-<SLUG>-NNNNN`) with two corrective actions is opened for
 the weakest vendor — all driven through the real services.
+
+### Risk & Compliance data
+Each tenant with vendors gets a small **restricted-party list** (OFAC/SAM/EU entries) including one
+entry that deliberately matches a real vendor's name, so a seeded **screening** returns a confirmed
+hit (a second vendor screens clear). The **5 default fraud rules** are installed and a deliberate
+**shared bank account** is placed on two vendors, then one **fraud scan** runs — producing live
+`FraudAlert`s (bank conflict plus any round-amount / duplicate-invoice / split-PO patterns in the
+seeded POs and invoices). **Financial-risk profiles** (credit score + exposure) are built for the
+active vendors with a history snapshot, and **two published policies** (Code of Conduct, Sanctions
+& Screening) are created with one acknowledgment each. The reused `tenants.AuditLog` is hash-chained,
+so `/compliance/audit/` → *Verify integrity* reports the chain intact.
 
 ---
 
@@ -1152,6 +1181,33 @@ each overdue improvement plan (idempotent via `ImprovementPlan.alerted_at`).
 
 ---
 
+## Module 18 — Risk & Compliance Management
+
+The governance layer over the whole procure-to-pay loop ([apps/compliance/](apps/compliance/)) —
+where the other modules *transact*, this one *polices*. Self-contained: it references existing models
+(`Vendor`, POs, invoices) by FK/query only and makes **zero source-app migrations except one** — the
+tamper-evident hash-chain added to Module 1's `AuditLog`. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Regulatory Compliance Checks** | `RestrictedPartyEntry` (OFAC/SAM/EU denied-party records) + `ComplianceScreening` (`SCR-<SLUG>-NNNNN`) + `ScreeningMatch`. A pluggable [`screening.py`](apps/compliance/screening.py) connector registry (env `SCREENING_PROVIDER`, SSRF-guarded `validate_screening_url`) fuzzy-matches a vendor/name against the lists; the bundled `MockScreeningProvider` is deterministic. Each hit is dispositioned (false-positive / confirmed) and a confirmed match flips the screening to `blocked`. |
+| **Supplier Financial Risk Monitoring** | `FinancialRiskProfile` (one per vendor: credit score, risk band, outlook, exposure) + append-only `FinancialRiskSnapshot` history driving a trend chart. A pluggable [`credit.py`](apps/compliance/credit.py) connector (env `CREDIT_PROVIDER`, SSRF-guarded) supplies the score; `refresh_financial_risk` recomputes exposure from open POs + unpaid invoices and alerts on a score drop ≥ `CREDIT_SCORE_DROP_ALERT` or a worsening band. |
+| **Audit Trail & Logging** | Reuses the append-only `tenants.AuditLog` (no duplicate audit infra) and adds a **tamper-evident SHA-256 hash chain** (`prev_hash`/`row_hash`, backfilled by migration). `record_audit` chains each new row under `select_for_update`; `verify_audit_chain` recomputes the chain and reports the first broken row. A tenant-facing explorer at `/compliance/audit/` (search/filter/CSV export) plus a **Verify integrity** action surface it. |
+| **Fraud Detection Rules** | `FraudRule` (5 configurable detectors) + `FraudAlert` (`FRD-<SLUG>-NNNNN`, CharField `subject_type`/`subject_id` snapshots — no source FK) + append-only `FraudAlertEvent` timeline. `scan_fraud` runs: **split-PO** (same vendor+buyer under the approval ceiling, summing over), **duplicate-invoice** (same vendor+amount sharing a `supplier_invoice_ref`/date), **round-amount**, **shared-bank-account**, and **conflict-of-interest** (vendor email domain matches an internal user). Findings dedupe on a stable `signature`. |
+| **Policy Management & Acknowledgment** | `Policy` (`POL-<SLUG>-NNNNN`, draft → published → archived) + immutable `PolicyVersion` repository + `PolicyAcknowledgment` (one per user per version). Publishing asks every active user to acknowledge; a **My Policies** page (`/compliance/my-policies/`) captures sign-offs with IP + timestamp, and the policy detail shows an acknowledgment-rate bar. |
+
+**Permission gate:** manage actions (run screening, manage rules/policies, resolve alerts, refresh
+risk) are restricted to roles `tenant_admin`, `procurement_manager`, `buyer` (plus superuser); view
+(dashboard / lists / audit explorer) additionally allows `approver`. Helpers
+[`can_manage_compliance`](apps/compliance/services.py) / [`can_view_compliance`](apps/compliance/services.py)
+encapsulate the check; a `requester` is bounced entirely.
+
+**Cron:** `scan_compliance_alerts` refreshes due financial profiles, runs the fraud scan, and sends
+acknowledgment-reminder digests across all tenants — idempotent (fraud alerts dedupe on signature;
+financial alerts stamp `FinancialRiskProfile.alerted_at`).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1348,7 +1404,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–15 ship. The remaining PMS modules are not yet implemented:
+Modules 1–18 ship. The remaining PMS modules are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -1369,7 +1425,7 @@ Modules 1–15 ship. The remaining PMS modules are not yet implemented:
 | 15 | Spend Analytics & Reporting | Shipped |
 | 16 | Budget & Cost Management | Shipped |
 | 17 | Supplier Performance & Evaluation | Shipped |
-| 18 | Risk & Compliance Management | Planned |
+| 18 | Risk & Compliance Management | Shipped |
 | 19 | Inventory & Warehouse Integration | Planned |
 | 20 | Document & Knowledge Management | Planned |
 | 21 | System Administration & Security | Planned |
