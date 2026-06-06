@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Audit entry #{{ entry.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">Audit entry #{{ entry.pk }}</h1>
+    <p class="page-subtitle"><code>{{ entry.action }}</code> · {{ entry.created_at|date:"Y-m-d H:i:s" }}</p>
+  </div>
+  <a href="{% url 'compliance:audit_log' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="ri-information-line"></i> Details</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-3">User</dt><dd class="col-9">{{ entry.user.get_full_name|default:entry.user.username|default:"system" }}</dd>
+          <dt class="col-3">Action</dt><dd class="col-9"><code>{{ entry.action }}</code></dd>
+          <dt class="col-3">Level</dt><dd class="col-9">{{ entry.get_level_display }}</dd>
+          <dt class="col-3">Target</dt><dd class="col-9">{% if entry.target_type %}{{ entry.target_type }}#{{ entry.target_id }}{% else %}—{% endif %}</dd>
+          <dt class="col-3">Message</dt><dd class="col-9">{{ entry.message|default:"—" }}</dd>
+          <dt class="col-3">IP</dt><dd class="col-9">{{ entry.ip_address|default:"—" }}</dd>
+          <dt class="col-3">User agent</dt><dd class="col-9 small text-muted">{{ entry.user_agent|default:"—" }}</dd>
+        </dl>
+        {% if entry.payload %}<hr><h6 class="small text-muted">Payload</h6><pre class="small mb-0">{{ entry.payload }}</pre>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-fingerprint-line"></i> Hash chain</div>
+      <div class="card-body small">
+        <p class="mb-1 text-muted">Previous hash</p>
+        <p class="text-break"><code>{{ entry.prev_hash|default:"(genesis)" }}</code></p>
+        <p class="mb-1 text-muted">This row's hash</p>
+        <p class="text-break mb-0"><code>{{ entry.row_hash|default:"(not chained)" }}</code></p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
