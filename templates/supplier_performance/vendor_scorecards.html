@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ vendor.legal_name }} — Performance{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">{{ vendor.legal_name }}
+      {% include 'supplier_performance/_score_badge.html' with band=vendor.performance_band score=vendor.performance_score %}
+    </h1>
+    <p class="page-subtitle">{{ vendor.vendor_number }} · scored {{ vendor.performance_scored_at|default:"never" }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'supplier_performance:scorecard_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> All scorecards</a>
+    {% if can_manage %}
+    <a href="{% url 'supplier_performance:scorecard_generate' %}" class="btn btn-primary"><i class="ri-add-line"></i> Generate</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if trend.labels %}
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-line-chart-line"></i> Score trend</div>
+  <div class="card-body"><canvas id="vtrendChart" height="100"></canvas></div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><i class="ri-file-list-3-line"></i> Scorecard history</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Scorecard</th><th>Period</th><th>Status</th><th class="text-end">Score</th></tr></thead>
+      <tbody>
+        {% for c in scorecards %}
+        <tr>
+          <td><a href="{% url 'supplier_performance:scorecard_detail' c.pk %}" class="fw-semibold text-decoration-none">{{ c.scorecard_number }}</a>{% if c.is_current %} <span class="badge bg-info">current</span>{% endif %}</td>
+          <td>{{ c.period_label }}</td>
+          <td><span class="badge bg-{% if c.status == 'final' %}success{% else %}secondary{% endif %}">{{ c.get_status_display }}</span></td>
+          <td class="text-end">{% include 'supplier_performance/_score_badge.html' with band=c.rating_band score=c.overall_score %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">No scorecards for this vendor yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if trend.labels %}
+{{ trend.labels|json_script:"vtrLabels" }}
+{{ trend.overall|json_script:"vtrOverall" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('vtrendChart');
+    if (!el) return;
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    new Chart(el, {
+      type: 'line',
+      data: { labels: read('vtrLabels'), datasets: [{ label: 'Overall', data: read('vtrOverall'), borderColor: '#3b5de7', backgroundColor: 'rgba(59,93,231,.1)', fill: true, tension: 0.3 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } }
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}
