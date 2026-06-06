@@ -86,9 +86,27 @@ class OnboardingPlanView(View):
 
 
 class OnboardingCompleteView(View):
+    """Review + provision the new tenant.
+
+    GET renders a read-only confirmation page; the tenant/subscription is only
+    created on POST (CSRF-protected) so a link prefetch, crawler, or accidental
+    reload can never provision a tenant as a side effect of a safe GET request.
+    """
     template_name = 'tenants/onboarding/complete.html'
+    review_template = 'tenants/onboarding/review.html'
 
     def get(self, request):
+        company_data = request.session.get('onboarding_company')
+        plan_data = request.session.get('onboarding_plan')
+        if not (company_data and plan_data):
+            return redirect('tenants:onboarding_company')
+        return render(request, self.review_template, {
+            'company': company_data,
+            'plan': Plan.objects.filter(pk=plan_data['plan_id']).first(),
+            'billing_cycle': plan_data['billing_cycle'],
+        })
+
+    def post(self, request):
         company_data = request.session.get('onboarding_company')
         plan_data = request.session.get('onboarding_plan')
         if not (company_data and plan_data):
@@ -110,10 +128,12 @@ class OnboardingCompleteView(View):
             sub = start_trial_for_new_tenant(tenant)
             sub.plan = plan
             sub.billing_cycle = plan_data['billing_cycle']
-            sub.current_period_end = sub.started_at + (
-                timedelta(days=365)
-                if plan_data['billing_cycle'] == 'yearly' else timedelta(days=30)
-            )
+            # Align the trial window to the CHOSEN plan rather than leaving the
+            # default-plan trial_ends_at while stretching period_end to a full
+            # paid cycle (which left status='trial' disagreeing with the dates).
+            sub.trial_ends_at = sub.started_at + timedelta(days=plan.trial_days or 14)
+            sub.current_period_start = sub.started_at
+            sub.current_period_end = sub.trial_ends_at
             sub.save()
 
         request.session.pop('onboarding_company', None)
@@ -131,6 +151,10 @@ class PlanListView(ListView):
 
     def get_queryset(self):
         qs = Plan.objects.all()
+        u = self.request.user
+        if not (u.is_authenticated and (u.is_superuser or getattr(u, 'role', '') == 'super_admin')):
+            # Anonymous/non-admin pricing-page visitors only see published plans.
+            qs = qs.filter(is_public=True, is_active=True)
         q = self.request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(Q(name__icontains=q) | Q(slug__icontains=q))
@@ -161,7 +185,12 @@ class PlanCreateView(SuperAdminRequiredMixin, View):
 
 class PlanDetailView(View):
     def get(self, request, pk):
-        plan = get_object_or_404(Plan, pk=pk)
+        qs = Plan.objects.all()
+        u = request.user
+        if not (u.is_authenticated and (u.is_superuser or getattr(u, 'role', '') == 'super_admin')):
+            # Non-public / inactive plans 404 for anonymous and non-admin users.
+            qs = qs.filter(is_public=True, is_active=True)
+        plan = get_object_or_404(qs, pk=pk)
         return render(request, 'tenants/plans/detail.html', {'plan': plan})
 
 
@@ -346,7 +375,9 @@ class InvoicePayView(TenantAdminRequiredMixin, View):
             messages.info(request, 'Invoice already paid.')
             return redirect('tenants:invoice_detail', pk=pk)
         tx = charge_invoice(invoice, user=request.user)
-        if tx.status == 'succeeded':
+        if tx is None:
+            messages.info(request, 'Invoice already paid.')
+        elif tx.status == 'succeeded':
             messages.success(request, f'Payment succeeded. Ref: {tx.gateway_ref}')
         else:
             messages.error(request, f'Payment failed: {tx.message}')
