@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Risk & Compliance{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Risk &amp; Compliance</h1>
+    <p class="page-subtitle">Screening, financial risk, fraud detection, audit trail &amp; policy sign-off</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'compliance:audit_log' %}" class="btn btn-outline-secondary"><i class="ri-history-line"></i> Audit Trail</a>
+    {% if can_manage %}
+    <a href="{% url 'compliance:screening_run' %}" class="btn btn-primary"><i class="ri-search-eye-line"></i> Run Screening</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Open fraud cases</div>
+    <div class="stat-value {% if metrics.open_fraud_count %}text-danger{% endif %}">{{ metrics.open_fraud_count }}</div>
+    <a href="{% url 'compliance:fraud_alert_list' %}?status=open" class="small text-decoration-none">View alerts</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Screening hits to review</div>
+    <div class="stat-value {% if metrics.screening_review_count %}text-warning{% endif %}">{{ metrics.screening_review_count }}</div>
+    <a href="{% url 'compliance:screening_list' %}?status=review" class="small text-decoration-none">View screenings</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">High financial risk</div>
+    <div class="stat-value {% if metrics.high_risk_count %}text-danger{% endif %}">{{ metrics.high_risk_count }}</div>
+    <div class="text-muted small">{{ metrics.monitored_count }} vendor(s) monitored</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Policy acknowledgment</div>
+    <div class="stat-value">{{ metrics.policy_ack_pct }}%</div>
+    <div class="text-muted small">{{ metrics.published_policy_count }} published policy(ies)</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-alarm-warning-line"></i> Open fraud alerts by severity</div>
+      <div class="card-body">
+        {% if metrics.open_fraud_count %}<canvas id="sevChart" height="160"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No open fraud alerts.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-funds-line"></i> Vendors by financial-risk band</div>
+      <div class="card-body">
+        {% if metrics.monitored_count %}<canvas id="bandChart" height="160"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No vendors under monitoring yet.{% if can_manage %} <a href="{% url 'compliance:financial_list' %}">Add one</a>.{% endif %}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><i class="ri-alert-line"></i> Recent open fraud alerts</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Alert</th><th>Rule</th><th>Vendor</th><th>Severity</th><th>Summary</th><th>Detected</th></tr></thead>
+      <tbody>
+        {% for a in metrics.recent_alerts %}
+        <tr>
+          <td><a href="{% url 'compliance:fraud_alert_detail' a.pk %}" class="fw-semibold text-decoration-none">{{ a.alert_number }}</a></td>
+          <td>{{ a.rule_name|default:a.rule_code }}</td>
+          <td>{{ a.vendor.legal_name|default:"—" }}</td>
+          <td><span class="badge badge-soft-{{ a.severity_color }}">{{ a.get_severity_display }}</span></td>
+          <td class="small">{{ a.summary|truncatechars:70 }}</td>
+          <td class="small text-muted">{{ a.detected_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No open alerts. Run a fraud scan from the Fraud Alerts page.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.sev_labels|json_script:"sevLabels" }}
+{{ metrics.sev_data|json_script:"sevData" }}
+{{ metrics.band_labels|json_script:"bandLabels" }}
+{{ metrics.band_data|json_script:"bandData" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    var sev = document.getElementById('sevChart');
+    if (sev) new Chart(sev, {
+      type: 'doughnut',
+      data: { labels: read('sevLabels'),
+        datasets: [{ data: read('sevData'), backgroundColor: ['#0dcaf0', '#f59e0b', '#ef4444'] }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+    var band = document.getElementById('bandChart');
+    if (band) new Chart(band, {
+      type: 'bar',
+      data: { labels: read('bandLabels'),
+        datasets: [{ label: 'Vendors', data: read('bandData'),
+          backgroundColor: ['#22c55e', '#0dcaf0', '#f59e0b', '#ef4444'] }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  })();
+</script>
+{% endblock %}
