@@ -68,6 +68,13 @@
        href="{% url 'vendor_portal:returns' %}"><i class="ri-arrow-go-back-line"></i> Returns to Vendor</a>
     <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}"
        href="{% url 'vendor_portal:invoices' %}"><i class="ri-bill-line"></i> Invoices</a>
+    <div class="small-label">Performance</div>
+    <a class="nav-link {% if 'performance_scorecard' in request.resolver_match.url_name|default:'' %}active{% endif %}"
+       href="{% url 'vendor_portal:performance_scorecards' %}"><i class="ri-award-line"></i> My Scorecards</a>
+    <a class="nav-link {% if request.resolver_match.url_name == 'performance_feedback' %}active{% endif %}"
+       href="{% url 'vendor_portal:performance_feedback' %}"><i class="ri-feedback-line"></i> Feedback</a>
+    <a class="nav-link {% if 'performance_pip' in request.resolver_match.url_name|default:'' or request.resolver_match.url_name == 'performance_pips' %}active{% endif %}"
+       href="{% url 'vendor_portal:performance_pips' %}"><i class="ri-clipboard-line"></i> Improvement Plans</a>
     <hr>
     <a class="nav-link" href="{% url 'accounts:logout' %}"><i class="ri-logout-box-line"></i> Sign out</a>
   </aside>
