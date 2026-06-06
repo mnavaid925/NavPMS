@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ profile.vendor.legal_name }} — Financial Risk{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ profile.vendor.legal_name }} <span class="badge badge-soft-{{ profile.band_color }}">{{ profile.get_band_display }} risk</span></h1>
+    <p class="page-subtitle">Credit score {{ profile.credit_score|floatformat:0 }} · {{ profile.get_outlook_display }} outlook · provider {{ profile.provider }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    <form method="post" action="{% url 'compliance:financial_refresh' profile.pk %}">{% csrf_token %}
+      <button class="btn btn-outline-primary"><i class="ri-refresh-line"></i> Refresh</button></form>
+    <form method="post" action="{% url 'compliance:financial_toggle' profile.pk %}">{% csrf_token %}
+      <button class="btn btn-outline-secondary">{% if profile.monitored %}<i class="ri-pause-line"></i> Pause{% else %}<i class="ri-play-line"></i> Resume{% endif %}</button></form>
+    {% endif %}
+    <a href="{% url 'compliance:financial_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Credit score</div><div class="stat-value">{{ profile.credit_score|floatformat:0 }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Exposure</div><div class="stat-value">${{ profile.exposure_amount|floatformat:0|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Overdue invoices</div><div class="stat-value {% if profile.overdue_invoice_amount > 0 %}text-danger{% endif %}">${{ profile.overdue_invoice_amount|floatformat:0|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Last checked</div><div class="stat-value small">{{ profile.last_checked_at|date:"Y-m-d H:i"|default:"—" }}</div></div></div></div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-line-chart-line"></i> Credit-score trend</div>
+  <div class="card-body">
+    {% if trend_labels %}<canvas id="trendChart" height="90"></canvas>
+    {% else %}<p class="text-center text-muted py-4 mb-0">No history yet — refresh to capture a snapshot.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="ri-history-line"></i> Snapshots</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>As of</th><th>Band</th><th class="text-end">Score</th><th class="text-end">Exposure</th><th class="text-end">Overdue</th><th class="text-end">Open POs</th><th>Source</th></tr></thead>
+      <tbody>
+        {% for s in snapshots %}
+        <tr>
+          <td>{{ s.as_of_date }}</td>
+          <td><span class="badge badge-soft-{{ s.band_color }}">{{ s.get_band_display }}</span></td>
+          <td class="text-end">{{ s.credit_score|floatformat:0 }}</td>
+          <td class="text-end">${{ s.exposure_amount|floatformat:0|intcomma }}</td>
+          <td class="text-end">${{ s.overdue_amount|floatformat:0|intcomma }}</td>
+          <td class="text-end">{{ s.open_po_count }}</td>
+          <td class="small text-muted">{{ s.source }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No snapshots yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ trend_labels|json_script:"trendLabels" }}
+{{ trend_scores|json_script:"trendScores" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('trendChart');
+    if (!el) return;
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    new Chart(el, {
+      type: 'line',
+      data: { labels: read('trendLabels'),
+        datasets: [{ label: 'Credit score', data: read('trendScores'), borderColor: '#3b5de7',
+          backgroundColor: 'rgba(59,93,231,.1)', fill: true, tension: .3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+  })();
+</script>
+{% endblock %}
