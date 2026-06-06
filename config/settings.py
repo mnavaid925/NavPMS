@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.spend_analytics',
     'apps.budget',
     'apps.supplier_performance',
+    'apps.compliance',
 ]
 
 MIDDLEWARE = [
@@ -164,6 +165,23 @@ INVOICE_EMAIL_ALERTS = config('INVOICE_EMAIL_ALERTS', default=False, cast=bool)
 BUDGET_ENFORCEMENT = config('BUDGET_ENFORCEMENT', default='warn')
 BUDGET_VARIANCE_TOLERANCE_PCT = config('BUDGET_VARIANCE_TOLERANCE_PCT', default='10', cast=float)
 BUDGET_WARN_UTILIZATION_PCT = config('BUDGET_WARN_UTILIZATION_PCT', default='90', cast=float)
+
+# Module 18 — Risk & Compliance Management. Selects the pluggable restricted-party screening
+# provider and supplier credit-score provider (both mock by default; real providers wire in via
+# apps/compliance/screening.py and apps/compliance/credit.py), with optional comma-separated SSRF
+# allowlists of extra hosts a real provider endpoint may target. SCREENING_MATCH_THRESHOLD is the
+# fuzzy-match percent at/above which a screening records a hit; CREDIT_SCORE_DROP_ALERT is the
+# score-drop (points) that raises a financial-risk alert. The FRAUD_* values tune the fraud
+# detectors (scan_fraud); POLICY_ACK_REMINDER_DAYS paces the cron acknowledgment reminders.
+SCREENING_PROVIDER = config('SCREENING_PROVIDER', default='mock')
+SCREENING_ALLOWLIST = config('SCREENING_ALLOWLIST', default='')
+SCREENING_MATCH_THRESHOLD = config('SCREENING_MATCH_THRESHOLD', default='85', cast=float)
+CREDIT_PROVIDER = config('CREDIT_PROVIDER', default='mock')
+CREDIT_ALLOWLIST = config('CREDIT_ALLOWLIST', default='')
+CREDIT_SCORE_DROP_ALERT = config('CREDIT_SCORE_DROP_ALERT', default='10', cast=float)
+FRAUD_SPLIT_PO_WINDOW_DAYS = config('FRAUD_SPLIT_PO_WINDOW_DAYS', default='14', cast=int)
+FRAUD_ROUND_AMOUNT_FLOOR = config('FRAUD_ROUND_AMOUNT_FLOOR', default='5000', cast=float)
+POLICY_ACK_REMINDER_DAYS = config('POLICY_ACK_REMINDER_DAYS', default='14', cast=int)
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
