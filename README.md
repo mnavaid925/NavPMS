@@ -37,7 +37,9 @@ Vendor, Item Tagging & Barcoding), and **Module 14 — Invoice & Voucher Managem
 five sub-modules: Invoice Capture (OCR), Three-Way Matching, Dispute Resolution Workflow,
 Payment Schedule/Terms Management, Early Payment Discount Tracking), and
 **Module 15 — Spend Analytics & Reporting** (all five sub-modules: Spend Dashboards, Custom
-Report Builder, Category Spend Analysis, Maverick Spend Tracking, Data Export & Visualization).
+Report Builder, Category Spend Analysis, Maverick Spend Tracking, Data Export & Visualization),
+and **Module 16 — Budget & Cost Management** (all five sub-modules: Budget Allocation & Mapping,
+Budget Availability Check, Commitment Accounting, Variance Analysis, Forecasting & Projection).
 
 ---
 
@@ -65,11 +67,12 @@ Report Builder, Category Spend Analysis, Maverick Spend Tracking, Data Export & 
 21. [Module 13 — Goods Receipt & Inspection](#module-13--goods-receipt--inspection)
 22. [Module 14 — Invoice & Voucher Management](#module-14--invoice--voucher-management)
 23. [Module 15 — Spend Analytics & Reporting](#module-15--spend-analytics--reporting)
-24. [Routes / UI Tour](#routes--ui-tour)
-25. [Multi-tenancy Model](#multi-tenancy-model)
-26. [Payment Gateway](#payment-gateway)
-27. [Browser Compatibility](#browser-compatibility)
-28. [Roadmap](#roadmap)
+24. [Module 16 — Budget & Cost Management](#module-16--budget--cost-management)
+25. [Routes / UI Tour](#routes--ui-tour)
+26. [Multi-tenancy Model](#multi-tenancy-model)
+27. [Payment Gateway](#payment-gateway)
+28. [Browser Compatibility](#browser-compatibility)
+29. [Roadmap](#roadmap)
 
 ---
 
@@ -138,9 +141,13 @@ NavPMS/
 │   │                         # SupplierInvoiceStatusEvent (append-only), InvoiceDisputeNote
 │   │                         # (append-only thread), PaymentVoucher (+StatusEvent) +
 │   │                         # ocr.py pluggable OCR-capture connector registry
-│   └── spend_analytics/      # Module 15: SpendRecord (synced spend fact table), SpendReport
-│                             # (saved report builder) + services (sync/metrics/run/export) +
-│                             # exports.py (CSV/XLSX helper)
+│   ├── spend_analytics/      # Module 15: SpendRecord (synced spend fact table), SpendReport
+│   │                         # (saved report builder) + services (sync/metrics/run/export) +
+│   │                         # exports.py (CSV/XLSX helper)
+│   └── budget/               # Module 16: BudgetPeriod, Budget (+Allocation lines),
+│                             # BudgetStatusEvent (append-only), BudgetCheck (append-only
+│                             # availability-check log) + services (compute-on-read consumption,
+│                             # availability check, variance, forecast, alerts)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -173,6 +180,8 @@ NavPMS/
 │   │                         # pages, analytics (AP aging + discount opportunities)
 │   ├── spend_analytics/      # dashboard (KPIs + charts + basis toggle), category analysis
 │   │                         # (+ drill), maverick tracking, report list/form/detail
+│   ├── budget/               # dashboard (allocated/actual/committed), budget + period
+│   │                         # list/form/detail, allocation form, variance, forecast, check log
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
@@ -262,6 +271,9 @@ All values are read via `python-decouple` from `.env`.
 | `OCR_MIN_CONFIDENCE` | `70` | OCR captures below this confidence (%) are flagged "needs manual review" in the UI. |
 | `INVOICE_DISPUTE_SLA_DAYS` | `5` | Days a dispute may stay open before `scan_invoice_alerts` raises a one-time escalation alert. |
 | `INVOICE_EMAIL_ALERTS` | `False` | Opt-in: also email the invoice owner on overdue / closing-discount / dispute-SLA alerts (needs a real `EMAIL_BACKEND`). |
+| `BUDGET_ENFORCEMENT` | `warn` | Budget-availability check on requisition submit: `warn` (flag + alert the owner, but allow) or `block` (raise a validation error and stop the submission). |
+| `BUDGET_VARIANCE_TOLERANCE_PCT` | `10` | Utilization (%) below 100 at which the variance report flags a cost centre "near limit". |
+| `BUDGET_WARN_UTILIZATION_PCT` | `90` | Utilization (%) at which `scan_budget_alerts` raises a one-time over-budget / high-burn alert. |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -271,7 +283,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -289,6 +301,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_goods_receipt` | Creates 5 goods receipts per tenant from the open POs (draft / awaiting inspection / posted-with-tags / mixed accept-reject + Return-to-Vendor / QA-fail) — driven through the real receive→inspect→post services. |
 | `python manage.py seed_invoicing` | Creates 3 payment terms + 7 supplier (AP) invoices per tenant across every status (draft / paid-via-gateway / approved+scheduled-voucher with a live early-payment discount / submitted-with-match-exceptions+overdue / disputed-with-thread / rejected / cancelled) — driven through the real capture→match→approve→pay services. |
 | `python manage.py seed_spend_analytics` | Materializes the `SpendRecord` fact table per tenant from the seeded approved/paid invoices (actual) + non-cancelled POs (committed) via the real `sync_spend_facts`, and creates 3 demo saved reports (category doughnut / monthly-trend line / maverick-by-supplier bar). |
+| `python manage.py seed_budget` | Creates an `FY2026` period + an active operating budget per tenant with allocations across the seeded cost centres, then runs a couple of real availability checks against the seeded requisitions (idempotent; `--flush` to re-seed). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -297,6 +310,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_goods_receipt_alerts` | Raises a one-time alert for goods receipts left awaiting inspection and for open returns-to-vendor across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 | `python manage.py run_invoice_alerts` | Raises a one-time alert for approved/submitted invoices past their due date and unpaid, and for invoices whose early-payment discount window is closing, across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 | `python manage.py run_spend_sync` | Resyncs the `SpendRecord` fact table from invoices + POs across all tenants (`--tenant <slug>` for one) — cron-friendly; the dashboard also resyncs lazily when stale. |
+| `python manage.py run_budget_alerts` | Raises a one-time over-budget / high-utilization alert (audit + owner notification) for each active budget across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent via `Budget.over_budget_alerted_at`. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -317,7 +331,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/) — **1127 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/) — **1165 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -484,6 +498,13 @@ per non-cancelled PO line (**committed** spend), with the maverick flags compute
 (off-preferred-supplier / off-contract / non-PO). Each tenant also gets **3 demo saved reports** —
 "Spend by category (actual)" (doughnut), "Monthly spend trend (actual)" (line), and "Maverick spend
 by supplier" (bar). Actual and committed are reported separately and never summed.
+
+### Budget & Cost data
+Each tenant gets an active **`FY2026`** budget period and an active **"Operating budget FY2026"**
+(`BUD-<SLUG>-NNNNN`) with allocations across the seeded cost centres (`6100-OFF`, `6200-IT`,
+`6300-SVC`, `6400-TRV`, `6500-MNT`). Consumption is computed on read from the seeded POs (committed),
+invoices (actual) and open requisitions (reserved), and a couple of real **availability checks** are
+run against the seeded requisitions so the check log + requisition banner are populated.
 
 ---
 
@@ -1033,6 +1054,36 @@ only to their owner or a manager, and all lookups are tenant-scoped (cross-tenan
 
 ---
 
+## Module 16 — Budget & Cost Management
+
+The financial-control layer ([apps/budget/](apps/budget/)) that sits across the procure-to-pay loop
+— it caps requisition spend before it starts, encumbers it once a PO is issued, and reconciles it
+against actually-invoiced spend. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Budget Allocation & Mapping** | `Budget` (`BUD-<SLUG>-NNNNN`) + `BudgetAllocation` lines mapping an `allocated_amount` to a cost centre / GL code (`requisitions.AccountCode`, optionally narrowed by `vendors.VendorCategory`) inside a `BudgetPeriod` (fiscal year / quarter / month). Full CRUD; allocations editable while the budget is a draft, then `activate` → `close`. |
+| **Budget Availability Check** | [`check_requisition_budget`](apps/budget/services.py) fires when a requisition is submitted (hooked into [`requisitions.submit_requisition`](apps/requisitions/services.py)): it groups lines by cost centre and compares the request against `available = allocated − actual − committed − reserved`. `BUDGET_ENFORCEMENT='warn'` (default) flags the requisition (banner + owner notification) but lets it through; `'block'` raises a validation error and stops the submit. Every check is logged as an append-only `BudgetCheck`. |
+| **Commitment Accounting** | `committed` spend = the value of open PO lines (`issued` / `acknowledged` / `partially_received`) for the cost centre in-period — a firm encumbrance not yet invoiced. Computed on read, so closing / cancelling the PO releases it automatically. |
+| **Variance Analysis** | [`variance_report`](apps/budget/services.py) — per-allocation allocated vs actual vs committed with variance $/%, flags gated by `BUDGET_VARIANCE_TOLERANCE_PCT` (on track / near limit / over budget), plus CSV + XLSX export. |
+| **Forecasting & Projection** | [`forecast`](apps/budget/services.py) — a linear run-rate projection (actual ÷ fraction-of-period-elapsed, floored at actual + open commitments) to period end vs allocated, flagging cost centres that will overrun. An honest "history + open POs" model, not a statistical forecast. |
+
+**Compute-on-read, no ledger.** `actual` (approved/paid invoice lines), `committed` (open PO lines)
+and `reserved` (open requisition lines) are all derived live from the authoritative transactional
+tables, scoped by `account_code` + the budget period's dates — there is no stored ledger and no
+reversal hooks, so any status change on a source document is reflected on the next read. The
+dimension is the existing `requisitions.AccountCode`, the same cost-centre dimension used by Module
+15. The CSV/XLSX helpers are reused from [`apps/spend_analytics/exports.py`](apps/spend_analytics/exports.py).
+
+**Permission gate:** every read view **and both export endpoints** are gated on
+[`can_view_budget`](apps/budget/services.py) (`tenant_admin` / `procurement_manager` / `buyer` /
+`approver` + superuser); creating/editing/activating/closing budgets and editing allocations require
+[`can_manage_budget`](apps/budget/services.py). All lookups are tenant-scoped (cross-tenant access
+404s). A cron-friendly `run_budget_alerts` raises a one-time over-budget / high-burn alert per active
+budget (idempotent via `Budget.over_budget_alerted_at`).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1151,6 +1202,12 @@ only to their owner or a manager, and all lookups are tenant-scoped (cross-tenan
 | `/spend-analytics/maverick/` | Maverick spend tracking — off-preferred / off-contract / non-PO, filterable |
 | `/spend-analytics/reports/` | Custom report builder — list / new / `<id>` (run) / edit / delete |
 | `/spend-analytics/export/{dashboard,records}.{csv,xlsx}` · `/reports/<id>/export.{csv,xlsx}` | CSV / XLSX exports (the BI feed) |
+| `/budget/` | Budget dashboard — allocated vs actual vs committed by cost centre + KPIs |
+| `/budget/budgets/` | Budgets — list / new / `<id>` (allocations + consumption + timeline) / edit / delete |
+| `/budget/budgets/<id>/forecast/` | Run-rate projection to period end |
+| `/budget/periods/` | Budget periods (fiscal year / quarter) — full CRUD + status |
+| `/budget/variance/` · `/variance/export.{csv,xlsx}` | Variance report + CSV / XLSX export |
+| `/budget/checks/` | Availability-check audit log (every requisition budget check) |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -1235,7 +1292,7 @@ Modules 1–15 ship. The remaining PMS modules are not yet implemented:
 | 13 | Goods Receipt & Inspection | Shipped |
 | 14 | Invoice & Voucher Management | Shipped |
 | 15 | Spend Analytics & Reporting | Shipped |
-| 16 | Budget & Cost Management | Planned |
+| 16 | Budget & Cost Management | Shipped |
 | 17 | Supplier Performance & Evaluation | Planned |
 | 18 | Risk & Compliance Management | Planned |
 | 19 | Inventory & Warehouse Integration | Planned |
