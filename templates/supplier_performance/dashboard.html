@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Supplier Performance{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Supplier Performance</h1>
+    <p class="page-subtitle">KPI-driven scorecards, 360° feedback, improvement plans and benchmarking</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'supplier_performance:scorecard_list' %}" class="btn btn-outline-secondary"><i class="ri-file-chart-line"></i> Scorecards</a>
+    <a href="{% url 'supplier_performance:benchmarking' %}" class="btn btn-outline-secondary"><i class="ri-bar-chart-2-line"></i> Benchmarking</a>
+    {% if can_manage %}
+    <a href="{% url 'supplier_performance:scorecard_generate' %}" class="btn btn-primary"><i class="ri-add-line"></i> Generate Scorecard</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Scored vendors</div>
+      <div class="stat-value">{{ metrics.scored_vendors }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Average score</div>
+      <div class="stat-value">{{ metrics.average_score }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Underperforming</div>
+      <div class="stat-value {% if metrics.underperforming %}text-danger{% endif %}">{{ metrics.underperforming }}</div>
+      <div class="text-muted small">poor / critical band</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Open plans</div>
+      <div class="stat-value">{{ metrics.open_pips }}</div>
+      <div class="text-muted small">{{ metrics.pending_feedback }} feedback pending</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-pie-chart-line"></i> Rating-band distribution</div>
+      <div class="card-body">
+        {% if metrics.scored_vendors %}<canvas id="bandChart" height="180"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No final scorecards yet.{% if can_manage %} <a href="{% url 'supplier_performance:scorecard_generate' %}">Generate one</a>.{% endif %}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-history-line"></i> Recent scorecards</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Scorecard</th><th>Vendor</th><th>Period</th><th class="text-end">Score</th></tr></thead>
+          <tbody>
+            {% for c in recent %}
+            <tr>
+              <td><a href="{% url 'supplier_performance:scorecard_detail' c.pk %}" class="fw-semibold text-decoration-none">{{ c.scorecard_number }}</a></td>
+              <td>{{ c.vendor.legal_name }}</td>
+              <td>{{ c.period_label }}</td>
+              <td class="text-end">{% include 'supplier_performance/_score_badge.html' with band=c.rating_band score=c.overall_score %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-4">No scorecards yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if open_pips %}
+<div class="card mt-3">
+  <div class="card-header"><i class="ri-error-warning-line"></i> Open improvement plans</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Plan</th><th>Vendor</th><th>Title</th><th>Status</th><th>Target date</th></tr></thead>
+      <tbody>
+        {% for p in open_pips %}
+        <tr>
+          <td><a href="{% url 'supplier_performance:pip_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.pip_number }}</a></td>
+          <td>{{ p.vendor.legal_name }}</td>
+          <td>{{ p.title }}</td>
+          <td><span class="badge bg-secondary">{{ p.get_status_display }}</span></td>
+          <td>{{ p.target_date|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.band_labels|json_script:"bandLabels" }}
+{{ metrics.band_values|json_script:"bandValues" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('bandChart');
+    if (!el) return;
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    new Chart(el, {
+      type: 'doughnut',
+      data: {
+        labels: read('bandLabels'),
+        datasets: [{
+          data: read('bandValues'),
+          backgroundColor: ['#22c55e', '#3b5de7', '#0dcaf0', '#f59e0b', '#ef4444']
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  })();
+</script>
+{% endblock %}
