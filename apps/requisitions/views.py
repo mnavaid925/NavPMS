@@ -1,8 +1,10 @@
 """Module 3 views: account codes, requisition templates, requisitions
 (creation, tracking, duplicate check, amendment) and the tracking board."""
+from decimal import Decimal
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.views.generic import ListView
@@ -334,19 +336,30 @@ class RequisitionTrackingView(TenantRequiredMixin, View):
             qs = qs.filter(requested_by=request.user)
 
         columns = []
+        by_status = {}
         for value, label in Requisition.STATUS_CHOICES:
+            reqs = list(qs.filter(status=value).order_by('-created_at'))
+            col_total = sum((r.estimated_total for r in reqs), Decimal('0.00'))
             columns.append({
                 'value': value,
                 'label': label,
-                'requisitions': list(
-                    qs.filter(status=value).order_by('-created_at')
-                ),
+                'requisitions': reqs,
+                'count': len(reqs),
+                'total': col_total,
             })
-        totals = qs.aggregate(total=Sum('estimated_total'))
+            by_status[value] = {'count': len(reqs), 'total': col_total}
+
+        open_count = sum(by_status[s]['count'] for s in Requisition.OPEN_STATUSES)
+        open_total = sum(
+            (by_status[s]['total'] for s in Requisition.OPEN_STATUSES), Decimal('0.00'),
+        )
         return render(request, self.template_name, {
             'columns': columns,
-            'total_count': qs.count(),
-            'grand_total': totals['total'] or 0,
+            'by_status': by_status,
+            'total_count': sum(c['count'] for c in columns),
+            'grand_total': sum((c['total'] for c in columns), Decimal('0.00')),
+            'open_count': open_count,
+            'open_total': open_total,
         })
 
 
