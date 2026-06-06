@@ -39,7 +39,10 @@ Payment Schedule/Terms Management, Early Payment Discount Tracking), and
 **Module 15 — Spend Analytics & Reporting** (all five sub-modules: Spend Dashboards, Custom
 Report Builder, Category Spend Analysis, Maverick Spend Tracking, Data Export & Visualization),
 and **Module 16 — Budget & Cost Management** (all five sub-modules: Budget Allocation & Mapping,
-Budget Availability Check, Commitment Accounting, Variance Analysis, Forecasting & Projection).
+Budget Availability Check, Commitment Accounting, Variance Analysis, Forecasting & Projection),
+and **Module 17 — Supplier Performance & Evaluation** (all five sub-modules: KPI Definition & Setup,
+Scorecard Generation, 360-Degree Feedback Collection, Performance Improvement Plans, Benchmarking &
+Trending).
 
 ---
 
@@ -68,10 +71,11 @@ Budget Availability Check, Commitment Accounting, Variance Analysis, Forecasting
 22. [Module 14 — Invoice & Voucher Management](#module-14--invoice--voucher-management)
 23. [Module 15 — Spend Analytics & Reporting](#module-15--spend-analytics--reporting)
 24. [Module 16 — Budget & Cost Management](#module-16--budget--cost-management)
-25. [Routes / UI Tour](#routes--ui-tour)
-26. [Multi-tenancy Model](#multi-tenancy-model)
-27. [Payment Gateway](#payment-gateway)
-28. [Browser Compatibility](#browser-compatibility)
+25. [Module 17 — Supplier Performance & Evaluation](#module-17--supplier-performance--evaluation)
+26. [Routes / UI Tour](#routes--ui-tour)
+27. [Multi-tenancy Model](#multi-tenancy-model)
+28. [Payment Gateway](#payment-gateway)
+29. [Browser Compatibility](#browser-compatibility)
 29. [Roadmap](#roadmap)
 
 ---
@@ -144,10 +148,14 @@ NavPMS/
 │   ├── spend_analytics/      # Module 15: SpendRecord (synced spend fact table), SpendReport
 │   │                         # (saved report builder) + services (sync/metrics/run/export) +
 │   │                         # exports.py (CSV/XLSX helper)
-│   └── budget/               # Module 16: BudgetPeriod, Budget (+Allocation lines),
-│                             # BudgetStatusEvent (append-only), BudgetCheck (append-only
-│                             # availability-check log) + services (compute-on-read consumption,
-│                             # availability check, variance, forecast, alerts)
+│   ├── budget/               # Module 16: BudgetPeriod, Budget (+Allocation lines),
+│   │                         # BudgetStatusEvent (append-only), BudgetCheck (append-only
+│   │                         # availability-check log) + services (compute-on-read consumption,
+│   │                         # availability check, variance, forecast, alerts)
+│   └── supplier_performance/ # Module 17: KpiDefinition, Scorecard (+ScorecardLine snapshot),
+│                             # PerformanceFeedback, ImprovementPlan (+PIPAction +PIPStatusEvent
+│                             # append-only) + services (KPI engine, scorecard generation,
+│                             # trending/benchmarking, feedback, PIP lifecycle, cron)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -302,6 +310,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_invoicing` | Creates 3 payment terms + 7 supplier (AP) invoices per tenant across every status (draft / paid-via-gateway / approved+scheduled-voucher with a live early-payment discount / submitted-with-match-exceptions+overdue / disputed-with-thread / rejected / cancelled) — driven through the real capture→match→approve→pay services. |
 | `python manage.py seed_spend_analytics` | Materializes the `SpendRecord` fact table per tenant from the seeded approved/paid invoices (actual) + non-cancelled POs (committed) via the real `sync_spend_facts`, and creates 3 demo saved reports (category doughnut / monthly-trend line / maverick-by-supplier bar). |
 | `python manage.py seed_budget` | Creates an `FY2026` period + an active operating budget per tenant with allocations across the seeded cost centres, then runs a couple of real availability checks against the seeded requisitions (idempotent; `--flush` to re-seed). |
+| `python manage.py seed_supplier_performance` | Provisions the default KPI set + final scorecards for 3 vendors across 3 rolling quarters (so trending renders a line), seeds submitted 360° feedback inside each window, and opens an in-progress improvement plan for the weakest vendor — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -311,6 +320,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_invoice_alerts` | Raises a one-time alert for approved/submitted invoices past their due date and unpaid, and for invoices whose early-payment discount window is closing, across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 | `python manage.py run_spend_sync` | Resyncs the `SpendRecord` fact table from invoices + POs across all tenants (`--tenant <slug>` for one) — cron-friendly; the dashboard also resyncs lazily when stale. |
 | `python manage.py run_budget_alerts` | Raises a one-time over-budget / high-utilization alert (audit + owner notification) for each active budget across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent via `Budget.over_budget_alerted_at`. |
+| `python manage.py run_scorecards` | Generates a final scorecard for every active vendor over a period (defaults to the trailing calendar quarter; `--period-start/-end`, `--label`, `--tenant <slug>`) and, with `--pip-sweep`, raises a one-time alert per overdue improvement plan across all tenants — cron-friendly; idempotent via `ImprovementPlan.alerted_at`. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -505,6 +515,15 @@ Each tenant gets an active **`FY2026`** budget period and an active **"Operating
 `6300-SVC`, `6400-TRV`, `6500-MNT`). Consumption is computed on read from the seeded POs (committed),
 invoices (actual) and open requisitions (reserved), and a couple of real **availability checks** are
 run against the seeded requisitions so the check log + requisition banner are populated.
+
+### Supplier Performance data
+Each tenant gets the **default KPI set** (On-Time Delivery, Defect Rate, Responsiveness, Price
+Variance, 360° Feedback — weights summing to 100) and **final scorecards** (`SPC-<SLUG>-NNNNN`) for
+its top three active vendors across **three rolling quarters**, so the trending line has multiple
+points and the latest card becomes each vendor's current score (denormalised onto the Vendor row).
+Submitted **360° feedback** is dated inside each window (with one outstanding request for the inbox),
+and an in-progress **improvement plan** (`PIP-<SLUG>-NNNNN`) with two corrective actions is opened for
+the weakest vendor — all driven through the real services.
 
 ---
 
@@ -1084,6 +1103,55 @@ budget (idempotent via `Budget.over_budget_alerted_at`).
 
 ---
 
+## Module 17 — Supplier Performance & Evaluation
+
+The feedback loop that closes procure-to-pay ([apps/supplier_performance/](apps/supplier_performance/)):
+it turns the transactional data the system already captures (goods receipts, PO acknowledgements,
+RFx responses, supplier invoices) plus internal reviews into **vendor performance scores**. All five
+PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **KPI Definition & Setup** | `KpiDefinition` — a configurable metric (`kpi_type`, `source` auto/manual/feedback, `direction` higher/lower-better, `weight`, `target_value`, thresholds). `ensure_default_kpis` provisions a starter set summing to 100% weight (On-Time Delivery, Defect Rate, Responsiveness, Price Variance, 360° Feedback). Full CRUD + "restore defaults". |
+| **Scorecard Generation** | `Scorecard` (`SPC-<SLUG>-NNNNN`) + per-KPI `ScorecardLine`. [`generate_scorecard`](apps/supplier_performance/services.py) runs the engine once per active KPI, normalises each raw value to 0–100, and **persists a snapshot** — overall = weighted mean over the KPIs that actually scored (a missing-data metric is excluded, never counted as 0). |
+| **360-Degree Feedback Collection** | `PerformanceFeedback` — a manager requests a review from an internal stakeholder (notification raised); the reviewer submits a 1–5 rating (+ facet ratings + comments). Submitted ratings aggregate into the feedback KPI. |
+| **Performance Improvement Plans (PIP)** | `ImprovementPlan` (`PIP-<SLUG>-NNNNN`) + `PIPAction` items + an append-only `PIPStatusEvent` timeline. Lifecycle `draft → open → in_progress → completed → closed` (+ `cancelled`), validated transitions. Auto-flagged as a candidate (manager notification) when a finalised scorecard lands in the *poor*/*critical* band. |
+| **Benchmarking & Trending** | [`vendor_trend`](apps/supplier_performance/services.py) (overall + per-KPI series over successive periods) and [`tenant_benchmark`](apps/supplier_performance/services.py) (every vendor's current score vs the tenant average), each with a Chart.js view + CSV/XLSX export. |
+
+**Snapshot, not compute-on-read.** Unlike Module 16 (Budget), a scorecard is a *point-in-time*
+evaluation: `generate_scorecard` reads the source tables once and freezes every line, so trending,
+PIP triggers and the vendor rating stay stable even when the underlying receipts/invoices are later
+edited. Each line also snapshots the KPI's code/name/type/target, so a later KPI rename or delete
+never rewrites history.
+
+**KPI data sources** (read live at generation): On-Time Delivery — `goods_receipt.GoodsReceipt.received_date`
+vs `purchase_orders.PurchaseOrder.expected_delivery_date`; Defect Rate — `GoodsReceiptLine` rejected ÷
+received; Responsiveness — RFx/sourcing `invited_at → responded_at` + PO `issued_at → acknowledged_at`;
+Price Variance — `invoicing.SupplierInvoiceLine.price_variance`; Feedback — submitted
+`PerformanceFeedback` ratings.
+
+**Vendor denormalisation.** The latest *final* scorecard's score is written onto
+`vendors.Vendor.performance_score` / `performance_band` / `performance_scored_at` (the same precedent
+as `risk_score` from `VendorRiskAssessment`), so vendor lists and the portal can show a current grade
+without recomputing.
+
+**Permission gate:** every read view **and both export endpoints** are gated on
+[`can_view_supplier_performance`](apps/supplier_performance/services.py) (`tenant_admin` /
+`procurement_manager` / `buyer` / `approver` + superuser); defining KPIs, generating/finalising
+scorecards, requesting feedback and running PIPs require
+[`can_manage_supplier_performance`](apps/supplier_performance/services.py). All lookups are
+tenant-scoped (cross-tenant access 404s). The CSV/XLSX helpers are reused from
+[`apps/spend_analytics/exports.py`](apps/spend_analytics/exports.py).
+
+**Vendor-side:** suppliers see their own *final* scorecards, an anonymised feedback summary, and
+their non-draft improvement plans (which they can acknowledge) at `/vendor-portal/performance/`.
+
+**Cron:** `run_scorecards` generates a final scorecard for every active vendor over a period
+(defaults to the trailing calendar quarter); `--pip-sweep` additionally raises a one-time alert for
+each overdue improvement plan (idempotent via `ImprovementPlan.alerted_at`).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1208,6 +1276,13 @@ budget (idempotent via `Budget.over_budget_alerted_at`).
 | `/budget/periods/` | Budget periods (fiscal year / quarter) — full CRUD + status |
 | `/budget/variance/` · `/variance/export.{csv,xlsx}` | Variance report + CSV / XLSX export |
 | `/budget/checks/` | Availability-check audit log (every requisition budget check) |
+| `/supplier-performance/` | Performance dashboard — band distribution + recent scorecards + open plans |
+| `/supplier-performance/kpis/` | KPI definitions — full CRUD + restore-defaults |
+| `/supplier-performance/scorecards/` · `/generate/` · `/<id>/` | Scorecards — list / generate / detail (lines + chart + finalize/regenerate) + CSV/XLSX export |
+| `/supplier-performance/feedback/` | 360° feedback — request / submit / list |
+| `/supplier-performance/pips/` | Improvement plans — CRUD + lifecycle + corrective actions |
+| `/supplier-performance/trending/` · `/benchmarking/` | Per-vendor trend line + cross-vendor benchmark (CSV/XLSX export) |
+| `/vendor-portal/performance/` | Supplier's own scorecards + anonymised feedback + acknowledgeable improvement plans |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -1293,7 +1368,7 @@ Modules 1–15 ship. The remaining PMS modules are not yet implemented:
 | 14 | Invoice & Voucher Management | Shipped |
 | 15 | Spend Analytics & Reporting | Shipped |
 | 16 | Budget & Cost Management | Shipped |
-| 17 | Supplier Performance & Evaluation | Planned |
+| 17 | Supplier Performance & Evaluation | Shipped |
 | 18 | Risk & Compliance Management | Planned |
 | 19 | Inventory & Warehouse Integration | Planned |
 | 20 | Document & Knowledge Management | Planned |
