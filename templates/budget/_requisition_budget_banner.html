@@ -1,0 +1,19 @@
+{# Live budget-availability banner shown on the requisition detail page.            #}
+{# Rendered only when the requisition tripped an over-budget check at submit time.   #}
+{% if budget_check %}
+<div class="alert {% if budget_check.result == 'block' %}alert-danger{% else %}alert-warning{% endif %} d-flex align-items-start gap-2">
+  <i class="ri-money-dollar-circle-line fs-5"></i>
+  <div>
+    <strong>
+      {% if budget_check.result == 'block' %}Budget exceeded — submission was blocked.
+      {% else %}Budget warning — this requisition is over budget.{% endif %}
+    </strong>
+    <div class="small mb-0">
+      {{ budget_check.message }}
+      {% if budget_check.budget %}
+      <a href="{% url 'budget:budget_detail' budget_check.budget.pk %}">View budget {{ budget_check.budget.budget_number }}</a>.
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
