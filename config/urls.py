@@ -27,6 +27,8 @@ urlpatterns = [
     path('budget/', include('apps.budget.urls')),
     path('supplier-performance/', include('apps.supplier_performance.urls')),
     path('compliance/', include('apps.compliance.urls')),
+    path('inventory/', include('apps.inventory.urls')),
+    path('dms/', include('apps.dms.urls')),
 ]
 
 if settings.DEBUG:
