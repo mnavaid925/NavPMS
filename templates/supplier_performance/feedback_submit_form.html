@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Submit Feedback{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Rate {{ feedback.vendor.legal_name }}</h1>
+  <p class="page-subtitle">Provide an overall 1–5 rating and any facet detail. Your review feeds the supplier's 360° feedback KPI.</p>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">{{ form|crispy }}</div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'supplier_performance:feedback_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="ri-send-plane-line"></i> Submit feedback</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
