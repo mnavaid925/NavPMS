@@ -11,6 +11,7 @@ from apps.tenants.models import (
     AuditLog, BrandingSettings, HealthMetric, Invoice, Plan,
     SecuritySettings, Subscription, Transaction,
 )
+from apps.tenants.services import _invoice_prefix
 
 
 TENANT_FIXTURES = [
@@ -127,13 +128,14 @@ class Command(BaseCommand):
             return
         amount = sub.amount_for_cycle
         now = timezone.now()
-        slug = tenant.slug.upper().replace('-', '')[:6]
+        prefix = _invoice_prefix(tenant)
+        money = str(amount.quantize(Decimal('0.01')))
         for i in range(3):
             issued = now - timedelta(days=30 * (3 - i))
             status = 'paid' if i < 2 else 'sent'
             inv = Invoice.objects.create(
                 tenant=tenant, subscription=sub,
-                number=f'INV-{slug}-{i + 1:05d}',
+                number=f'{prefix}{i + 1:05d}',
                 status=status,
                 subtotal=amount,
                 tax=Decimal('0.00'),
@@ -142,8 +144,8 @@ class Command(BaseCommand):
                 line_items=[{
                     'description': f'{sub.plan.name} subscription',
                     'quantity': 1,
-                    'unit_price': float(amount),
-                    'amount': float(amount),
+                    'unit_price': money,
+                    'amount': money,
                 }],
                 issued_at=issued,
                 due_at=issued + timedelta(days=14),
@@ -166,13 +168,17 @@ class Command(BaseCommand):
         now = timezone.now()
         for i in range(25):
             action, level, message = random.choice(AUDIT_ACTIONS)
-            AuditLog.all_objects.create(
+            log = AuditLog.all_objects.create(
                 tenant=tenant,
                 user=None,
                 action=action,
                 level=level,
                 message=message,
                 ip_address=f'10.0.0.{random.randint(1, 254)}',
+            )
+            # created_at is auto_now_add, so a value passed to create() is ignored.
+            # Rewrite it with an UPDATE to spread the demo history over ~4 days.
+            AuditLog.all_objects.filter(pk=log.pk).update(
                 created_at=now - timedelta(hours=i * 4),
             )
 
