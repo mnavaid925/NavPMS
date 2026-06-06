@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Search Documents{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Full-text Search</h1>
+  <p class="page-subtitle">Search titles, tags and the text extracted from inside uploaded files</p>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-7">
+        <label class="form-label">Query</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="e.g. warranty period, payment terms, ISO 9001" autofocus>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for value, label in category_choices %}
+          <option value="{{ value }}" {% if category == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Search</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if q %}
+<p class="text-muted">{{ result_count }} result(s) for “{{ q }}”.</p>
+<div class="list-group">
+  {% for r in results %}
+  <a href="{% url 'dms:document_detail' r.document.pk %}" class="list-group-item list-group-item-action">
+    <div class="d-flex justify-content-between">
+      <span class="fw-semibold">{{ r.document.document_number }} — {{ r.document.title }}</span>
+      <span><span class="badge badge-soft-{{ r.document.status_color }}">{{ r.document.get_status_display }}</span> <span class="badge badge-soft-secondary">{{ r.document.get_category_display }}</span></span>
+    </div>
+    {% if r.snippet %}<p class="small text-muted mb-0 mt-1">{{ r.snippet }}</p>{% endif %}
+  </a>
+  {% empty %}
+  <div class="list-group-item text-center text-muted py-4">No documents matched “{{ q }}”.</div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-5">
+  <i class="ri-search-2-line" style="font-size:2rem"></i>
+  <p class="mb-0 mt-2">Enter a query to search across every document and its extracted text.</p>
+</div></div>
+{% endif %}
+{% endblock %}
