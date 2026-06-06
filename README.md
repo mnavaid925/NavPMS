@@ -44,7 +44,10 @@ and **Module 17 — Supplier Performance & Evaluation** (all five sub-modules: K
 Scorecard Generation, 360-Degree Feedback Collection, Performance Improvement Plans, Benchmarking &
 Trending), and **Module 18 — Risk & Compliance Management** (all five sub-modules: Regulatory
 Compliance Checks, Supplier Financial Risk Monitoring, Audit Trail & Logging (tamper-evident
-hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment).
+hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment), and
+**Module 19 — Inventory & Warehouse Integration** (all five sub-modules: Stock Level Visibility,
+Reorder Point Automation, Goods Issue/Return to Stock, Warehouse Location Mapping, Cycle Count
+Integration).
 
 ---
 
@@ -75,11 +78,12 @@ hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment).
 24. [Module 16 — Budget & Cost Management](#module-16--budget--cost-management)
 25. [Module 17 — Supplier Performance & Evaluation](#module-17--supplier-performance--evaluation)
 26. [Module 18 — Risk & Compliance Management](#module-18--risk--compliance-management)
-27. [Routes / UI Tour](#routes--ui-tour)
-28. [Multi-tenancy Model](#multi-tenancy-model)
-29. [Payment Gateway](#payment-gateway)
-30. [Browser Compatibility](#browser-compatibility)
-31. [Roadmap](#roadmap)
+27. [Module 19 — Inventory & Warehouse Integration](#module-19--inventory--warehouse-integration)
+28. [Routes / UI Tour](#routes--ui-tour)
+29. [Multi-tenancy Model](#multi-tenancy-model)
+30. [Payment Gateway](#payment-gateway)
+31. [Browser Compatibility](#browser-compatibility)
+32. [Roadmap](#roadmap)
 
 ---
 
@@ -159,10 +163,14 @@ NavPMS/
 │   │                         # PerformanceFeedback, ImprovementPlan (+PIPAction +PIPStatusEvent
 │   │                         # append-only) + services (KPI engine, scorecard generation,
 │   │                         # trending/benchmarking, feedback, PIP lifecycle, cron)
-│   └── compliance/           # Module 18: RestrictedPartyEntry, ComplianceScreening (+ScreeningMatch),
-│                             # FinancialRiskProfile (+Snapshot history), FraudRule + FraudAlert
-│                             # (+event log), Policy (+Version +Acknowledgment) + screening.py /
-│                             # credit.py pluggable connectors (reuses tenants.AuditLog hash-chain)
+│   ├── compliance/           # Module 18: RestrictedPartyEntry, ComplianceScreening (+ScreeningMatch),
+│   │                         # FinancialRiskProfile (+Snapshot history), FraudRule + FraudAlert
+│   │                         # (+event log), Policy (+Version +Acknowledgment) + screening.py /
+│   │                         # credit.py pluggable connectors (reuses tenants.AuditLog hash-chain)
+│   └── inventory/            # Module 19: Warehouse (+WarehouseLocation bins), StockItem (on-hand
+│                             # roll-up + reorder params + moving-avg cost), StockLevel (per-bucket),
+│                             # StockMovement (append-only ledger), GoodsIssue (+Line), CycleCount
+│                             # (+Line) + services (GRN->stock sync, reorder automation, cron)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -298,6 +306,9 @@ All values are read via `python-decouple` from `.env`.
 | `FRAUD_SPLIT_PO_WINDOW_DAYS` | `14` | Window (days) the split-PO fraud detector groups a vendor+buyer's POs over. |
 | `FRAUD_ROUND_AMOUNT_FLOOR` | `5000` | Minimum PO/invoice total the round-amount fraud detector considers. |
 | `POLICY_ACK_REMINDER_DAYS` | `14` | Paces the cron policy-acknowledgment reminder digest. |
+| `INVENTORY_AUTO_REORDER` | `True` | Whether `run_inventory_alerts` auto-generates draft requisitions for items at/below their reorder point. |
+| `INVENTORY_EXPIRY_ALERT_DAYS` | `30` | Look-ahead window (days) within which a stock lot's expiry raises a one-time near-expiry alert. |
+| `INVENTORY_DEFAULT_WAREHOUSE_CODE` | `WH-MAIN` | Warehouse auto-created to land received stock when a goods receipt has no mapped bin. |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -307,7 +318,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance` → `seed_inventory`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -328,6 +339,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_budget` | Creates an `FY2026` period + an active operating budget per tenant with allocations across the seeded cost centres, then runs a couple of real availability checks against the seeded requisitions (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_supplier_performance` | Provisions the default KPI set + final scorecards for 3 vendors across 3 rolling quarters (so trending renders a line), seeds submitted 360° feedback inside each window, and opens an in-progress improvement plan for the weakest vendor — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_compliance` | Seeds restricted-party lists (incl. a deliberate match on a real vendor name), runs screenings, builds financial-risk profiles + snapshots, creates the 5 default fraud rules + a deliberate shared-bank-account conflict, runs one fraud scan, and publishes 2 acknowledged policies per tenant — driven through the real services (idempotent; `--flush` to re-seed). |
+| `python manage.py seed_inventory` | Creates a default warehouse + bins, stock items for the live catalog items (with reorder params), folds posted goods receipts into on-hand stock + opening balances, posts a consumption + a return goods issue, runs a posted (with variance) + an in-progress cycle count, and forces one item below reorder so an auto-requisition is raised — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -339,6 +351,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_budget_alerts` | Raises a one-time over-budget / high-utilization alert (audit + owner notification) for each active budget across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent via `Budget.over_budget_alerted_at`. |
 | `python manage.py run_scorecards` | Generates a final scorecard for every active vendor over a period (defaults to the trailing calendar quarter; `--period-start/-end`, `--label`, `--tenant <slug>`) and, with `--pip-sweep`, raises a one-time alert per overdue improvement plan across all tenants — cron-friendly; idempotent via `ImprovementPlan.alerted_at`. |
 | `python manage.py scan_compliance_alerts` | Refreshes due financial-risk profiles (alerting on a score drop / band worsening), runs the fraud-rule scan (deduplicated by alert signature), and sends a policy-acknowledgment reminder digest to each policy owner with outstanding sign-offs, across all tenants (`--tenant <slug>` for one) — cron-friendly. |
+| `python manage.py run_inventory_alerts` | Folds newly-posted goods receipts into stock, runs reorder-point automation (raising a draft requisition per item at/below its reorder point) and raises a one-time near-expiry alert for stock lots inside the window, across all tenants (`--tenant <slug>` for one) — cron-friendly; the dashboard also syncs lazily. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -359,7 +372,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/) — **1274 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/), [inventory](apps/inventory/tests/) — **1376 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -553,6 +566,17 @@ seeded POs and invoices). **Financial-risk profiles** (credit score + exposure) 
 active vendors with a history snapshot, and **two published policies** (Code of Conduct, Sanctions
 & Screening) are created with one acknowledgment each. The reused `tenants.AuditLog` is hash-chained,
 so `/compliance/audit/` → *Verify integrity* reports the chain intact.
+
+### Inventory data
+Each tenant with catalog items gets a default **`WH-MAIN` warehouse** with four bin locations
+(`A-01-01` … `B-02-02`) and a **`StockItem`** profile per live catalog item (reorder parameters set on
+the first few). The seeder folds any posted goods receipts into on-hand stock via the real
+`sync_stock_from_receipts`, then lays down **opening balances** (one lot near expiry, to populate the
+near-expiry alert) so every demo always has stock to work with. It posts a **consumption goods issue**
+and a **return-to-stock**, leaves a **draft goods issue**, runs a **posted cycle count with a −3
+variance** (writing an adjustment movement) plus an **in-progress count**, and forces one item below
+its reorder point then runs the automation so a **draft auto-reorder requisition** exists — all driven
+through the real services and visible on the `StockMovement` ledger.
 
 ---
 
@@ -1208,6 +1232,42 @@ financial alerts stamp `FinancialRiskProfile.alerted_at`).
 
 ---
 
+## Module 19 — Inventory & Warehouse Integration
+
+The stock layer under the procure-to-pay loop ([apps/inventory/](apps/inventory/)) — where Module 13
+records that goods *arrived* (and only bumps `PurchaseOrderLine.received_quantity`), this module records
+where that stock now *lives*, how much is on hand, when it expires, what it is worth, and reconciles it.
+**Self-contained, like Module 18:** it references existing models (`CatalogItem`, `GoodsReceiptLine`,
+`Requisition`) by FK/query only and makes **zero source-app migrations** — stock is fed from posted
+goods receipts by a sync service, never by editing Module 13. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Stock Level Visibility** | `StockItem` (the on-hand roll-up per catalog item: `quantity_on_hand` / `quantity_reserved` + a `moving_avg_cost`) over `StockLevel` buckets (one per warehouse/location/lot/serial/expiry/condition). `sync_stock_from_receipts` folds every newly-posted, accepted `GoodsReceiptLine` into an inbound movement — matching the PO line's **SKU** to an approved `CatalogItem` — *idempotently* via the unique `StockMovement.source_goods_receipt_line` watermark (the dashboard syncs lazily; lines with no/unmatched SKU are skipped). |
+| **Reorder Point Automation** | Each `StockItem` carries `reorder_point` / `reorder_quantity` / `safety_stock` / `lead_time_days`. `run_reorder_automation` raises a **draft `requisitions.Requisition`** (+ line) for every stocked item whose *available* stock is at/below its reorder point and notifies procurement — *idempotent* (it never re-raises while an open reorder requisition exists, tracked on `StockItem.reorder_requisition`). A human reviews and submits it into the normal Module 4 approval flow. |
+| **Goods Issue / Return to Stock** | `GoodsIssue` (`GI-<SLUG>-NNNNN`) + `GoodsIssueLine` with an `issue_type` of consumption / write-off (out) or return-to-stock (in). `post_goods_issue` applies the signed movements through the shared `apply_movement` primitive (negative-stock guarded), `draft → issued` (+ `cancelled`), with an append-only status timeline. |
+| **Warehouse Location Mapping** | `Warehouse` (`code` / default flag) + `WarehouseLocation` (bin `code` + aisle / rack / shelf) formalise the free-text `bin_location` a GRN already writes; received stock is placed against the mapped bin (or the auto-created default warehouse). |
+| **Cycle Count Integration** | `CycleCount` (`CC-<SLUG>-NNNNN`) + `CycleCountLine` snapshot the system quantity per bucket; entering a counted quantity moves `draft → in_progress`. `post_cycle_count` recomputes the variance against the **current** system quantity (not the stale snapshot) and **immediately** writes a `count_adjustment` movement for each non-zero variance — the manager's post is the control gate. |
+
+**The ledger:** every stock change — receipt, issue, return, manual adjustment, cycle-count
+adjustment — flows through one atomic `apply_movement` that upserts the `StockLevel` bucket, keeps the
+`StockItem` on-hand roll-up + moving-average cost in sync, guards against negative stock, and appends
+an immutable `StockMovement` (signed quantity + running `balance_after`) with an audit entry. The
+`StockMovement` ledger is the single source of truth (append-only — the documented exception to the
+CRUD-completeness rule).
+
+**Permission gate:** manage actions (adjust stock, issue/return goods, post counts, run reorder,
+manage warehouses) are restricted to roles `tenant_admin`, `procurement_manager`, `buyer` (plus
+superuser); view (dashboard / lists / ledger) additionally allows `approver`. Helpers
+[`can_manage_inventory`](apps/inventory/services.py) / [`can_view_inventory`](apps/inventory/services.py)
+encapsulate the check; a `requester` is bounced entirely.
+
+**Cron:** `run_inventory_alerts` syncs newly-posted receipts into stock, runs the reorder automation,
+and raises one-time near-expiry alerts across all tenants — idempotent (receipt sync is watermarked,
+reorder skips items with an open requisition, expiry alerts stamp `StockLevel.expiry_alerted_at`).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1313,6 +1373,14 @@ financial alerts stamp `FinancialRiskProfile.alerted_at`).
 | `/goods-receipt/<id>/tags/` | Printable barcode/QR labels for the accepted inventory |
 | `/goods-receipt/rtv/<id>/` | Return-to-Vendor detail (authorise → ship → close) |
 | `/goods-receipt/analytics/` | Tenant-wide goods-receipt analytics dashboard |
+| `/inventory/` | Inventory dashboard — on-hand value, below-reorder / out-of-stock / expiring KPIs + charts (lazy-syncs posted receipts) |
+| `/inventory/stock/` | Stock levels — search + warehouse / in-stock / below-reorder / out filters; add / edit / adjust / delete a stock item |
+| `/inventory/stock/<id>/` | Stock item detail — on-hand by location/lot, movement history, adjust action, reorder settings |
+| `/inventory/movements/` | Append-only stock movement ledger — search + type / warehouse filters |
+| `/inventory/warehouses/` | Warehouses + bin locations (aisle / rack / shelf) — full CRUD (tenant admin) |
+| `/inventory/issues/` | Goods issues / returns — create, add lines, post (consumption / write-off / return-to-stock) |
+| `/inventory/cycle-counts/` | Cycle counts — create (snapshots buckets), enter counts, post (immediate variance adjustment) |
+| `/inventory/reorder/` | Reorder board — items below reorder point + auto-requisitions; **Run reorder now** raises drafts |
 | `/invoicing/list/` | Supplier invoices — search + status/match/vendor/PO filters |
 | `/invoicing/capture/` | Capture an invoice from a PDF/image (OCR) — optionally `?from_po=<id>` |
 | `/invoicing/new/` | Enter an invoice manually |
@@ -1404,7 +1472,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–18 ship. The remaining PMS modules are not yet implemented:
+Modules 1–19 ship. The remaining PMS modules are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -1426,7 +1494,7 @@ Modules 1–18 ship. The remaining PMS modules are not yet implemented:
 | 16 | Budget & Cost Management | Shipped |
 | 17 | Supplier Performance & Evaluation | Shipped |
 | 18 | Risk & Compliance Management | Shipped |
-| 19 | Inventory & Warehouse Integration | Planned |
+| 19 | Inventory & Warehouse Integration | Shipped |
 | 20 | Document & Knowledge Management | Planned |
 | 21 | System Administration & Security | Planned |
 
