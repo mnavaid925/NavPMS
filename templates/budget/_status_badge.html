@@ -1,0 +1,5 @@
+{% if status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
+{% elif status == 'active' %}<span class="badge badge-soft-success">Active</span>
+{% elif status == 'locked' %}<span class="badge badge-soft-warning">Locked</span>
+{% elif status == 'closed' %}<span class="badge badge-soft-dark">Closed</span>
+{% else %}<span class="badge badge-soft-secondary">{{ status }}</span>{% endif %}
