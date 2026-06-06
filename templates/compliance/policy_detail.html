@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}{{ policy.policy_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ policy.policy_number }} <span class="badge badge-soft-{{ policy.status_color }}">{{ policy.get_status_display }}</span></h1>
+    <p class="page-subtitle">{{ policy.title }} · {{ policy.get_category_display }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    <a href="{% url 'compliance:policy_version_create' policy.pk %}" class="btn btn-primary"><i class="ri-add-line"></i> New version</a>
+    {% if policy.is_editable %}<a href="{% url 'compliance:policy_edit' policy.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>{% endif %}
+    {% if policy.status == 'published' %}
+    <form method="post" action="{% url 'compliance:policy_set_status' policy.pk %}">{% csrf_token %}
+      <input type="hidden" name="status" value="archived"><button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Archive</button></form>
+    {% endif %}
+    {% endif %}
+    <a href="{% url 'compliance:policy_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% if policy.summary %}<div class="alert alert-light border">{{ policy.summary }}</div>{% endif %}
+    {% if policy.current_version %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="ri-article-line"></i> Current text — v{{ policy.current_version.version_no }}</span>
+        <span class="small text-muted">Effective {{ policy.current_version.effective_date|default:"—" }}</span>
+      </div>
+      <div class="card-body" style="white-space:pre-wrap">{{ policy.current_version.body }}</div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">No published version yet. {% if can_manage %}<a href="{% url 'compliance:policy_version_create' policy.pk %}">Add and publish a version</a>.{% endif %}</div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header"><i class="ri-stack-line"></i> Versions</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Version</th><th>Effective</th><th>Change note</th><th>Published</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for v in versions %}
+            <tr>
+              <td class="fw-semibold">v{{ v.version_no }}{% if policy.current_version_id == v.pk %} <span class="badge badge-soft-success">current</span>{% endif %}</td>
+              <td>{{ v.effective_date|default:"—" }}</td>
+              <td class="small">{{ v.change_note|default:"—" }}</td>
+              <td class="small text-muted">{{ v.published_at|date:"Y-m-d"|default:"draft" }}</td>
+              {% if can_manage %}
+              <td class="text-end">
+                {% if policy.current_version_id != v.pk %}
+                <form method="post" action="{% url 'compliance:policy_publish' policy.pk v.pk %}" class="d-inline">{% csrf_token %}
+                  <button class="btn btn-sm btn-outline-primary"><i class="ri-send-plane-line"></i> Publish</button></form>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No versions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-checkbox-multiple-line"></i> Acknowledgment</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-1"><span>{{ ack_stats.acked }}/{{ ack_stats.total }} users</span><span class="fw-semibold">{{ ack_stats.pct }}%</span></div>
+        <div class="progress mb-2" style="height:8px">
+          <div class="progress-bar bg-success" style="width: {{ ack_stats.pct }}%"></div>
+        </div>
+        <p class="small text-muted mb-0">{{ ack_stats.outstanding }} outstanding sign-off(s).</p>
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Owner</dt><dd class="col-7">{{ policy.owner.get_full_name|default:policy.owner.username|default:"—" }}</dd>
+          <dt class="col-5">Published</dt><dd class="col-7">{{ policy.published_at|date:"Y-m-d"|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
