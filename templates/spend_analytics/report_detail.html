@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ report.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">{{ report.name }}</h1>
+    <p class="page-subtitle">
+      {{ report.get_dimension_display }} &middot; {{ report.get_measure_display }} &middot;
+      {{ report.get_basis_display }}{% if report.maverick_only %} &middot; maverick only{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'spend_analytics:export_report' report.pk 'csv' %}" class="btn btn-outline-secondary"><i class="ri-file-text-line"></i> CSV</a>
+    <a href="{% url 'spend_analytics:export_report' report.pk 'xlsx' %}" class="btn btn-outline-secondary"><i class="ri-file-excel-2-line"></i> Excel</a>
+    {% if can_manage %}
+    <a href="{% url 'spend_analytics:report_edit' report.pk %}" class="btn btn-outline-primary"><i class="ri-edit-line"></i> Edit</a>
+    <form method="post" action="{% url 'spend_analytics:report_delete' report.pk %}" class="d-inline" onsubmit="return confirm('Delete report &quot;{{ report.name|escapejs }}&quot;?');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'spend_analytics:report_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  {% for label, value in result.summary.items %}
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">{{ label }}</div>
+      <div class="stat-value">{{ value|floatformat:'-2'|intcomma }}</div>
+    </div></div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">{{ report.get_dimension_display }}</div>
+      <div class="card-body">
+        {% if result.values %}<canvas id="reportChart" height="240"></canvas>
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="ri-inbox-line" style="font-size:32px;opacity:.4;"></i>
+          <p class="mt-2 mb-0 small">No data for these filters.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Breakdown</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr><th>{{ result.dimension_label }}</th><th class="text-end">{{ result.measure_label }}</th></tr>
+          </thead>
+          <tbody>
+            {% for row in result.rows %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="text-end">{{ row.value|floatformat:'-2'|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" class="text-center text-muted py-3">No rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="text-muted small mt-3">
+  Window: {{ report.date_from|date:'M d, Y'|default:'all time' }} &rarr;
+  {{ report.date_to|date:'M d, Y'|default:'today' }}
+  {% if report.last_run_at %}&middot; generated {{ report.last_run_at|naturaltime }}{% endif %}
+</p>
+{% endblock %}
+
+{% block extra_js %}
+{# Chart data via json_script — never |safe into a <script> (lessons.md 2026-05-23). #}
+{{ result.labels|json_script:"reportLabels" }}
+{{ result.values|json_script:"reportValues" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('reportChart');
+    if (!el) return;
+    var labels = JSON.parse(document.getElementById('reportLabels').textContent);
+    var values = JSON.parse(document.getElementById('reportValues').textContent);
+    if (!values.length) return;
+    var palette = ['#3b5de7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+                   '#06b6d4', '#ec4899', '#64748b', '#14b8a6', '#f97316', '#a855f7', '#0ea5e9'];
+    var kind = '{{ result.kind }}';
+    var colors = labels.map(function (_, i) { return palette[i % palette.length]; });
+    new Chart(el, {
+      type: kind,
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '{{ report.name|escapejs }}',
+          data: values,
+          backgroundColor: kind === 'line' ? 'rgba(59,93,231,0.1)' : colors,
+          borderColor: kind === 'line' ? '#3b5de7' : colors,
+          borderWidth: kind === 'line' ? 2 : 1,
+          fill: kind === 'line', tension: 0.25
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: kind === 'doughnut', position: 'bottom' } },
+        scales: (kind === 'bar' || kind === 'line') ? { y: { beginAtZero: true } } : {}
+      }
+    });
+  })();
+</script>
+{% endblock %}
