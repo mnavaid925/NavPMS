@@ -1,3 +1,75 @@
+# Module 15 — Spend Analytics & Reporting (`apps/spend_analytics/`)
+
+**Created:** 2026-06-06
+**Scope:** New app `apps/spend_analytics/` at `/spend-analytics/` — the first read-mostly analytics
+module. Aggregates spend from Invoicing (M14) + Purchase Orders (M11) + Vendors (M5) + Contracts
+(M9) into a denormalized `SpendRecord` fact table. Full design spec:
+`C:\Users\user\.claude\plans\snoopy-wishing-lightning.md`.
+
+> **Decisions locked:** spend basis = actual invoiced (primary) + committed PO (toggle), never
+> summed; "department" dimension = existing `requisitions.AccountCode` (cost center), no new model;
+> architecture = `SpendRecord` fact table synced by service + cron + lazy sweep; `SpendReport` has
+> no human number (matches `portal.SavedReport`).
+
+| Sub-module (spec) | Implementation |
+|---|---|
+| **Spend Dashboards** | KPI cards + category/vendor/cost-center/month charts (`json_script`), actual↔committed toggle. |
+| **Custom Report Builder** | `SpendReport` (dimension+measure+chart+filters), full CRUD + run. Form-driven (NOT drag-drop on this stack). |
+| **Category Spend Analysis** | category table (total/%/count/avg) → drill to vendors + records (uses `VendorCategory`). |
+| **Maverick Spend Tracking** | persisted proxies at sync: off-preferred-supplier / off-contract / non-PO; reason/vendor/category breakdown + KPIs. |
+| **Data Export & Visualization** | CSV + XLSX of dashboard / a saved report / raw filtered records (net-new `exports.py`; the BI feed). |
+
+## Tasks
+- [ ] Scaffold `apps/spend_analytics/` (`__init__`, `apps.py`, migrations pkg, management pkgs)
+- [ ] `models.py` — SpendRecord (fact) + SpendReport + module constants
+- [ ] INSTALLED_APPS + `makemigrations spend_analytics` + `migrate`
+- [ ] `services.py` — perms, maverick helpers, `sync_spend_facts` (upsert+prune), `sync_all_tenants`, lazy-sync watermark, metrics (`tenant_spend_metrics`/`category_spend`/`category_detail`/`maverick_metrics`), `run_spend_report`, `spend_rows_for_export`
+- [ ] `exports.py` — `csv_response` / `xlsx_response`
+- [ ] `forms.py` — `SpendReportForm`
+- [ ] `views.py` + `urls.py` (every read + export view gated on `can_view_*` — D-01 lesson) + mount in `config/urls.py`
+- [ ] `templates/spend_analytics/*` — dashboard, category_analysis, category_detail, maverick_tracking, report_list, report_form, report_detail
+- [ ] `admin.py` (SpendRecord read-only; SpendReport CRUD) + `apps.py`
+- [ ] `seed_spend_analytics` (sync + 2–3 demo reports) + `run_spend_sync` (cron) + seed_data step + sidebar group
+- [ ] Tests (`conftest`, `test_models`, `test_services`, `test_views`, `test_security`)
+- [ ] `manage.py check` + `seed_data --flush` + `pytest apps/spend_analytics` + smoke routes incl. export content-types
+- [x] README (module section, routes, commands, seeded data, roadmap → Shipped, TOC, test count)
+- [ ] Per-file PowerShell commit snippets
+
+## Review
+
+**Status: complete & verified (2026-06-06).**
+
+- New app `apps/spend_analytics/` — 2 models (`SpendRecord` synced fact table + `SpendReport`
+  saved report builder), full service layer (`sync_spend_facts` upsert+prune, `sync_all_tenants`,
+  `lazy_sync` watermark, `tenant_spend_metrics`/`category_spend`/`category_detail`/
+  `maverick_metrics`, `run_spend_report`, `spend_rows_for_export`, perms + maverick proxies),
+  reusable `exports.py` (CSV/XLSX), `forms.py`, gated `views.py` + `urls.py`, `admin.py`,
+  `seed_spend_analytics` + `run_spend_sync` commands, 7 templates, tests.
+- **Decisions honoured:** actual (invoiced) + committed (PO) bases, never summed; AccountCode =
+  cost-center/"department"; SpendRecord fact table synced via service + cron + lazy sweep;
+  SpendReport has no human number.
+- **Security (D-01/D-02 lesson):** every read view AND all 3 export endpoints gated on
+  `can_view_spend_analytics`; mutations on `can_manage`; private-report isolation + cross-tenant 404.
+- **Wiring:** INSTALLED_APPS, `/spend-analytics/` mount, sidebar "Spend Analytics" group,
+  `seed_data` orchestrator step after `seed_invoicing`. README updated end to end (Module 15 →
+  Shipped).
+
+**Verification performed:**
+- `manage.py check` — 0 issues; `makemigrations --check` — no missing migrations.
+- `migrate` (brought the dev DB current — it was behind on invoicing/PO migrations from a parallel
+  Module-14 session); `seed_spend_analytics` — 15 spend records + 3 reports per seeded tenant;
+  `run_spend_sync` idempotent (`+0 ~45 -0`).
+- **pytest: 50 spend_analytics tests pass; full suite 1127 pass (0 failures)** — shared-file edits
+  (settings/urls/sidebar/seed_data) broke nothing.
+- Live smoke as `admin_acme`: dashboard (both bases), category + drill, maverick, reports + run,
+  and CSV/XLSX exports all 200 with correct content types.
+
+**Note:** a save-hook/formatter twice blanked/deleted `apps/spend_analytics/urls.py` after writing;
+restored with the full route list (an empty `urlpatterns` is a broken stub, not an intentional
+state). Verify it is present before committing.
+
+---
+
 # Module 14 — Invoice & Voucher Management (`apps/invoicing/`)
 
 **Created:** 2026-06-05
