@@ -258,6 +258,23 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbCompliance" role="button" aria-expanded="false">
+          <i class="ri-shield-check-line"></i> <span class="flex-grow-1">Risk &amp; Compliance</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbCompliance">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:screening_list' %}">Screenings</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:financial_list' %}">Financial Risk</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:fraud_alert_list' %}">Fraud Alerts</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:audit_log' %}">Audit Trail</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:policy_list' %}">Policies</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'compliance:my_policies' %}">My Policies</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
