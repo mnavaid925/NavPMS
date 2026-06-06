@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Entry{% else %}New Entry{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit Restricted-Party Entry{% else %}New Restricted-Party Entry{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label">List name</label>
+        {{ form.list_name }}
+        {% for e in form.list_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Entity name</label>
+        {{ form.entity_name }}
+        {% for e in form.entity_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Type</label>
+        {{ form.entry_type }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Country</label>
+        {{ form.country }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Source reference</label>
+        {{ form.source_ref }}
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Program / reason</label>
+        {{ form.program }}
+      </div>
+      <div class="col-md-4 d-flex align-items-center">
+        <div class="form-check mt-4">
+          {{ form.is_active }} <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+        </div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'compliance:rpe_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
