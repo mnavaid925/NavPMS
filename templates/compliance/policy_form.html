@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Policy{% else %}New Policy{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ policy.policy_number }}{% else %}New Policy{% endif %}</h1>
+  <p class="page-subtitle">The policy text is added as a version after the policy is created</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-8">
+        <label class="form-label">Title</label>
+        {{ form.title }}
+        {% for e in form.title.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Category</label>
+        {{ form.category }}
+      </div>
+      <div class="col-12">
+        <label class="form-label">Summary</label>
+        {{ form.summary }}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ form.owner.label }}</label>
+        {{ form.owner }}
+      </div>
+      <div class="col-md-6 d-flex align-items-center">
+        <div class="form-check mt-4">
+          {{ form.requires_acknowledgment }}
+          <label class="form-check-label" for="{{ form.requires_acknowledgment.id_for_label }}">Requires user acknowledgment</label>
+        </div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% if policy %}{% url 'compliance:policy_detail' policy.pk %}{% else %}{% url 'compliance:policy_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
