@@ -37,6 +37,7 @@ class Command(BaseCommand):
             ('seed_spend_analytics', 'Spend fact table synced from invoices/POs + demo saved reports'),
             ('seed_budget', 'Budget periods + budgets + allocations (under/near/over) + availability checks'),
             ('seed_supplier_performance', 'KPI definitions + multi-period scorecards + 360° feedback + an improvement plan'),
+            ('seed_compliance', 'Restricted-party lists + screenings + financial risk + fraud rules/alerts + policies'),
         ]
 
         for cmd, label in steps:
