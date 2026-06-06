@@ -35,7 +35,9 @@ Split Delivery Management), and **Module 13 — Goods Receipt & Inspection** (al
 sub-modules: GRN Creation, Quality Inspection Checklists, Discrepancy Reporting, Return to
 Vendor, Item Tagging & Barcoding), and **Module 14 — Invoice & Voucher Management** (all
 five sub-modules: Invoice Capture (OCR), Three-Way Matching, Dispute Resolution Workflow,
-Payment Schedule/Terms Management, Early Payment Discount Tracking).
+Payment Schedule/Terms Management, Early Payment Discount Tracking), and
+**Module 15 — Spend Analytics & Reporting** (all five sub-modules: Spend Dashboards, Custom
+Report Builder, Category Spend Analysis, Maverick Spend Tracking, Data Export & Visualization).
 
 ---
 
@@ -62,11 +64,12 @@ Payment Schedule/Terms Management, Early Payment Discount Tracking).
 20. [Module 12 — Order Fulfillment & Tracking](#module-12--order-fulfillment--tracking)
 21. [Module 13 — Goods Receipt & Inspection](#module-13--goods-receipt--inspection)
 22. [Module 14 — Invoice & Voucher Management](#module-14--invoice--voucher-management)
-23. [Routes / UI Tour](#routes--ui-tour)
-24. [Multi-tenancy Model](#multi-tenancy-model)
-25. [Payment Gateway](#payment-gateway)
-26. [Browser Compatibility](#browser-compatibility)
-27. [Roadmap](#roadmap)
+23. [Module 15 — Spend Analytics & Reporting](#module-15--spend-analytics--reporting)
+24. [Routes / UI Tour](#routes--ui-tour)
+25. [Multi-tenancy Model](#multi-tenancy-model)
+26. [Payment Gateway](#payment-gateway)
+27. [Browser Compatibility](#browser-compatibility)
+28. [Roadmap](#roadmap)
 
 ---
 
@@ -131,10 +134,13 @@ NavPMS/
 │   │                         # GoodsReceiptCheck (QA checklist), GoodsReceiptStatusEvent
 │   │                         # (append-only), GoodsReceiptAttachment (evidence),
 │   │                         # ReturnToVendor (+Line), ReceiptTag (barcode/QR)
-│   └── invoicing/            # Module 14: PaymentTerm, SupplierInvoice (+Line),
-│                             # SupplierInvoiceStatusEvent (append-only), InvoiceDisputeNote
-│                             # (append-only thread), PaymentVoucher (+StatusEvent) +
-│                             # ocr.py pluggable OCR-capture connector registry
+│   ├── invoicing/            # Module 14: PaymentTerm, SupplierInvoice (+Line),
+│   │                         # SupplierInvoiceStatusEvent (append-only), InvoiceDisputeNote
+│   │                         # (append-only thread), PaymentVoucher (+StatusEvent) +
+│   │                         # ocr.py pluggable OCR-capture connector registry
+│   └── spend_analytics/      # Module 15: SpendRecord (synced spend fact table), SpendReport
+│                             # (saved report builder) + services (sync/metrics/run/export) +
+│                             # exports.py (CSV/XLSX helper)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -165,6 +171,8 @@ NavPMS/
 │   ├── invoicing/            # invoice list/capture(OCR)/form/detail (lines + 3-way match +
 │   │                         # dispute thread + vouchers + timeline), payment-term + voucher
 │   │                         # pages, analytics (AP aging + discount opportunities)
+│   ├── spend_analytics/      # dashboard (KPIs + charts + basis toggle), category analysis
+│   │                         # (+ drill), maverick tracking, report list/form/detail
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
@@ -263,7 +271,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -280,6 +288,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_fulfillment` | Creates 6 shipments per tenant against the dispatched POs (draft ASN / advised + carrier-synced in-transit / delivered + received with receipts posted to the PO / a split-delivery PO with 2 shipments + a backorder / an overdue shipment) — driven through the real services. |
 | `python manage.py seed_goods_receipt` | Creates 5 goods receipts per tenant from the open POs (draft / awaiting inspection / posted-with-tags / mixed accept-reject + Return-to-Vendor / QA-fail) — driven through the real receive→inspect→post services. |
 | `python manage.py seed_invoicing` | Creates 3 payment terms + 7 supplier (AP) invoices per tenant across every status (draft / paid-via-gateway / approved+scheduled-voucher with a live early-payment discount / submitted-with-match-exceptions+overdue / disputed-with-thread / rejected / cancelled) — driven through the real capture→match→approve→pay services. |
+| `python manage.py seed_spend_analytics` | Materializes the `SpendRecord` fact table per tenant from the seeded approved/paid invoices (actual) + non-cancelled POs (committed) via the real `sync_spend_facts`, and creates 3 demo saved reports (category doughnut / monthly-trend line / maverick-by-supplier bar). |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -287,6 +296,7 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py run_fulfillment_alerts` | Raises a one-time alert for in-flight shipments past their estimated delivery date and for overdue backorders, and auto-cancels backorders whose PO has finished, across all tenants (cron-friendly; the tracking board also sweeps lazily). |
 | `python manage.py run_goods_receipt_alerts` | Raises a one-time alert for goods receipts left awaiting inspection and for open returns-to-vendor across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
 | `python manage.py run_invoice_alerts` | Raises a one-time alert for approved/submitted invoices past their due date and unpaid, and for invoices whose early-payment discount window is closing, across all tenants (cron-friendly; the analytics dashboard also sweeps lazily). |
+| `python manage.py run_spend_sync` | Resyncs the `SpendRecord` fact table from invoices + POs across all tenants (`--tenant <slug>` for one) — cron-friendly; the dashboard also resyncs lazily when stale. |
 
 All seed commands accept `--flush` to wipe-and-replace. Without `--flush` they are idempotent.
 
@@ -307,7 +317,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/) — **1042 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/) — **1127 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -466,6 +476,14 @@ capture → three-way match → approve → pay services:
 - **Disputed** — submitted, queried, with a buyer↔supplier dispute thread (incl. a supplier reply).
 - **Rejected** — submitted then rejected.
 - **Cancelled** — entered then cancelled.
+
+### Spend Analytics data
+Each tenant's **`SpendRecord` fact table** is materialized from the seeded source documents via the
+real `sync_spend_facts`: one row per approved/paid supplier-invoice line (**actual** spend) and one
+per non-cancelled PO line (**committed** spend), with the maverick flags computed at sync
+(off-preferred-supplier / off-contract / non-PO). Each tenant also gets **3 demo saved reports** —
+"Spend by category (actual)" (doughnut), "Monthly spend trend (actual)" (line), and "Maverick spend
+by supplier" (bar). Actual and committed are reported separately and never summed.
 
 ---
 
@@ -976,6 +994,45 @@ the gateway, so concurrent pay requests serialise (one charges, the rest no-op).
 
 ---
 
+## Module 15 — Spend Analytics & Reporting
+
+The reporting layer ([apps/spend_analytics/](apps/spend_analytics/)) — the first **read-mostly**
+module. It does not own transactional data; it aggregates spend that already lives in Invoicing
+(Module 14), Purchase Orders (Module 11), Vendors (Module 5) and Contracts (Module 9) into one
+denormalized fact table, `SpendRecord`, and drives dashboards, a report builder and exports off it.
+All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Spend Dashboards** | A KPI dashboard (`/spend-analytics/`) — total spend, records, suppliers, maverick spend/% — with Chart.js views of spend by category (doughnut), top suppliers (bar), cost-center (bar) and a monthly trend (line), plus an **actual ↔ committed** toggle and a date window. |
+| **Custom Report Builder** | `SpendReport` — saved, re-runnable report definitions: pick a **dimension** (vendor / category / cost-center / segment / month / source), a **measure** (total / net / count / average), a chart type and saved filters. Full CRUD + a run page. *Form-driven, not literal drag-and-drop on this stack.* Reports are private to their owner or `is_shared` to the tenant. |
+| **Category Spend Analysis** | A category table (total / % of spend / count / avg) at `/spend-analytics/categories/` that drills into the suppliers and underlying records within a category (using `vendors.VendorCategory`, the commodity dimension). |
+| **Maverick Spend Tracking** | Spend made **outside** preferred suppliers / active contracts / a PO. Three proxies are computed at sync and persisted as flags: `off_preferred_supplier` (segment not Preferred/Strategic), `off_contract` (no active `contracts.Contract` covering the spend date), `off_po` (an invoice line with no PO line). The tracking page breaks maverick spend down by reason / supplier / category with a filterable, paginated list. |
+| **Data Export & Visualization** | One-click **CSV + XLSX** download of the dashboard dataset, a saved report's result, or the raw filtered spend records (a small reusable [`exports.py`](apps/spend_analytics/exports.py) using `csv` + `openpyxl`). These downloads are the BI feed for Excel / PowerBI. |
+
+**The `SpendRecord` fact table:** one row per source line — an approved/paid `SupplierInvoiceLine`
+(**actual** basis) or a non-cancelled `PurchaseOrderLine` (**committed** basis) — carrying
+denormalized dimensions (date, vendor, category, segment, cost-center) and the maverick flags.
+[`sync_spend_facts`](apps/spend_analytics/services.py) is an idempotent **upsert + prune**: it
+re-derives every qualifying row and deletes any whose source no longer qualifies (e.g. an invoice
+moved to `cancelled`), so the table self-heals. It runs from the cron-friendly `run_spend_sync`
+command and **lazily** on the dashboard (a cheap `MAX(updated_at)` watermark check, not a full
+resync per hit).
+
+**Actual vs committed are never summed.** A PO that is later invoiced legitimately produces both a
+`committed` and an `actual` row; every chart, report and KPI filters on exactly one `basis` (default
+`actual`). The "department" dimension is the existing `requisitions.AccountCode` (cost center) — no
+new model. The `off_contract` proxy is a date+vendor heuristic (there is no Contract↔PO/Invoice FK)
+and is documented as such; v1 sums amounts without FX and warns when >1 currency appears.
+
+**Permission gate:** every read view **and all three export endpoints** are gated on
+[`can_view_spend_analytics`](apps/spend_analytics/services.py) (`tenant_admin` / `procurement_manager`
+/ `buyer` / `approver` + superuser); building/running/deleting reports and triggering a manual sync
+require [`can_manage_spend_analytics`](apps/spend_analytics/services.py). Private reports are visible
+only to their owner or a manager, and all lookups are tenant-scoped (cross-tenant access 404s).
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1089,6 +1146,11 @@ the gateway, so concurrent pay requests serialise (one charges, the rest no-op).
 | `/invoicing/vouchers/` | Payment vouchers — approve / schedule / **Pay now** (mock gateway) |
 | `/invoicing/terms/` | Payment-term master CRUD (net terms + early-payment discounts) |
 | `/invoicing/analytics/` | AP aging + early-payment discount opportunities dashboard |
+| `/spend-analytics/` | Spend dashboard — KPIs + category/supplier/cost-center/month charts + actual↔committed toggle |
+| `/spend-analytics/categories/` | Category spend analysis (total / % / count / avg) — drill into a category at `/categories/<id>/` |
+| `/spend-analytics/maverick/` | Maverick spend tracking — off-preferred / off-contract / non-PO, filterable |
+| `/spend-analytics/reports/` | Custom report builder — list / new / `<id>` (run) / edit / delete |
+| `/spend-analytics/export/{dashboard,records}.{csv,xlsx}` · `/reports/<id>/export.{csv,xlsx}` | CSV / XLSX exports (the BI feed) |
 | `/vendor-portal/` | Supplier portal dashboard (vendor users only) |
 | `/vendor-portal/profile/` · `/documents/` · `/contacts/` | Vendor self-service |
 | `/vendor-portal/sourcing/` | Vendor's sourcing invitations |
@@ -1154,7 +1216,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–14 ship. The remaining PMS modules are not yet implemented:
+Modules 1–15 ship. The remaining PMS modules are not yet implemented:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -1172,7 +1234,7 @@ Modules 1–14 ship. The remaining PMS modules are not yet implemented:
 | 12 | Order Fulfillment & Tracking | Shipped |
 | 13 | Goods Receipt & Inspection | Shipped |
 | 14 | Invoice & Voucher Management | Shipped |
-| 15 | Spend Analytics & Reporting | Planned |
+| 15 | Spend Analytics & Reporting | Shipped |
 | 16 | Budget & Cost Management | Planned |
 | 17 | Supplier Performance & Evaluation | Planned |
 | 18 | Risk & Compliance Management | Planned |
