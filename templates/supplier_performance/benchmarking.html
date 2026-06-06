@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Benchmarking{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Benchmarking</h1>
+    <p class="page-subtitle">Each vendor's current score against the organisation average ({{ data.average }})</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'supplier_performance:trending' %}" class="btn btn-outline-secondary"><i class="ri-line-chart-line"></i> Trending</a>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="ri-download-2-line"></i> Export</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{% url 'supplier_performance:export_benchmark' 'csv' %}?kpi={{ kpi_code }}">CSV</a></li>
+        <li><a class="dropdown-item" href="{% url 'supplier_performance:export_benchmark' 'xlsx' %}?kpi={{ kpi_code }}">Excel</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Metric</label>
+        <select name="kpi" class="form-select" onchange="this.form.submit()">
+          <option value="">Overall score</option>
+          {% for k in kpis %}
+          <option value="{{ k.code }}" {% if kpi_code == k.code %}selected{% endif %}>{{ k.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if data.rows %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-bar-chart-2-line"></i> Vendor comparison</div>
+      <div class="card-body"><canvas id="benchChart" height="220"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-trophy-line"></i> Ranking</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>#</th><th>Vendor</th><th class="text-end">Score</th><th>Band</th></tr></thead>
+          <tbody>
+            {% for r in data.rows %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a href="{% url 'supplier_performance:vendor_scorecards' r.vendor.pk %}">{{ r.vendor.legal_name }}</a></td>
+              <td class="text-end">{{ r.value }}</td>
+              <td>{% include 'supplier_performance/_score_badge.html' with band=r.band %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-5">No current scorecards to benchmark yet.</div></div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if data.rows %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('benchChart');
+    if (!el) return;
+    var labels = [{% for r in data.rows %}"{{ r.vendor.legal_name|escapejs }}",{% endfor %}];
+    var values = [{% for r in data.rows %}{{ r.value }},{% endfor %}];
+    var avg = {{ data.average }};
+    new Chart(el, {
+      type: 'bar',
+      data: { labels: labels, datasets: [
+        { label: 'Score', data: values, backgroundColor: '#3b5de7' },
+        { label: 'Average (' + avg + ')', type: 'line', data: labels.map(function(){ return avg; }), borderColor: '#ef4444', borderDash: [6, 4], pointRadius: 0 }
+      ] },
+      options: { indexAxis: 'y', plugins: { legend: { position: 'bottom' } }, scales: { x: { min: 0, max: 100 } } }
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}
