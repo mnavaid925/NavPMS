@@ -226,6 +226,21 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbBudget" role="button" aria-expanded="false">
+          <i class="ri-coins-line"></i> <span class="flex-grow-1">Budget &amp; Costs</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbBudget">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'budget:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'budget:budget_list' %}">Budgets</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'budget:variance' %}">Variance Analysis</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'budget:period_list' %}">Periods</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'budget:check_log' %}">Availability Checks</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
