@@ -58,7 +58,7 @@ class AuditLogAdmin(admin.ModelAdmin):
     search_fields = ('action', 'message', 'target_id')
     readonly_fields = ('tenant', 'user', 'action', 'level', 'target_type',
                        'target_id', 'message', 'payload', 'ip_address',
-                       'user_agent', 'created_at', 'updated_at')
+                       'user_agent', 'prev_hash', 'row_hash', 'created_at', 'updated_at')
 
     def has_add_permission(self, request):
         return False
