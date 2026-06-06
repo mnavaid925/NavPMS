@@ -197,6 +197,25 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbInventory" role="button" aria-expanded="false">
+          <i class="ri-stack-line"></i> <span class="flex-grow-1">Inventory</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbInventory">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock Levels</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:reorder_board' %}">Reorder</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:goods_issue_list' %}">Goods Issues</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:cycle_count_list' %}">Cycle Counts</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:movement_list' %}">Stock Ledger</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'inventory:warehouse_list' %}">Warehouses</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbInvoicing" role="button" aria-expanded="false">
           <i class="ri-bill-line"></i> <span class="flex-grow-1">Invoices</span>
           <i class="ri-arrow-down-s-line"></i>
@@ -271,6 +290,21 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'compliance:audit_log' %}">Audit Trail</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'compliance:policy_list' %}">Policies</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'compliance:my_policies' %}">My Policies</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbDocuments" role="button" aria-expanded="false">
+          <i class="ri-folder-3-line"></i> <span class="flex-grow-1">Documents &amp; Knowledge</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbDocuments">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'dms:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'dms:document_list' %}">Documents</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'dms:search' %}">Search</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'dms:policy_library' %}">Policy Library</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'dms:policy_template_list' %}">Template Library</a></li>
           </ul>
         </div>
       </li>
