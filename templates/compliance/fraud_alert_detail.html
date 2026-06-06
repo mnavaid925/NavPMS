@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}{{ alert.alert_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ alert.alert_number }}
+      <span class="badge badge-soft-{{ alert.severity_color }}">{{ alert.get_severity_display }}</span>
+      <span class="badge badge-soft-{{ alert.status_color }}">{{ alert.get_status_display }}</span>
+    </h1>
+    <p class="page-subtitle">{{ alert.rule_name|default:alert.rule_code }} · detected {{ alert.detected_at|date:"Y-m-d H:i" }}</p>
+  </div>
+  <a href="{% url 'compliance:fraud_alert_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-file-search-line"></i> Finding</div>
+      <div class="card-body">
+        <p class="fw-semibold">{{ alert.summary }}</p>
+        <dl class="row small mb-0">
+          <dt class="col-3">Subject</dt><dd class="col-9">{% if alert.subject_type %}{{ alert.subject_type }} #{{ alert.subject_id }}{% else %}—{% endif %}</dd>
+          <dt class="col-3">Vendor</dt><dd class="col-9">{{ alert.vendor.legal_name|default:"—" }}</dd>
+        </dl>
+        {% if alert.evidence %}<hr><h6 class="small text-muted">Evidence</h6><pre class="small mb-0">{{ alert.evidence }}</pre>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="ri-time-line"></i> Investigation timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for ev in events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span><span class="badge badge-soft-secondary">{{ ev.from_status|default:"—" }} → {{ ev.to_status }}</span>
+            {% if ev.note %}<span class="ms-2">{{ ev.note }}</span>{% endif %}</span>
+          <span class="small text-muted">{{ ev.actor.username|default:"system" }} · {{ ev.created_at|date:"Y-m-d H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-shield-cross-line"></i> Update status</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'compliance:fraud_alert_status' alert.pk %}">
+          {% csrf_token %}
+          <select name="status" class="form-select mb-2">
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if alert.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <textarea name="note" rows="2" class="form-control mb-2" placeholder="Resolution note (optional)"></textarea>
+          <button class="btn btn-primary w-100"><i class="ri-save-line"></i> Save status</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="ri-user-add-line"></i> Assign</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'compliance:fraud_alert_assign' alert.pk %}">
+          {% csrf_token %}
+          <select name="assigned_to" class="form-select mb-2">
+            <option value="">— select —</option>
+            {% for u in assignees %}
+            <option value="{{ u.pk }}" {% if alert.assigned_to_id == u.pk %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-outline-primary w-100"><i class="ri-user-shared-line"></i> Assign</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card mt-3">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Assigned to</dt><dd class="col-7">{{ alert.assigned_to.username|default:"—" }}</dd>
+          <dt class="col-5">Resolved by</dt><dd class="col-7">{{ alert.resolved_by.username|default:"—" }}</dd>
+          <dt class="col-5">Resolved at</dt><dd class="col-7">{{ alert.resolved_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        </dl>
+        {% if alert.resolution_note %}<hr><p class="mb-0">{{ alert.resolution_note }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
