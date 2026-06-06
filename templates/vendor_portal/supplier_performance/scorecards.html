@@ -1,0 +1,56 @@
+{% extends 'vendor_portal/base.html' %}
+{% block title %}My Performance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">My Performance Scorecards</h4>
+  {% if vendor.performance_scored_at %}
+  <span class="badge bg-{% if vendor.performance_band == 'excellent' %}success{% elif vendor.performance_band == 'good' %}primary{% elif vendor.performance_band == 'acceptable' %}info{% elif vendor.performance_band == 'poor' %}warning text-dark{% else %}danger{% endif %} fs-6">
+    Current: {{ vendor.performance_score }} · {{ vendor.performance_band|capfirst }}
+  </span>
+  {% endif %}
+</div>
+
+{% if trend.labels %}
+<div class="card mb-3">
+  <div class="card-header">Score trend</div>
+  <div class="card-body"><canvas id="vpTrend" height="90"></canvas></div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Scorecard</th><th>Period</th><th class="text-end">Overall score</th></tr></thead>
+      <tbody>
+        {% for c in scorecards %}
+        <tr>
+          <td><a href="{% url 'vendor_portal:performance_scorecard_detail' c.pk %}">{{ c.scorecard_number }}</a></td>
+          <td>{{ c.period_label }}</td>
+          <td class="text-end"><span class="badge bg-secondary">{{ c.overall_score }}</span> {{ c.rating_band|capfirst }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center text-muted py-4">No scorecards have been shared with you yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if trend.labels %}
+{{ trend.labels|json_script:"vpLabels" }}
+{{ trend.overall|json_script:"vpOverall" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById('vpTrend'); if (!el) return;
+    function read(id){var e=document.getElementById(id);return e?JSON.parse(e.textContent):[];}
+    new Chart(el, { type: 'line',
+      data: { labels: read('vpLabels'), datasets: [{ label: 'Overall', data: read('vpOverall'), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.1)', fill: true, tension: 0.3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } } });
+  })();
+</script>
+{% endif %}
+{% endblock %}
