@@ -1,0 +1,6 @@
+{% comment %}Reusable rating-band badge.
+Usage: {% include 'supplier_performance/_score_badge.html' with band=card.rating_band score=card.overall_score %}
+{% endcomment %}
+<span class="badge bg-{% if band == 'excellent' %}success{% elif band == 'good' %}primary{% elif band == 'acceptable' %}info{% elif band == 'poor' %}warning text-dark{% elif band == 'critical' %}danger{% else %}secondary{% endif %}">
+  {{ band|capfirst }}{% if score or score == 0 %} · {{ score }}{% endif %}
+</span>
