@@ -15,6 +15,7 @@ from apps.purchase_orders import portal_views as po_portal
 from apps.fulfillment import portal_views as fulfillment_portal
 from apps.goods_receipt import portal_views as goods_receipt_portal
 from apps.invoicing import portal_views as invoicing_portal
+from apps.supplier_performance import portal_views as performance_portal
 
 app_name = 'vendor_portal'
 
@@ -123,6 +124,18 @@ urlpatterns = [
     path('returns/<int:pk>/', goods_receipt_portal.portal_rtv_detail, name='rtv_detail'),
     path('returns/<int:pk>/acknowledge/', goods_receipt_portal.portal_rtv_acknowledge,
          name='rtv_acknowledge'),
+
+    # Module 17 — Supplier Performance & Evaluation (vendor-side: view scorecards + feedback + PIPs)
+    path('performance/', performance_portal.portal_scorecards, name='performance_scorecards'),
+    path('performance/<int:pk>/', performance_portal.portal_scorecard_detail,
+         name='performance_scorecard_detail'),
+    path('performance/feedback/', performance_portal.portal_feedback,
+         name='performance_feedback'),
+    path('performance/pips/', performance_portal.portal_pips, name='performance_pips'),
+    path('performance/pips/<int:pk>/', performance_portal.portal_pip_detail,
+         name='performance_pip_detail'),
+    path('performance/pips/<int:pk>/acknowledge/', performance_portal.portal_pip_acknowledge,
+         name='performance_pip_acknowledge'),
 
     # Module 10 — Catalog Management (vendor-side: supplier catalog hosting)
     path('catalog/', catalog_portal.portal_catalog_list, name='catalog_items'),
