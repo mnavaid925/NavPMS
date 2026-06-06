@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Period{% else %}New Period{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ period.name }}{% else %}New Budget Period{% endif %}</h1>
+  <p class="page-subtitle">A fiscal envelope budgets are scoped to</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-6">
+        <label class="form-label">Name</label>
+        {{ form.name }}
+        {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Type</label>
+        {{ form.period_type }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Status</label>
+        {{ form.status }}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Start date</label>
+        {{ form.start_date }}
+        {% for e in form.start_date.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End date</label>
+        {{ form.end_date }}
+        {% for e in form.end_date.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check">
+          {{ form.is_default }}
+          <label class="form-check-label">Default period for new budgets</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Notes</label>
+        {{ form.notes }}
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'budget:period_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
