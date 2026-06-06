@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ template.template_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ template.template_number }} <span class="badge badge-soft-{{ template.status_color }}">{{ template.get_status_display }}</span></h1>
+    <p class="page-subtitle">{{ template.title }} · {{ template.get_category_display }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    <form method="post" action="{% url 'dms:policy_template_clone' template.pk %}">{% csrf_token %}
+      <button class="btn btn-primary" title="Create a document from this template"><i class="ri-file-copy-2-line"></i> Clone to Document</button></form>
+    <a href="{% url 'dms:policy_template_edit' template.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+    {% endif %}
+    <a href="{% url 'dms:policy_template_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% if template.description %}<div class="alert alert-light border">{{ template.description }}</div>{% endif %}
+    <div class="card">
+      <div class="card-header"><i class="ri-article-line"></i> Template body</div>
+      <div class="card-body" style="white-space:pre-wrap">{{ template.body }}</div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Category</dt><dd class="col-7">{{ template.get_category_display }}</dd>
+          <dt class="col-5">Owner</dt><dd class="col-7">{{ template.owner.get_full_name|default:template.owner.username|default:"—" }}</dd>
+          <dt class="col-5">Created</dt><dd class="col-7">{{ template.created_at|date:"Y-m-d" }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if can_manage %}
+    <div class="card mt-3"><div class="card-body">
+      <form method="post" action="{% url 'dms:policy_template_delete' template.pk %}" onsubmit="return confirm('Delete {{ template.template_number }}?');">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete template</button>
+      </form>
+    </div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
