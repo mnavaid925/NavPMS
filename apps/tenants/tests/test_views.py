@@ -30,7 +30,10 @@ def test_onboarding_wizard_end_to_end(client, plan):
         'plan': plan.pk, 'billing_cycle': 'monthly',
     })
     assert resp.status_code == 302
-    resp = client.get(reverse('tenants:onboarding_complete'))
+    # GET only renders the review page (no write); POST provisions the tenant.
+    assert client.get(reverse('tenants:onboarding_complete')).status_code == 200
+    assert not Tenant.objects.filter(name='New Co').exists()
+    resp = client.post(reverse('tenants:onboarding_complete'))
     assert resp.status_code == 200
     tenant = Tenant.objects.get(name='New Co')
     assert Subscription.objects.filter(tenant=tenant).exists()
