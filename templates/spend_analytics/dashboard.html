@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Spend Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Spend Dashboard</h1>
+    <p class="page-subtitle">
+      {% if basis == 'committed' %}Committed spend — purchase-order value (open POs){% else %}Actual spend — approved &amp; paid supplier invoices{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'spend_analytics:export_dashboard' fmt='csv' %}?basis={{ basis }}{% if start %}&start={{ start }}{% endif %}{% if end %}&end={{ end }}{% endif %}" class="btn btn-outline-secondary"><i class="ri-file-text-line"></i> CSV</a>
+    <a href="{% url 'spend_analytics:export_dashboard' fmt='xlsx' %}?basis={{ basis }}{% if start %}&start={{ start }}{% endif %}{% if end %}&end={{ end }}{% endif %}" class="btn btn-outline-secondary"><i class="ri-file-excel-2-line"></i> Excel</a>
+    {% if can_manage %}
+    <form method="post" action="{% url 'spend_analytics:sync_now' %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-primary" title="Rebuild the spend fact table from invoices &amp; POs"><i class="ri-refresh-line"></i> Refresh data</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  <div class="btn-group" role="group" aria-label="Spend basis">
+    {% for value, label in basis_choices %}
+    <a href="?basis={{ value }}{% if base_querystring %}&{{ base_querystring }}{% endif %}"
+       class="btn btn-sm {% if basis == value %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <form method="get" class="row g-2 align-items-end ms-auto">
+    <input type="hidden" name="basis" value="{{ basis }}">
+    <div class="col-auto">
+      <label class="form-label mb-0 small">From</label>
+      <input type="date" name="start" value="{{ start }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+      <label class="form-label mb-0 small">To</label>
+      <input type="date" name="end" value="{{ end }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-outline-secondary"><i class="ri-filter-3-line"></i> Apply</button>
+    </div>
+  </form>
+</div>
+
+{% if metrics.currencies|length > 1 %}
+<div class="alert alert-warning py-2"><i class="ri-error-warning-line"></i>
+  Spend spans multiple currencies ({{ metrics.currencies|join:", " }}); amounts are summed as
+  entered without FX conversion.</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">{% if basis == 'committed' %}Committed spend{% else %}Total spend{% endif %}</div>
+      <div class="stat-value">${{ metrics.total_spend|floatformat:0|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Spend records</div>
+      <div class="stat-value">{{ metrics.record_count|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Suppliers</div>
+      <div class="stat-value">{{ metrics.vendor_count|intcomma }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="stat-label">Maverick spend</div>
+      <div class="stat-value text-danger">${{ metrics.maverick_spend|floatformat:0|intcomma }} <span class="fs-6 text-muted">({{ metrics.maverick_pct }}%)</span></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-pie-chart-2-line"></i> Spend by category</div>
+      <div class="card-body">
+        {% if metrics.by_category.values %}<canvas id="catChart" height="240"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No spend in this period.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-bar-chart-2-line"></i> Top suppliers</div>
+      <div class="card-body">
+        {% if metrics.by_vendor.values %}<canvas id="vendorChart" height="240"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No spend in this period.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-building-line"></i> Spend by cost center</div>
+      <div class="card-body">
+        {% if metrics.by_cost_center.values %}<canvas id="ccChart" height="240"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No spend in this period.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-line-chart-line"></i> Monthly spend trend</div>
+      <div class="card-body">
+        {% if metrics.by_month.values %}<canvas id="monthChart" height="240"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No spend in this period.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# Chart data via json_script — never |safe into a <script> (lessons.md 2026-05-23). #}
+{{ metrics.by_category.labels|json_script:"catLabels" }}
+{{ metrics.by_category.values|json_script:"catValues" }}
+{{ metrics.by_vendor.labels|json_script:"vendorLabels" }}
+{{ metrics.by_vendor.values|json_script:"vendorValues" }}
+{{ metrics.by_cost_center.labels|json_script:"ccLabels" }}
+{{ metrics.by_cost_center.values|json_script:"ccValues" }}
+{{ metrics.by_month.labels|json_script:"monthLabels" }}
+{{ metrics.by_month.values|json_script:"monthValues" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var palette = ['#3b5de7', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+                   '#06b6d4', '#ec4899', '#64748b', '#14b8a6', '#f97316', '#a855f7', '#0ea5e9'];
+    function read(id) {
+      var el = document.getElementById(id);
+      return el ? JSON.parse(el.textContent) : [];
+    }
+    function build(canvasId, type, labelsId, valuesId, label) {
+      var el = document.getElementById(canvasId);
+      if (!el) return;
+      var labels = read(labelsId), values = read(valuesId);
+      if (!values.length) return;
+      var colors = labels.map(function (_, i) { return palette[i % palette.length]; });
+      new Chart(el, {
+        type: type,
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label, data: values,
+            backgroundColor: type === 'line' ? 'rgba(59,93,231,0.1)' : colors,
+            borderColor: type === 'line' ? '#3b5de7' : colors,
+            borderWidth: type === 'line' ? 2 : 1,
+            fill: type === 'line', tension: 0.25
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: type === 'doughnut', position: 'bottom' } },
+          scales: (type === 'bar' || type === 'line') ? { y: { beginAtZero: true } } : {}
+        }
+      });
+    }
+    build('catChart', 'doughnut', 'catLabels', 'catValues', 'Spend by category');
+    build('vendorChart', 'bar', 'vendorLabels', 'vendorValues', 'Spend by supplier');
+    build('ccChart', 'bar', 'ccLabels', 'ccValues', 'Spend by cost center');
+    build('monthChart', 'line', 'monthLabels', 'monthValues', 'Monthly spend');
+  })();
+</script>
+{% endblock %}
