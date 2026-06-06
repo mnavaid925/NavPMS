@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.fulfillment',
     'apps.goods_receipt',
     'apps.invoicing',
+    'apps.spend_analytics',
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,13 @@ FREIGHT_TRACKING_ALLOWLIST = config('FREIGHT_TRACKING_ALLOWLIST', default='')
 OCR_ENGINE = config('OCR_ENGINE', default='mock')
 INVOICE_QTY_TOLERANCE_PCT = config('INVOICE_QTY_TOLERANCE_PCT', default='2', cast=float)
 INVOICE_PRICE_TOLERANCE_PCT = config('INVOICE_PRICE_TOLERANCE_PCT', default='2', cast=float)
+# OCR captures below this confidence (percent) are flagged for manual review in the UI.
+OCR_MIN_CONFIDENCE = config('OCR_MIN_CONFIDENCE', default='70', cast=float)
+# Days a dispute may stay open before the escalation alert fires (scan_invoice_alerts).
+INVOICE_DISPUTE_SLA_DAYS = config('INVOICE_DISPUTE_SLA_DAYS', default='5', cast=int)
+# Opt-in: also email the invoice owner on overdue / closing-discount / dispute-SLA alerts
+# (in addition to the in-app portal notification). Off by default; needs a real EMAIL_BACKEND.
+INVOICE_EMAIL_ALERTS = config('INVOICE_EMAIL_ALERTS', default=False, cast=bool)
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
