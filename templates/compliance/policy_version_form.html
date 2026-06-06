@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}New version — {{ policy.policy_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">New version — {{ policy.policy_number }}</h1>
+  <p class="page-subtitle">{{ policy.title }}</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-12">
+        <label class="form-label">Policy text</label>
+        {{ form.body }}
+        {% for e in form.body.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Change note</label>
+        {{ form.change_note }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Effective date</label>
+        {{ form.effective_date }}
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          {{ form.publish }} <label class="form-check-label" for="{{ form.publish.id_for_label }}">{{ form.publish.label }}</label>
+          <div class="form-text">{{ form.publish.help_text }}</div>
+        </div>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save version</button>
+        <a href="{% url 'compliance:policy_detail' policy.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
