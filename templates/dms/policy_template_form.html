@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Template{% else %}New Template{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ template.template_number }}{% else %}New Template{% endif %}</h1>
+  <p class="page-subtitle">A reusable best-practice document that can be cloned into a real document</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-8">
+        <label class="form-label">Title</label>
+        {{ form.title }}
+        {% for e in form.title.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Category</label>
+        {{ form.category }}
+      </div>
+      <div class="col-12">
+        <label class="form-label">Description</label>
+        {{ form.description }}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ form.owner.label }}</label>
+        {{ form.owner }}
+      </div>
+      <div class="col-12">
+        <label class="form-label">Template body</label>
+        {{ form.body }}
+        {% for e in form.body.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% if template %}{% url 'dms:policy_template_detail' template.pk %}{% else %}{% url 'dms:policy_template_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
