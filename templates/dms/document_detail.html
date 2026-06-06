@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}{{ document.document_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ document.document_number }} <span class="badge badge-soft-{{ document.status_color }}">{{ document.get_status_display }}</span></h1>
+    <p class="page-subtitle">{{ document.title }} · {{ document.get_category_display }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}
+    {% if document.is_editable %}<a href="{% url 'dms:document_edit' document.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>{% endif %}
+    {% if document.status == 'published' %}
+    <form method="post" action="{% url 'dms:document_set_status' document.pk %}">{% csrf_token %}
+      <input type="hidden" name="status" value="archived"><button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Archive</button></form>
+    {% elif document.status == 'archived' %}
+    <form method="post" action="{% url 'dms:document_set_status' document.pk %}">{% csrf_token %}
+      <input type="hidden" name="status" value="draft"><button class="btn btn-outline-secondary"><i class="ri-inbox-unarchive-line"></i> Restore</button></form>
+    {% endif %}
+    {% endif %}
+    <a href="{% url 'dms:document_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% if document.summary %}<div class="alert alert-light border">{{ document.summary }}</div>{% endif %}
+
+    {% if document.current_version %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="ri-file-text-line"></i> Current version — v{{ document.current_version.version_no }}</span>
+        <a href="{% url 'dms:version_download' document.pk document.current_version.pk %}" class="small text-decoration-none"><i class="ri-download-line"></i> Download</a>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">
+          <span class="badge badge-soft-{{ document.current_version.index_color }}">{{ document.current_version.get_index_status_display }}</span>
+          {{ document.current_version.page_count }} page(s) · {{ document.current_version.extraction_engine|default:"—" }} · {{ document.current_version.original_filename }}
+        </p>
+        {% if document.current_version.extracted_text %}
+        <details><summary class="small text-primary" style="cursor:pointer">Indexed text preview</summary>
+          <pre class="small text-muted mt-2 mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">{{ document.current_version.extracted_text|truncatechars:2000 }}</pre>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">No published version yet. {% if can_manage %}Upload a file and publish it below.{% endif %}</div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-upload-2-line"></i> Upload a new version</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'dms:version_create' document.pk %}" enctype="multipart/form-data" class="row g-3">
+          {% csrf_token %}
+          <div class="col-md-7">
+            <label class="form-label">{{ version_form.file.label }}</label>
+            {{ version_form.file }}
+            {% for e in version_form.file.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-md-5">
+            <label class="form-label">Change note</label>
+            {{ version_form.change_note }}
+          </div>
+          <div class="col-12 d-flex align-items-center gap-3">
+            <div class="form-check">{{ version_form.publish }}<label class="form-check-label" for="{{ version_form.publish.id_for_label }}">{{ version_form.publish.label }}</label></div>
+            <button type="submit" class="btn btn-primary"><i class="ri-upload-line"></i> Upload &amp; index</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-stack-line"></i> Versions</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Version</th><th>Status</th><th>Index</th><th>Uploaded</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for v in versions %}
+            <tr>
+              <td class="fw-semibold">v{{ v.version_no }}{% if v.is_current %} <span class="badge badge-soft-success">current</span>{% endif %}<div class="text-muted small">{{ v.change_note|default:v.original_filename|truncatechars:40 }}</div></td>
+              <td><span class="badge badge-soft-{{ v.status_color }}">{{ v.get_status_display }}</span></td>
+              <td><span class="badge badge-soft-{{ v.index_color }}">{{ v.get_index_status_display }}</span></td>
+              <td class="small text-muted">{{ v.created_at|date:"Y-m-d H:i" }}</td>
+              {% if can_manage %}
+              <td class="text-end">
+                <a href="{% url 'dms:version_download' document.pk v.pk %}" class="btn btn-sm btn-outline-primary" title="Download"><i class="ri-download-line"></i></a>
+                {% if v.status != 'published' %}
+                <form method="post" action="{% url 'dms:version_publish' document.pk v.pk %}" class="d-inline">{% csrf_token %}
+                  <button class="btn btn-sm btn-outline-success" title="Publish"><i class="ri-send-plane-line"></i></button></form>
+                {% endif %}
+                <form method="post" action="{% url 'dms:version_reindex' document.pk v.pk %}" class="d-inline">{% csrf_token %}
+                  <button class="btn btn-sm btn-outline-secondary" title="Re-index"><i class="ri-refresh-line"></i></button></form>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No versions uploaded yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for e in events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span><i class="ri-checkbox-blank-circle-fill text-muted" style="font-size:.5rem;vertical-align:middle"></i> {{ e.note|default:e.event }}{% if e.actor %} <span class="text-muted small">— {{ e.actor.username }}</span>{% endif %}</span>
+          <span class="text-muted small">{{ e.created_at|date:"Y-m-d H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted text-center py-3">No events yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-information-line"></i> Details</div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Category</dt><dd class="col-7">{{ document.get_category_display }}</dd>
+          <dt class="col-5">Confidentiality</dt><dd class="col-7"><span class="badge badge-soft-{{ document.confidentiality_color }}">{{ document.get_confidentiality_display }}</span></dd>
+          <dt class="col-5">Owner</dt><dd class="col-7">{{ document.owner.get_full_name|default:document.owner.username|default:"—" }}</dd>
+          <dt class="col-5">Tags</dt><dd class="col-7">{{ document.tags|default:"—" }}</dd>
+          <dt class="col-5">Versions</dt><dd class="col-7">{{ document.version_count }}</dd>
+          <dt class="col-5">Created</dt><dd class="col-7">{{ document.created_at|date:"Y-m-d" }}</dd>
+          <dt class="col-5">Published</dt><dd class="col-7">{{ document.published_at|date:"Y-m-d"|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if can_manage and document.is_editable %}
+    <div class="card mt-3">
+      <div class="card-body">
+        <form method="post" action="{% url 'dms:document_delete' document.pk %}" onsubmit="return confirm('Delete {{ document.document_number }} and all its versions?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete document</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
