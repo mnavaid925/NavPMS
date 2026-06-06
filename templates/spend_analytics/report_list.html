@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Spend Reports{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Custom Report Builder</h1>
+    <p class="page-subtitle">Saved, re-runnable spend reports — pick a dimension, measure &amp; filters</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'spend_analytics:dashboard' %}" class="btn btn-outline-secondary"><i class="ri-dashboard-line"></i> Dashboard</a>
+    {% if can_manage %}
+    <a href="{% url 'spend_analytics:report_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Report</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-10">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Report name or description">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Search</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Dimension</th>
+          <th>Measure</th>
+          <th>Basis</th>
+          <th>Shared</th>
+          <th>Last run</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td>
+            <a href="{% url 'spend_analytics:report_detail' report.pk %}" class="fw-semibold text-decoration-none">{{ report.name }}</a>
+            {% if report.description %}<div class="text-muted small">{{ report.description }}</div>{% endif %}
+          </td>
+          <td>{{ report.get_dimension_display }}</td>
+          <td>{{ report.get_measure_display }}</td>
+          <td><span class="badge badge-soft-secondary">{{ report.get_basis_display }}</span></td>
+          <td>{% if report.is_shared %}<span class="badge badge-soft-success">Shared</span>{% else %}<span class="badge badge-soft-secondary">Private</span>{% endif %}</td>
+          <td>{{ report.last_run_at|naturaltime|default:"—" }}</td>
+          <td class="text-end">
+            <a href="{% url 'spend_analytics:report_detail' report.pk %}" class="btn btn-sm btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
+            {% if can_manage %}
+            <a href="{% url 'spend_analytics:report_edit' report.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'spend_analytics:report_delete' report.pk %}" class="d-inline" onsubmit="return confirm('Delete report &quot;{{ report.name|escapejs }}&quot;?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">
+            No reports yet.{% if can_manage %} <a href="{% url 'spend_analytics:report_create' %}">Create one</a>.{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
