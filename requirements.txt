@@ -24,3 +24,6 @@ requests==2.32.5
 # Catalog (Module 10): punch-out cXML parsing (XXE-safe) + supplier upload XLSX
 defusedxml==0.7.1
 openpyxl==3.1.5
+
+# Documents (Module 20): real PDF text extraction for full-text search (DMS_EXTRACTION_ENGINE=local)
+pypdf==5.1.0
