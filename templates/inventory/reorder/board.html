@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Reorder{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Reorder Point Automation</h1>
+    <p class="page-subtitle">Items at/below their reorder point and the requisitions raised for them</p>
+  </div>
+  {% if can_manage %}
+  <form method="post" action="{% url 'inventory:reorder_run' %}" onsubmit="return confirm('Generate draft requisitions for all items below their reorder point?');">
+    {% csrf_token %}<button class="btn btn-primary"><i class="ri-refresh-line"></i> Run reorder now</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-header"><i class="ri-alarm-warning-line"></i> Below reorder point</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>SKU</th><th>Item</th><th class="text-end">Available</th><th class="text-end">Reorder pt</th><th class="text-end">Reorder qty</th><th>Open requisition</th></tr></thead>
+      <tbody>
+        {% for si in below %}
+        <tr>
+          <td><a href="{% url 'inventory:stock_item_detail' si.pk %}" class="text-decoration-none">{{ si.sku|default:"—" }}</a></td>
+          <td>{{ si.catalog_item.name }}</td>
+          <td class="text-end text-warning fw-semibold">{{ si.available_quantity }}</td>
+          <td class="text-end">{{ si.reorder_point }}</td>
+          <td class="text-end">{{ si.reorder_quantity }}</td>
+          <td>{% if si.reorder_requisition %}<span class="badge badge-soft-info">{{ si.reorder_requisition.number }}</span> {{ si.reorder_requisition.get_status_display }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Nothing below its reorder point. 🎉</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="ri-file-list-3-line"></i> Recently auto-generated reorder requisitions</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Item</th><th>Requisition</th><th>Status</th><th>Reordered</th></tr></thead>
+      <tbody>
+        {% for si in recent %}
+        <tr>
+          <td>{{ si.catalog_item.name }} <span class="text-muted small">{{ si.sku }}</span></td>
+          <td>{{ si.reorder_requisition.number }}</td>
+          <td><span class="badge badge-soft-secondary">{{ si.reorder_requisition.get_status_display }}</span></td>
+          <td class="small text-muted">{{ si.last_reordered_at|date:"Y-m-d H:i"|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">No reorder requisitions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
