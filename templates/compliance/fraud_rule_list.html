@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Fraud Rules{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Fraud Detection Rules</h1>
+    <p class="page-subtitle">Configurable detectors for suspicious purchasing patterns &amp; conflicts of interest</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'compliance:fraud_alert_list' %}" class="btn btn-outline-secondary"><i class="ri-alarm-warning-line"></i> Alerts</a>
+    {% if can_manage %}
+    <form method="post" action="{% url 'compliance:fraud_scan' %}" class="d-inline">{% csrf_token %}
+      <button class="btn btn-outline-primary"><i class="ri-radar-line"></i> Run scan now</button></form>
+    <a href="{% url 'compliance:fraud_rule_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Rule</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>Rule</th><th>Code</th><th>Severity</th><th>Active</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for r in rules %}
+        <tr>
+          <td class="fw-semibold">{{ r.name }}<div class="text-muted small">{{ r.description|truncatechars:80 }}</div></td>
+          <td><code class="small">{{ r.code }}</code></td>
+          <td><span class="badge badge-soft-{{ r.severity_color }}">{{ r.get_severity_display }}</span></td>
+          <td>{% if r.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Off</span>{% endif %}</td>
+          {% if can_manage %}
+          <td class="text-end">
+            <a href="{% url 'compliance:fraud_rule_edit' r.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'compliance:fraud_rule_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ r.name }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No fraud rules yet.{% if can_manage %} <a href="{% url 'compliance:fraud_rule_create' %}">Add one</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
