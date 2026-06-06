@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ movement.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ movement.number }}
+      <span class="badge badge-soft-{{ movement.type_color }}">{{ movement.get_movement_type_display }}</span>
+    </h1>
+    <p class="page-subtitle">{{ movement.created_at|date:"Y-m-d H:i" }} · {{ movement.actor.username|default:"system" }}</p>
+  </div>
+  <a href="{% url 'inventory:movement_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-4">Item</dt><dd class="col-8"><a href="{% url 'inventory:stock_item_detail' movement.stock_item_id %}">{{ movement.stock_item.catalog_item.name }}</a> ({{ movement.stock_item.sku }})</dd>
+          <dt class="col-4">Quantity</dt><dd class="col-8 {% if movement.is_inbound %}text-success{% else %}text-danger{% endif %}">{{ movement.quantity }}</dd>
+          <dt class="col-4">Balance after</dt><dd class="col-8">{{ movement.balance_after }}</dd>
+          <dt class="col-4">Unit cost</dt><dd class="col-8">{{ movement.unit_cost }}</dd>
+          <dt class="col-4">Warehouse</dt><dd class="col-8">{{ movement.warehouse.code }}</dd>
+          <dt class="col-4">Location</dt><dd class="col-8">{{ movement.location.code|default:"—" }}{% if movement.to_location %} → {{ movement.to_location.code }}{% endif %}</dd>
+          <dt class="col-4">Lot / batch</dt><dd class="col-8">{{ movement.lot_number|default:"—" }}{% if movement.batch_number %} / {{ movement.batch_number }}{% endif %}</dd>
+          <dt class="col-4">Serial</dt><dd class="col-8">{{ movement.serial_number|default:"—" }}</dd>
+          <dt class="col-4">Expiry</dt><dd class="col-8">{{ movement.expiry_date|date:"Y-m-d"|default:"—" }}</dd>
+          <dt class="col-4">Reason</dt><dd class="col-8">{{ movement.reason|default:"—" }}</dd>
+          <dt class="col-4">Note</dt><dd class="col-8">{{ movement.note|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-links-line"></i> Source</div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-6">Goods receipt</dt><dd class="col-6">{{ movement.source_goods_receipt_line.goods_receipt.grn_number|default:"—" }}</dd>
+          <dt class="col-6">Goods issue</dt><dd class="col-6">{{ movement.goods_issue_line.goods_issue.number|default:"—" }}</dd>
+          <dt class="col-6">Cycle count</dt><dd class="col-6">{{ movement.cycle_count_line.cycle_count.number|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
