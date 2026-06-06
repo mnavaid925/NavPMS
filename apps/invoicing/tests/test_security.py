@@ -79,6 +79,24 @@ class TestVendorPortal:
         resp = client.get(reverse('vendor_portal:invoices'))
         assert resp.status_code == 302  # vendor_required bounces non-vendor
 
+    def test_vendor_can_submit_invoice(self, client, tenant, tenant_admin, vendor_a,
+                                       vendor_portal_user):
+        from .conftest import make_received_po
+        from apps.purchase_orders.models import PurchaseOrder
+        from apps.invoicing.models import SupplierInvoice
+        set_current_tenant(tenant)
+        make_received_po(tenant, tenant_admin, vendor_a, number='PO-SUB-1')
+        po = PurchaseOrder.all_objects.filter(tenant=tenant, vendor=vendor_a).first()
+        client.force_login(vendor_portal_user)
+        f = SimpleUploadedFile('inv.pdf', b'%PDF-1.4 mock', content_type='application/pdf')
+        resp = client.post(reverse('vendor_portal:invoice_create'),
+                           {'purchase_order': po.pk, 'source_file': f})
+        assert resp.status_code == 302
+        set_current_tenant(tenant)
+        inv = SupplierInvoice.all_objects.filter(tenant=tenant, vendor=vendor_a).first()
+        assert inv is not None
+        assert inv.status == 'submitted' and inv.submitted_via_portal
+
 
 class TestFileUploadWhitelist:
     def test_portal_rejects_dangerous_extension(
