@@ -1,6 +1,7 @@
 """Module 3 views: account codes, requisition templates, requisitions
 (creation, tracking, duplicate check, amendment) and the tracking board."""
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
@@ -395,6 +396,12 @@ class RequisitionDetailView(TenantRequiredMixin, View):
             ApprovalRequest.objects.filter(requisition=req)
             .select_related('rule').order_by('-created_at').first()
         )
+        # Module 16: the most recent over-budget availability check for this requisition (banner).
+        try:
+            from apps.budget.services import latest_check_status
+            budget_check = latest_check_status(req)
+        except Exception:
+            budget_check = None
         return render(request, 'requisitions/requisitions/detail.html', {
             'req': req,
             'lines': req.lines.select_related('account_code'),
@@ -403,6 +410,7 @@ class RequisitionDetailView(TenantRequiredMixin, View):
             'duplicates': duplicates,
             'can_modify': can_modify_requisition(req, request.user),
             'approval_request': approval_request,
+            'budget_check': budget_check,
         })
 
 
@@ -499,7 +507,12 @@ class RequisitionSubmitView(TenantRequiredMixin, View):
         if not req.lines.exists():
             messages.error(request, 'Add at least one line item before submitting.')
             return redirect('requisitions:requisition_detail', pk=req.pk)
-        submit_requisition(req, request.user, request=request)
+        try:
+            submit_requisition(req, request.user, request=request)
+        except ValidationError as exc:
+            # Module 16: budget enforcement is set to 'block' and funds are insufficient.
+            messages.error(request, '; '.join(exc.messages))
+            return redirect('requisitions:requisition_detail', pk=req.pk)
         messages.success(request, f'{req.number} submitted for approval.')
         return redirect('requisitions:requisition_detail', pk=req.pk)
 
