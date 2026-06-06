@@ -47,7 +47,9 @@ Compliance Checks, Supplier Financial Risk Monitoring, Audit Trail & Logging (ta
 hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment), and
 **Module 19 — Inventory & Warehouse Integration** (all five sub-modules: Stock Level Visibility,
 Reorder Point Automation, Goods Issue/Return to Stock, Warehouse Location Mapping, Cycle Count
-Integration).
+Integration), and **Module 20 — Document & Knowledge Management** (all five sub-modules: Central
+Document Repository, Version Control, Procurement Policy Library, Best Practices & Templates,
+Full-Text Search & Indexing).
 
 ---
 
@@ -79,11 +81,12 @@ Integration).
 25. [Module 17 — Supplier Performance & Evaluation](#module-17--supplier-performance--evaluation)
 26. [Module 18 — Risk & Compliance Management](#module-18--risk--compliance-management)
 27. [Module 19 — Inventory & Warehouse Integration](#module-19--inventory--warehouse-integration)
-28. [Routes / UI Tour](#routes--ui-tour)
-29. [Multi-tenancy Model](#multi-tenancy-model)
-30. [Payment Gateway](#payment-gateway)
-31. [Browser Compatibility](#browser-compatibility)
-32. [Roadmap](#roadmap)
+28. [Module 20 — Document & Knowledge Management](#module-20--document--knowledge-management)
+29. [Routes / UI Tour](#routes--ui-tour)
+30. [Multi-tenancy Model](#multi-tenancy-model)
+31. [Payment Gateway](#payment-gateway)
+32. [Browser Compatibility](#browser-compatibility)
+33. [Roadmap](#roadmap)
 
 ---
 
@@ -167,10 +170,14 @@ NavPMS/
 │   │                         # FinancialRiskProfile (+Snapshot history), FraudRule + FraudAlert
 │   │                         # (+event log), Policy (+Version +Acknowledgment) + screening.py /
 │   │                         # credit.py pluggable connectors (reuses tenants.AuditLog hash-chain)
-│   └── inventory/            # Module 19: Warehouse (+WarehouseLocation bins), StockItem (on-hand
-│                             # roll-up + reorder params + moving-avg cost), StockLevel (per-bucket),
-│                             # StockMovement (append-only ledger), GoodsIssue (+Line), CycleCount
-│                             # (+Line) + services (GRN->stock sync, reorder automation, cron)
+│   ├── inventory/            # Module 19: Warehouse (+WarehouseLocation bins), StockItem (on-hand
+│   │                         # roll-up + reorder params + moving-avg cost), StockLevel (per-bucket),
+│   │                         # StockMovement (append-only ledger), GoodsIssue (+Line), CycleCount
+│   │                         # (+Line) + services (GRN->stock sync, reorder automation, cron)
+│   └── dms/                  # Module 20: Document (+current_version pointer), DocumentVersion
+│                             # (file + extracted_text index), PolicyTemplate, DocumentEvent
+│                             # (append-only) + extraction.py pluggable text-extraction connector
+│                             # (mock / local pypdf) + services (index, publish/supersede, search)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -309,6 +316,10 @@ All values are read via `python-decouple` from `.env`.
 | `INVENTORY_AUTO_REORDER` | `True` | Whether `run_inventory_alerts` auto-generates draft requisitions for items at/below their reorder point. |
 | `INVENTORY_EXPIRY_ALERT_DAYS` | `30` | Look-ahead window (days) within which a stock lot's expiry raises a one-time near-expiry alert. |
 | `INVENTORY_DEFAULT_WAREHOUSE_CODE` | `WH-MAIN` | Warehouse auto-created to land received stock when a goods receipt has no mapped bin. |
+| `DMS_EXTRACTION_ENGINE` | `mock` | Pluggable text-extraction engine for full-text search (`mock` = no deps; `local` parses PDFs via pypdf; hosted engines wire in via `apps/dms/extraction.py`). |
+| `DMS_EXTRACTION_ALLOWLIST` | `` | Comma-separated SSRF allowlist of extra hosts a real (remote) extraction backend may target. |
+| `DMS_MAX_INDEX_CHARS` | `200000` | Cap on stored extracted text (chars) so a large PDF cannot bloat the row / search index. |
+| `DMS_UPLOAD_MAX_MB` | `10` | Maximum uploaded document file size (MB). |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -318,7 +329,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance` → `seed_inventory`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance` → `seed_inventory` → `seed_documents`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -340,6 +351,8 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_supplier_performance` | Provisions the default KPI set + final scorecards for 3 vendors across 3 rolling quarters (so trending renders a line), seeds submitted 360° feedback inside each window, and opens an in-progress improvement plan for the weakest vendor — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_compliance` | Seeds restricted-party lists (incl. a deliberate match on a real vendor name), runs screenings, builds financial-risk profiles + snapshots, creates the 5 default fraud rules + a deliberate shared-bank-account conflict, runs one fraud scan, and publishes 2 acknowledged policies per tenant — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_inventory` | Creates a default warehouse + bins, stock items for the live catalog items (with reorder params), folds posted goods receipts into on-hand stock + opening balances, posts a consumption + a return goods issue, runs a posted (with variance) + an in-progress cycle count, and forces one item below reorder so an auto-requisition is raised — driven through the real services (idempotent; `--flush` to re-seed). |
+| `python manage.py seed_documents` | Seeds 5 documents (a published policy / spec / warranty / SOP + a draft) and 2 best-practice templates per tenant, each from a small text fixture so the mock extractor indexes real searchable text out of the box — driven through the real create → index → publish services (idempotent; `--flush` to re-seed). |
+| `python manage.py reindex_documents` | Re-extracts text from every document version still pending/failed across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent (already-indexed versions are skipped). Useful after switching `DMS_EXTRACTION_ENGINE` to `local`. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -372,7 +385,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/), [inventory](apps/inventory/tests/) — **1376 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/), [inventory](apps/inventory/tests/), [dms](apps/dms/tests/) — **1378 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -577,6 +590,16 @@ and a **return-to-stock**, leaves a **draft goods issue**, runs a **posted cycle
 variance** (writing an adjustment movement) plus an **in-progress count**, and forces one item below
 its reorder point then runs the automation so a **draft auto-reorder requisition** exists — all driven
 through the real services and visible on the `StockMovement` ledger.
+
+### Documents & Knowledge data
+Each tenant gets **5 documents** covering every status — a published **Procurement Policy Manual**,
+**Laptop Specification**, **Warranty Terms** and **Supplier Onboarding SOP**, plus a **draft Vendor
+Code of Conduct** awaiting publication — and **2 best-practice templates** (an IT-services RFP
+skeleton and a bid-evaluation guide). Every document is seeded from a small text fixture, so the
+default mock extraction engine fills each version's `extracted_text` and the full-text search at
+`/dms/search/` works immediately (e.g. searching “ISO 9001” or “warranty” returns hits). Each
+document is driven through the real create → upload → index → publish services, so the version
+history, `current_version` pointer and append-only timeline are all populated.
 
 ---
 
@@ -1268,6 +1291,36 @@ reorder skips items with an open requisition, expiry alerts stamp `StockLevel.ex
 
 ---
 
+## Module 20 — Document & Knowledge Management
+
+The knowledge layer over the procure-to-pay loop ([apps/dms/](apps/dms/)) — the central, versioned,
+searchable home for every procurement document. Where the other modules *transact*, this one
+*remembers*. All five PMS sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **Central Document Repository** | [`Document`](apps/dms/models.py) (`DOC-<SLUG>-NNNNN`, `category`, a `confidentiality` band public/internal/restricted, owner) + [`DocumentVersion`](apps/dms/models.py) holding the uploaded `FileField` (extension + size validated). Full CRUD with search + filters. |
+| **Version Control** | Each upload is an immutable numbered `DocumentVersion`. Publishing one **supersedes** the previous and re-points `Document.current_version`, so only the latest published version is downloadable. An append-only [`DocumentEvent`](apps/dms/models.py) timeline records every create / upload / publish / status change; cross-module audit reuses `tenants.record_audit`. |
+| **Procurement Policy Library** | `/dms/policies/` — the policy-category documents as browsable reference files. **Cross-links** to the Module 18 [compliance](apps/compliance/) `Policy` stack (which owns read-and-acknowledge sign-off) rather than duplicating it: this module owns *files + search*, compliance owns *attestation*. |
+| **Best Practices & Templates** | [`PolicyTemplate`](apps/dms/models.py) (`TPL-<SLUG>-NNNNN`) — reusable authored bodies (RFP skeletons, bid-evaluation guides, negotiation playbooks). **Clone to Document** stamps a template into a real published document via `clone_template_to_document`. |
+| **Full-Text Search & Indexing** | A pluggable [`apps/dms/extraction.py`](apps/dms/extraction.py) connector fills `DocumentVersion.extracted_text`; `/dms/search/` queries it (plus titles / tags / summaries) and returns ranked hits with context snippets. |
+
+**Pluggable text extraction.** `extraction.py` mirrors the screening / OCR connector pattern: a
+registry selected by `DMS_EXTRACTION_ENGINE`. The default `mock` engine decodes file bytes locally
+(no dependency — text/markdown index verbatim, binaries degrade to a stable stub) so search works out
+of the box; the `local` engine parses **real PDFs** via `pypdf` (with page counts). Both are local
+(no network, no SSRF surface); a `validate_extraction_url` SSRF guard (HTTPS-only, blocks non-routable
+hosts, honours `DMS_EXTRACTION_ALLOWLIST`) is provided for a future hosted backend. `DMS_MAX_INDEX_CHARS`
+caps stored text. Search uses portable `extracted_text__icontains` so the SQLite test DB and MySQL
+prod DB share one path, with a documented MySQL `FULLTEXT` upgrade for scale.
+
+**RBAC + tenancy.** `procurement_manager` / `buyer` / `tenant_admin` manage; `approver` may also view;
+a `requester` is bounced (the D-01 lesson). Every view is tenant-scoped (cross-tenant detail/download
+404s). **Cron:** `reindex_documents` re-extracts pending/failed versions across all tenants
+(idempotent), useful after switching the engine to `local`.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1381,6 +1434,12 @@ reorder skips items with an open requisition, expiry alerts stamp `StockLevel.ex
 | `/inventory/issues/` | Goods issues / returns — create, add lines, post (consumption / write-off / return-to-stock) |
 | `/inventory/cycle-counts/` | Cycle counts — create (snapshots buckets), enter counts, post (immediate variance adjustment) |
 | `/inventory/reorder/` | Reorder board — items below reorder point + auto-requisitions; **Run reorder now** raises drafts |
+| `/dms/` | Documents dashboard — totals, category/status charts, index-coverage KPI, recently added |
+| `/dms/documents/` | Document repository — search (incl. text inside files) + status/category/confidentiality filters; full CRUD |
+| `/dms/documents/<id>/` | Document detail — version history, inline upload, publish/supersede, download, extracted-text preview, timeline |
+| `/dms/search/` | Full-text search across titles, tags and the text extracted from uploaded files |
+| `/dms/policies/` | Procurement policy library (policy-category documents); cross-links to compliance acknowledgment |
+| `/dms/templates/` | Best-practice template library — author, edit, and **clone to a document** |
 | `/invoicing/list/` | Supplier invoices — search + status/match/vendor/PO filters |
 | `/invoicing/capture/` | Capture an invoice from a PDF/image (OCR) — optionally `?from_po=<id>` |
 | `/invoicing/new/` | Enter an invoice manually |
@@ -1495,7 +1554,7 @@ Modules 1–19 ship. The remaining PMS modules are not yet implemented:
 | 17 | Supplier Performance & Evaluation | Shipped |
 | 18 | Risk & Compliance Management | Shipped |
 | 19 | Inventory & Warehouse Integration | Shipped |
-| 20 | Document & Knowledge Management | Planned |
+| 20 | Document & Knowledge Management | Shipped |
 | 21 | System Administration & Security | Planned |
 
 See [PMS.md](PMS.md) for the full 20-module spec.
