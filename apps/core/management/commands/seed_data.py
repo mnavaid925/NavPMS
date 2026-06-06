@@ -34,6 +34,7 @@ class Command(BaseCommand):
             ('seed_fulfillment', 'Shipments/ASNs + carrier tracking + delivery confirmation + split delivery + backorders'),
             ('seed_goods_receipt', 'Goods receipts across every status + QA inspection + posting + returns to vendor + tags'),
             ('seed_invoicing', 'Payment terms + supplier invoices across every status + 3-way match + disputes + vouchers paid via gateway'),
+            ('seed_spend_analytics', 'Spend fact table synced from invoices/POs + demo saved reports'),
         ]
 
         for cmd, label in steps:
