@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ screening.screening_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ screening.screening_number }} <span class="badge badge-soft-{{ screening.status_color }}">{{ screening.get_status_display }}</span></h1>
+    <p class="page-subtitle">Screened "{{ screening.screened_name }}"{% if screening.vendor %} · vendor {{ screening.vendor.legal_name }}{% endif %} · {{ screening.screened_at|date:"Y-m-d H:i" }}</p>
+  </div>
+  <a href="{% url 'compliance:screening_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><i class="ri-error-warning-line"></i> Matches ({{ screening.match_count }})</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Matched name</th><th>List</th><th class="text-end">Score</th><th>Field</th><th>Disposition</th>{% if can_manage %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for m in matches %}
+            <tr>
+              <td class="fw-semibold">{{ m.matched_name }}</td>
+              <td>{{ m.list_name }}</td>
+              <td class="text-end">{{ m.score }}%</td>
+              <td>{{ m.matched_field }}</td>
+              <td>
+                {% if m.decision == 'confirmed' %}<span class="badge badge-soft-danger">Confirmed</span>
+                {% elif m.decision == 'false_positive' %}<span class="badge badge-soft-success">False positive</span>
+                {% else %}<span class="badge badge-soft-secondary">Pending</span>{% endif %}
+              </td>
+              {% if can_manage %}
+              <td class="text-end">
+                <form method="post" action="{% url 'compliance:screening_disposition' screening.pk m.pk %}" class="d-inline-flex gap-1">
+                  {% csrf_token %}
+                  <select name="decision" class="form-select form-select-sm" style="width:auto">
+                    <option value="pending" {% if m.decision == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="false_positive" {% if m.decision == 'false_positive' %}selected{% endif %}>False positive</option>
+                    <option value="confirmed" {% if m.decision == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  </select>
+                  <button class="btn btn-sm btn-outline-primary" title="Save"><i class="ri-check-line"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-success py-4"><i class="ri-shield-check-line"></i> Clear — no restricted-party matches.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="ri-information-line"></i> Details</div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Provider</dt><dd class="col-7">{{ screening.provider }}</dd>
+          <dt class="col-5">Lists checked</dt><dd class="col-7">{{ screening.lists_checked|join:", "|default:"—" }}</dd>
+          <dt class="col-5">Screened by</dt><dd class="col-7">{{ screening.screened_by.get_full_name|default:screening.screened_by.username|default:"—" }}</dd>
+        </dl>
+        {% if screening.notes %}<hr><p class="mb-0">{{ screening.notes }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
