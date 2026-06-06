@@ -43,6 +43,17 @@ RISK_LEVEL_CHOICES = [
     ('critical', 'Critical'),
 ]
 
+# Module 17 performance rating bands. Duplicated here (rather than imported from
+# apps.supplier_performance) so vendors carries no dependency on a downstream module — the value is
+# written onto the Vendor row by supplier_performance.services.generate_scorecard.
+PERFORMANCE_BAND_CHOICES = [
+    ('excellent', 'Excellent'),
+    ('good', 'Good'),
+    ('acceptable', 'Acceptable'),
+    ('poor', 'Poor'),
+    ('critical', 'Critical'),
+]
+
 DOC_TYPE_CHOICES = [
     ('registration', 'Business Registration'),
     ('tax', 'Tax Certificate'),
@@ -180,6 +191,17 @@ class Vendor(TenantAwareModel, TimeStampedModel):
         max_digits=5, decimal_places=2, default=Decimal('0.00'),
     )
 
+    # Module 17: denormalised latest performance score, kept current from the most recent FINAL
+    # Scorecard by supplier_performance.services.generate_scorecard (same precedent as risk_*).
+    performance_score = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text='Denormalised from the latest current Scorecard (0-100).',
+    )
+    performance_band = models.CharField(
+        max_length=12, choices=PERFORMANCE_BAND_CHOICES, default='acceptable',
+    )
+    performance_scored_at = models.DateTimeField(null=True, blank=True)
+
     portal_user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='vendor_account',
@@ -194,6 +216,7 @@ class Vendor(TenantAwareModel, TimeStampedModel):
         indexes = [
             models.Index(fields=['tenant', 'status']),
             models.Index(fields=['tenant', 'risk_level']),
+            models.Index(fields=['tenant', 'performance_band']),
         ]
 
     def __str__(self):
