@@ -1,3 +1,115 @@
+# Module 20 — Document & Knowledge Management (`apps/dms/`)
+
+**Created:** 2026-06-06
+
+> PMS.md `### 19` = real **Module 20** (offset rule). Built NEXT, skipping Module 19
+> (Inventory & Warehouse), which stays a "Planned" roadmap gap.
+> App label **`dms`** · URL **`/dms/`** · namespace **`dms:`** · templates **`templates/dms/`** ·
+> sidebar group **`#sbDocuments`**. Mirrors the Module 18 `compliance` exemplar 1:1.
+
+## Decisions (locked with user 2026-06-06)
+- [x] Ship as **Module 20 — Document & Knowledge Management** (gap at 19).
+- [x] App label / URL / templates = **`dms`**.
+- [x] Full-text search = **real text extraction + index** via pluggable connector (mock default).
+
+## Sub-module → implementation
+| PMS sub-module | Implementation |
+|---|---|
+| Central Document Repository | `Document` (`DOC-<SLUG>-NNNNN`, category, `confidentiality`, owner) + `DocumentVersion` (file) |
+| Version Control | `DocumentVersion.version_no` + publish→supersede; `Document.current_version` (only latest published downloadable) + append-only `DocumentEvent` timeline |
+| Procurement Policy Library | `/dms/policies/` — Documents filtered `category='policy'`; cross-link `compliance.Policy` (owns acknowledgment — NOT duplicated) |
+| Best Practices & Templates | `PolicyTemplate` (`TPL-<SLUG>-NNNNN`, authored `body`, clone-to-document) at `/dms/templates/` |
+| Full-Text Search & Indexing | `DocumentVersion.extracted_text` filled by `apps/dms/extraction.py` connector; `/dms/search/` (icontains baseline; MySQL FULLTEXT documented upgrade) |
+
+## Models (`apps/dms/models.py`) — 4
+- [ ] `Document` — document_number, title, category(choice), status(draft/published/archived), confidentiality(public/internal/restricted), owner FK, summary, current_version FK(SET_NULL). unique_together (tenant, document_number).
+- [ ] `DocumentVersion` — document FK, version_no, file(FileField+validators), extracted_text, index_status, page_count, extraction_engine, extracted_at, change_note, status(draft/published/superseded), uploaded_by FK. unique_together (document, version_no); ordering -version_no.
+- [ ] `PolicyTemplate` — template_number(TPL-), title, category, body, status, owner FK.
+- [ ] `DocumentEvent` — append-only: document FK, version FK(nullable), event, from/to status, note, actor FK. ordering [created_at].
+
+## Backend files to CREATE (`apps/dms/`)
+- [ ] `__init__.py`, `apps.py` (`DmsConfig(name='apps.dms')`)
+- [ ] `validators.py` — `DOCUMENT_UPLOAD_EXTENSIONS` (pdf/doc/docx/txt/md/rtf) + `validate_upload_size` (env `DMS_UPLOAD_MAX_MB`, default 10MB). Mirrors `catalog/validators.py`.
+- [ ] `models.py` (4 models) → `makemigrations dms` → `0001_initial`
+- [ ] `extraction.py` — `ExtractionResult` dataclass, `TextExtractionProvider` base, `MockTextExtractionProvider` (default, no deps), `LocalPdfExtractionProvider` (real PDF via `pypdf`), `_REGISTRY` + `get_text_extraction_provider()` (unknown→mock fallback), SSRF-guard stub (local/mock safe by construction).
+- [ ] `services.py` — RBAC (`can_manage_documents`/`can_view_documents`), `_next_number`/`next_document_number`/`next_template_number`, `index_version`, `extract_pending`, `publish_version` (supersede prior + set current), `search_documents`, `clone_template_to_document`, `tenant_document_metrics`. `record_audit` + `create_notification` on writes; `@transaction.atomic`.
+- [ ] `forms.py` — `DocumentForm`, `DocumentVersionForm` (upload), `PolicyTemplateForm` (tenant= kwarg, `.none()` FK, no crispy).
+- [ ] `views.py` — function-based, `@login_required`, `_require_view`/`_require_manage`. dashboard, document CRUD + status, version create(upload)/reindex/publish/download, policy_library, search, template CRUD + clone, document_export(CSV).
+- [ ] `urls.py` — `app_name='dms'`.
+- [ ] `admin.py`
+- [ ] `management/__init__.py`, `management/commands/__init__.py`
+- [ ] `management/commands/seed_documents.py` — idempotent, `--flush`, per-tenant; bundled `.txt`/`.md` policy/SOP fixtures so mock extractor indexes real searchable text; a `PolicyTemplate`; login banner.
+- [ ] `management/commands/reindex_documents.py` — cron; re-extracts `index_status='pending'`; `--tenant`.
+- [ ] `tests/` — `__init__`, `conftest`, `test_models`, `test_services`, `test_views`, `test_security`, `test_extraction`. ~50 tests; full suite stays green.
+
+## Frontend files to CREATE (`templates/dms/`)
+- [ ] `dashboard.html`, `document_list.html`, `document_form.html`, `document_detail.html`, `version_form.html` (multipart), `policy_library.html`, `search_results.html`, `policy_template_list.html`, `policy_template_form.html`, `policy_template_detail.html`.
+
+## Cross-cutting edits
+- [ ] `config/settings.py` — `'apps.dms',` after `'apps.compliance',`; Module 20 env block (`DMS_EXTRACTION_ENGINE`, `DMS_EXTRACTION_ALLOWLIST`, `DMS_MAX_INDEX_CHARS`, `DMS_UPLOAD_MAX_MB`).
+- [ ] `config/urls.py` — `path('dms/', include('apps.dms.urls'))`.
+- [ ] `templates/partials/sidebar.html` — `#sbDocuments` group (icon `ri-folder-3-line`, after Compliance).
+- [ ] `apps/core/management/commands/seed_data.py` — chain `('seed_documents', ...)` LAST.
+- [ ] `requirements.txt` — add `pypdf`.
+- [ ] `.env.example` — 4 new env vars.
+- [ ] `README.md` — Project Structure, Roadmap (20 → Shipped), Routes/UI, Management Commands, Env Vars, Seeded Data, dedicated Module 20 section, ToC.
+
+## Verification (before "done")
+- [ ] `makemigrations dms` + `migrate` clean; `manage.py check` clean.
+- [ ] `seed_documents` (and via `seed_data`) idempotent across tenants.
+- [ ] `pytest apps/dms` green; full suite still green.
+- [ ] Smoke every `/dms/` route (200) as `admin_acme`; upload→index→search round-trip; cross-tenant 404; non-manager bounced.
+
+## Open design notes (resolved)
+- Policy Library vs `compliance.Policy`: distinct (DMS = files+search; compliance = attestation). Cross-link, don't fork. No `Policy` model-name reuse (use `PolicyTemplate`).
+- MySQL full-text: ship `icontains` (SQLite-test-safe); leave `# TODO(MySQL FULLTEXT)` + `connection.vendor` branch + guarded `RunSQL` migration documented for scale-up.
+- Extraction default `mock` (dependency-free, CI-safe); `local` (pypdf) enables real PDF parsing via `DMS_EXTRACTION_ENGINE=local`. Seed uses text fixtures so search works under mock out of the box.
+
+## Review
+
+**Status: complete & verified (2026-06-07).**
+
+- New app `apps/dms/` — 4 models (`Document` + `current_version` pointer, `DocumentVersion` with the
+  `file` + `extracted_text` index, `PolicyTemplate`, append-only `DocumentEvent`), a pluggable
+  `extraction.py` connector (`ExtractionResult` + `MockTextExtractionProvider` [default, no deps] +
+  `LocalPdfTextExtractionProvider` [pypdf] + registry/`get_text_extraction_provider` fallback +
+  fail-closed `validate_extraction_url` SSRF guard), full service layer (`can_manage/view_documents`,
+  `next_document/template_number`, `create_document`, `index_version`, `create_document_version`,
+  `publish_version` [supersede + re-point current], `set_document_status`, `extract_pending`,
+  `search_documents`, `clone_template_to_document`, `tenant_document_metrics`, `document_export_rows`),
+  views + forms + admin + urls, `seed_documents` + `reindex_documents` commands, 10 templates.
+- **Sub-modules:** Central Repository (Document+Version+confidentiality), Version Control
+  (publish→supersede + `current_version` + append-only timeline), Policy Library (`/dms/policies/`
+  cross-linked to `compliance.Policy`, NOT duplicated), Best Practices & Templates (`PolicyTemplate`
+  + clone-to-document), Full-Text Search (`/dms/search/` over extracted text).
+- **Decisions honoured:** app label `dms`; README/sidebar numbering Module 20 (gap at 19 for
+  Inventory); real text extraction via pluggable connector (mock default, `local` pypdf engine).
+- **Security:** every read view + CSV export gated on `can_view_documents`, mutations on
+  `can_manage_documents` (requester bounced — D-01); tenant-scoped (cross-tenant detail/download 404);
+  upload extension+size validated; SSRF guard for a future remote engine; portable `icontains` search
+  (SQLite-test-safe) with documented MySQL FULLTEXT upgrade.
+
+**Verification performed:**
+- `makemigrations dms` → `0001_initial`; `migrate` clean on MySQL; `manage.py check` — 0 issues.
+- `seed_documents` — 5 documents + 2 templates per tenant across all 5 tenants; create→index→publish
+  driven through the real services; mock extractor indexes the text fixtures so search works.
+- **pytest: 45 dms tests pass; full suite 1378 pass (0 failures)** — shared-file edits broke nothing.
+- Live smoke as `admin_acme`: all 10 `/dms/` routes return 200 (dashboard, list, filtered list,
+  policy library, search, templates, document detail, template detail, CSV export, file download).
+
+**Parallel-committer note (the [[navpms-module-build-cadence]] gotcha, again):** Module 19 (Inventory)
+was being built/committed by ANOTHER session during this build. That actor committed the shared wiring
+files (`config/settings.py`, `config/urls.py`, `templates/partials/sidebar.html`,
+`apps/core/.../seed_data.py`, `.env.example`) WITH my uncommitted DMS lines already on disk — so my
+`apps.dms` wiring landed inside Inventory-labelled commits and those files show clean in `git status`.
+The per-file commit snippets below therefore cover only the net-new `apps/dms/` + `templates/dms/`
+files plus `README.md` / `requirements.txt` / this todo.
+
+**Files:** 23 new `apps/dms/` files + 10 new templates + 3 modified (README, requirements, todo) =
+36 commits; 5 shared wiring files already committed by the parallel session.
+
+---
+
 # Module 16 — Budget & Cost Management (`apps/budget/`)
 
 **Created:** 2026-06-06
