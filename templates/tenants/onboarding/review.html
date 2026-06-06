@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Review &amp; confirm{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Review &amp; confirm</h1>
+    <div class="breadcrumb-trail">Final step &middot; Confirm to provision your workspace</div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Company</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4 text-muted">Name</dt><dd class="col-sm-8">{{ company.name }}</dd>
+          {% if company.email %}<dt class="col-sm-4 text-muted">Email</dt><dd class="col-sm-8">{{ company.email }}</dd>{% endif %}
+          {% if company.industry %}<dt class="col-sm-4 text-muted">Industry</dt><dd class="col-sm-8">{{ company.industry }}</dd>{% endif %}
+          <dt class="col-sm-4 text-muted">Timezone</dt><dd class="col-sm-8">{{ company.timezone|default:'UTC' }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Plan</div>
+      <div class="card-body">
+        {% if plan %}
+          <dl class="row mb-0">
+            <dt class="col-sm-4 text-muted">Plan</dt><dd class="col-sm-8">{{ plan.name }}</dd>
+            <dt class="col-sm-4 text-muted">Billing cycle</dt><dd class="col-sm-8 text-capitalize">{{ billing_cycle }}</dd>
+            <dt class="col-sm-4 text-muted">Price</dt>
+            <dd class="col-sm-8">
+              {% if billing_cycle == 'yearly' %}${{ plan.price_yearly|floatformat:2 }} / yr{% else %}${{ plan.price_monthly|floatformat:2 }} / mo{% endif %}
+            </dd>
+            {% if plan.trial_days %}<dt class="col-sm-4 text-muted">Trial</dt><dd class="col-sm-8">{{ plan.trial_days }} days free</dd>{% endif %}
+          </dl>
+        {% else %}
+          <p class="text-muted mb-0">The selected plan is no longer available — please go back and choose again.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'tenants:onboarding_complete' %}" class="d-flex justify-content-between">
+      {% csrf_token %}
+      <a href="{% url 'tenants:onboarding_plan' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+      <button type="submit" class="btn btn-primary"{% if not plan %} disabled{% endif %}>Create my workspace <i class="ri-rocket-line ms-1"></i></button>
+    </form>
+  </div>
+</div>
+{% endblock %}
