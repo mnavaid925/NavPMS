@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ budget.budget_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ budget.budget_number }} {% include 'budget/_status_badge.html' with status=budget.status %}</h1>
+    <p class="page-subtitle">{{ budget.name }} · {{ budget.period.name }} ({{ budget.period.start_date }} → {{ budget.period.end_date }})</p>
+  </div>
+  <a href="{% url 'budget:budget_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+{% with t=consumption.totals %}
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Allocated</div><div class="stat-value">${{ t.allocated|floatformat:0|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Actual</div><div class="stat-value">${{ t.actual|floatformat:0|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Committed</div><div class="stat-value">${{ t.committed|floatformat:0|intcomma }}</div></div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Available</div><div class="stat-value {% if t.available < 0 %}text-danger{% else %}text-success{% endif %}">${{ t.available|floatformat:0|intcomma }}</div>
+    <div class="text-muted small">{{ t.utilization_pct }}% used · {{ t.over_count }} over</div></div></div></div>
+</div>
+{% endwith %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="ri-list-check-2"></i> Allocations</span>
+        {% if can_manage and budget.is_editable %}
+        <a href="{% url 'budget:allocation_create' budget.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add allocation</a>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr>
+            <th>Cost center</th><th class="text-end">Allocated</th><th class="text-end">Actual</th>
+            <th class="text-end">Committed</th><th class="text-end">Reserved</th><th class="text-end">Available</th>
+            <th>Used</th>{% if can_manage and budget.is_editable %}<th class="text-end">Actions</th>{% endif %}
+          </tr></thead>
+          <tbody>
+            {% for r in consumption.rows %}
+            {% with a=r.allocation %}
+            <tr>
+              <td><span class="fw-semibold">{{ a.account_code.code }}</span>
+                <div class="text-muted small">{{ a.account_code.name }}{% if a.vendor_category %} · {{ a.vendor_category.name }}{% endif %}</div></td>
+              <td class="text-end">${{ r.allocated|floatformat:2|intcomma }}</td>
+              <td class="text-end">${{ r.actual|floatformat:2|intcomma }}</td>
+              <td class="text-end">${{ r.committed|floatformat:2|intcomma }}</td>
+              <td class="text-end">${{ r.reserved|floatformat:2|intcomma }}</td>
+              <td class="text-end {% if r.over_budget %}text-danger fw-semibold{% endif %}">${{ r.available|floatformat:2|intcomma }}</td>
+              <td style="min-width:120px">
+                <div class="progress" style="height:8px">
+                  <div class="progress-bar {% if r.over_budget %}bg-danger{% elif r.utilization_pct >= 90 %}bg-warning{% else %}bg-success{% endif %}"
+                       role="progressbar" style="width: {% if r.utilization_pct > 100 %}100{% else %}{{ r.utilization_pct }}{% endif %}%"></div>
+                </div>
+                <span class="small text-muted">{{ r.utilization_pct }}%</span>
+              </td>
+              {% if can_manage and budget.is_editable %}
+              <td class="text-end">
+                <a href="{% url 'budget:allocation_edit' budget.pk a.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+                <form method="post" action="{% url 'budget:allocation_delete' budget.pk a.pk %}" class="d-inline" onsubmit="return confirm('Remove this allocation?');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endwith %}
+            {% empty %}
+            <tr><td colspan="8" class="text-center text-muted py-4">No allocations yet.{% if can_manage and budget.is_editable %} <a href="{% url 'budget:allocation_create' budget.pk %}">Add one</a>.{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><i class="ri-history-line"></i> Timeline</div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          {% for ev in status_events %}
+          <li class="mb-2"><span class="badge badge-soft-secondary">{{ ev.to_status }}</span>
+            <span class="text-muted small">{{ ev.created_at|naturaltime }} · {{ ev.actor.username|default:"system" }}</span>
+            {% if ev.note %}<div class="small">{{ ev.note }}</div>{% endif %}</li>
+          {% empty %}<li class="text-muted">No events.</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-grid gap-2">
+        <a href="{% url 'budget:budget_forecast' budget.pk %}" class="btn btn-outline-primary"><i class="ri-line-chart-line"></i> Forecast</a>
+        <div class="btn-group">
+          <a href="{% url 'budget:export_budget' budget.pk 'csv' %}" class="btn btn-outline-secondary"><i class="ri-file-text-line"></i> CSV</a>
+          <a href="{% url 'budget:export_budget' budget.pk 'xlsx' %}" class="btn btn-outline-secondary"><i class="ri-file-excel-2-line"></i> Excel</a>
+        </div>
+        {% if can_manage %}
+        {% if budget.is_editable %}
+        <a href="{% url 'budget:budget_edit' budget.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit budget</a>
+        <form method="post" action="{% url 'budget:budget_activate' budget.pk %}">
+          {% csrf_token %}
+          <button class="btn btn-success w-100"><i class="ri-play-circle-line"></i> Activate</button>
+        </form>
+        <form method="post" action="{% url 'budget:budget_delete' budget.pk %}" onsubmit="return confirm('Delete {{ budget.budget_number }}?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        {% elif budget.is_active %}
+        <form method="post" action="{% url 'budget:budget_close' budget.pk %}" onsubmit="return confirm('Close {{ budget.budget_number }}?');">
+          {% csrf_token %}
+          <button class="btn btn-outline-dark w-100"><i class="ri-lock-line"></i> Close budget</button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header">Details</div>
+      <div class="card-body small">
+        <p class="mb-1"><span class="text-muted">Owner:</span> {{ budget.owner.get_full_name|default:budget.owner.username|default:"—" }}</p>
+        <p class="mb-1"><span class="text-muted">Currency:</span> {{ budget.currency }}</p>
+        <p class="mb-1"><span class="text-muted">Created by:</span> {{ budget.created_by.username|default:"—" }}</p>
+        {% if budget.description %}<p class="mb-0 mt-2">{{ budget.description|linebreaksbr }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
