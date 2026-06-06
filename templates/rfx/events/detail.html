@@ -412,9 +412,9 @@
           </a>
           {% endif %}
         </div>
-        {# Sealed gate: the scored table (rank/score/decision) is sealed competitive
+        {% comment %}Sealed gate: the scored table (rank/score/decision) is sealed competitive
            content — render it only when can_view_responses is true (post-close AND
-           manage/evaluate role). Everyone else gets a notice + benign counts (D-01). #}
+           manage/evaluate role). Everyone else gets a notice + benign counts (D-01).{% endcomment %}
         {% if can_view_responses %}
           <div class="table-responsive">
           <table class="table table-sm mb-0">
