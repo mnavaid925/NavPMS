@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Budget{% else %}New Budget{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ budget.budget_number }}{% else %}New Budget{% endif %}</h1>
+  <p class="page-subtitle">Allocations are added after the budget is created</p>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      <div class="col-md-8">
+        <label class="form-label">Name</label>
+        {{ form.name }}
+        {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Period</label>
+        {{ form.period }}
+        {% for e in form.period.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Currency</label>
+        {{ form.currency }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.owner.label }}</label>
+        {{ form.owner }}
+      </div>
+      <div class="col-12">
+        <label class="form-label">Description</label>
+        {{ form.description }}
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% if budget %}{% url 'budget:budget_detail' budget.pk %}{% else %}{% url 'budget:budget_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
