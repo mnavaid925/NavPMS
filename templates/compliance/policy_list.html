@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Policies{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Procurement Policies</h1>
+    <p class="page-subtitle">The policy repository and acknowledgment tracking</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'compliance:my_policies' %}" class="btn btn-outline-secondary"><i class="ri-user-follow-line"></i> My Policies</a>
+    {% if can_manage %}
+    <a href="{% url 'compliance:policy_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Policy</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Policy # or title">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select">
+          <option value="">All</option>
+          {% for value, label in category_choices %}
+          <option value="{{ value }}" {% if category == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th>Policy</th><th>Category</th><th>Owner</th><th>Status</th><th>Ack required</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for p in policies %}
+        <tr>
+          <td><a href="{% url 'compliance:policy_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.policy_number }}</a><div class="text-muted small">{{ p.title }}</div></td>
+          <td>{{ p.get_category_display }}</td>
+          <td>{{ p.owner.get_full_name|default:p.owner.username|default:"—" }}</td>
+          <td><span class="badge badge-soft-{{ p.status_color }}">{{ p.get_status_display }}</span></td>
+          <td>{% if p.requires_acknowledgment %}<span class="badge badge-soft-info">Yes</span>{% else %}<span class="badge badge-soft-secondary">No</span>{% endif %}</td>
+          {% if can_manage %}
+          <td class="text-end">
+            <a href="{% url 'compliance:policy_detail' p.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            {% if p.is_editable %}
+            <a href="{% url 'compliance:policy_edit' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <form method="post" action="{% url 'compliance:policy_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ p.policy_number }}?');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No policies yet.{% if can_manage %} <a href="{% url 'compliance:policy_create' %}">Create one</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-3"><ul class="pagination justify-content-center">
+  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}
