@@ -241,6 +241,23 @@
         </div>
       </li>
       <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbSupplierPerformance" role="button" aria-expanded="false">
+          <i class="ri-award-line"></i> <span class="flex-grow-1">Supplier Performance</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbSupplierPerformance">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:scorecard_list' %}">Scorecards</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:kpi_list' %}">KPI Definitions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:feedback_list' %}">360° Feedback</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:pip_list' %}">Improvement Plans</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:trending' %}">Trending</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:benchmarking' %}">Benchmarking</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
           <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
           <i class="ri-arrow-down-s-line"></i>
