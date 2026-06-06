@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Documents & Knowledge{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Documents &amp; Knowledge</h1>
+    <p class="page-subtitle">Central repository, version control, policy library &amp; full-text search</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'dms:search' %}" class="btn btn-outline-secondary"><i class="ri-search-line"></i> Search</a>
+    {% if can_manage %}
+    <a href="{% url 'dms:document_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Document</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Documents</div>
+    <div class="stat-value">{{ metrics.total_documents }}</div>
+    <a href="{% url 'dms:document_list' %}" class="small text-decoration-none">Browse all</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Published</div>
+    <div class="stat-value text-success">{{ metrics.published_count }}</div>
+    <div class="text-muted small">{{ metrics.draft_count }} draft(s)</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Policy library</div>
+    <div class="stat-value">{{ metrics.policy_count }}</div>
+    <a href="{% url 'dms:policy_library' %}" class="small text-decoration-none">Open library</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Search index coverage</div>
+    <div class="stat-value {% if metrics.pending_index_count %}text-warning{% endif %}">{{ metrics.index_pct }}%</div>
+    <div class="text-muted small">{{ metrics.pending_index_count }} version(s) pending</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-folders-line"></i> Documents by category</div>
+      <div class="card-body">
+        {% if metrics.total_documents %}<canvas id="catChart" height="160"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No documents yet.{% if can_manage %} <a href="{% url 'dms:document_create' %}">Add one</a>.{% endif %}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-pie-chart-line"></i> By status</div>
+      <div class="card-body">
+        {% if metrics.total_documents %}<canvas id="statusChart" height="160"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No documents yet.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between">
+    <span><i class="ri-time-line"></i> Recently added</span>
+    <a href="{% url 'dms:policy_template_list' %}" class="small text-decoration-none">{{ metrics.template_count }} best-practice template(s)</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Document</th><th>Category</th><th>Owner</th><th>Status</th><th>Added</th></tr></thead>
+      <tbody>
+        {% for d in metrics.recent_documents %}
+        <tr>
+          <td><a href="{% url 'dms:document_detail' d.pk %}" class="fw-semibold text-decoration-none">{{ d.document_number }}</a><div class="text-muted small">{{ d.title|truncatechars:60 }}</div></td>
+          <td>{{ d.get_category_display }}</td>
+          <td>{{ d.owner.get_full_name|default:d.owner.username|default:"—" }}</td>
+          <td><span class="badge badge-soft-{{ d.status_color }}">{{ d.get_status_display }}</span></td>
+          <td class="small text-muted">{{ d.created_at|date:"Y-m-d" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No documents yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.cat_labels|json_script:"catLabels" }}
+{{ metrics.cat_data|json_script:"catData" }}
+{{ metrics.status_labels|json_script:"statusLabels" }}
+{{ metrics.status_data|json_script:"statusData" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    var cat = document.getElementById('catChart');
+    if (cat) new Chart(cat, {
+      type: 'bar',
+      data: { labels: read('catLabels'),
+        datasets: [{ label: 'Documents', data: read('catData'), backgroundColor: '#3b82f6' }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+    var st = document.getElementById('statusChart');
+    if (st) new Chart(st, {
+      type: 'doughnut',
+      data: { labels: read('statusLabels'),
+        datasets: [{ data: read('statusData'), backgroundColor: ['#9ca3af', '#22c55e', '#374151'] }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  })();
+</script>
+{% endblock %}
