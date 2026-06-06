@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'apps.invoicing',
     'apps.spend_analytics',
     'apps.budget',
+    'apps.supplier_performance',
 ]
 
 MIDDLEWARE = [
