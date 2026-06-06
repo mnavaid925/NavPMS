@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ item.sku|default:item.catalog_item.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ item.catalog_item.name }}
+      <span class="badge badge-soft-{{ item.stock_status_color }}">{{ item.stock_status|capfirst }}</span>
+    </h1>
+    <p class="page-subtitle">{{ item.sku|default:item.catalog_item.item_number }} · on hand {{ item.quantity_on_hand }} {{ item.catalog_item.uom }}</p>
+  </div>
+  <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-map-pin-line"></i> Stock by location</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Warehouse</th><th>Bin</th><th>Lot</th><th>Expiry</th><th>Condition</th><th class="text-end">Qty</th><th class="text-end">Available</th></tr></thead>
+          <tbody>
+            {% for lvl in levels %}
+            <tr>
+              <td>{{ lvl.warehouse.code }}</td>
+              <td>{{ lvl.location.code|default:"—" }}</td>
+              <td>{{ lvl.lot_number|default:"—" }}</td>
+              <td class="small">{{ lvl.expiry_date|date:"Y-m-d"|default:"—" }}</td>
+              <td><span class="badge badge-soft-secondary">{{ lvl.get_condition_display }}</span></td>
+              <td class="text-end">{{ lvl.quantity }}</td>
+              <td class="text-end">{{ lvl.available }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No stock on hand.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent movements</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Ref</th><th>Type</th><th class="text-end">Qty</th><th class="text-end">Balance</th><th>Reason</th><th>When</th></tr></thead>
+          <tbody>
+            {% for m in movements %}
+            <tr>
+              <td><a href="{% url 'inventory:movement_detail' m.pk %}" class="text-decoration-none">{{ m.number }}</a></td>
+              <td><span class="badge badge-soft-{{ m.type_color }}">{{ m.get_movement_type_display }}</span></td>
+              <td class="text-end {% if m.is_inbound %}text-success{% else %}text-danger{% endif %}">{{ m.quantity }}</td>
+              <td class="text-end">{{ m.balance_after }}</td>
+              <td class="small">{{ m.reason|default:"—" }}</td>
+              <td class="small text-muted">{{ m.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No movements yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-edit-line"></i> Actions</div>
+      <div class="card-body d-grid gap-2">
+        <a href="{% url 'inventory:stock_item_edit' item.pk %}" class="btn btn-outline-secondary w-100"><i class="ri-pencil-line"></i> Edit settings</a>
+        <form method="post" action="{% url 'inventory:stock_item_delete' item.pk %}" onsubmit="return confirm('Delete this stock item?');">
+          {% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-scales-3-line"></i> Adjust stock</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'inventory:stock_item_adjust' item.pk %}">
+          {% csrf_token %}{{ adjust_form|crispy }}
+          <button class="btn btn-primary w-100 mt-2"><i class="ri-save-line"></i> Apply adjustment</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-6">Available</dt><dd class="col-6">{{ item.available_quantity }}</dd>
+          <dt class="col-6">Reserved</dt><dd class="col-6">{{ item.quantity_reserved }}</dd>
+          <dt class="col-6">Reorder point</dt><dd class="col-6">{{ item.reorder_point }}</dd>
+          <dt class="col-6">Reorder qty</dt><dd class="col-6">{{ item.reorder_quantity }}</dd>
+          <dt class="col-6">Safety stock</dt><dd class="col-6">{{ item.safety_stock }}</dd>
+          <dt class="col-6">Lead time</dt><dd class="col-6">{{ item.lead_time_days }} day(s)</dd>
+          <dt class="col-6">Avg cost</dt><dd class="col-6">{{ item.moving_avg_cost }}</dd>
+          <dt class="col-6">On-hand value</dt><dd class="col-6">{{ item.on_hand_value }}</dd>
+          <dt class="col-6">ABC class</dt><dd class="col-6">{{ item.abc_class|default:"—" }}</dd>
+          <dt class="col-6">Stocked</dt><dd class="col-6">{{ item.is_stocked|yesno:"Yes,No" }}</dd>
+        </dl>
+        {% if item.reorder_requisition %}<hr><p class="mb-0">Reorder requisition: <strong>{{ item.reorder_requisition.number }}</strong> ({{ item.reorder_requisition.get_status_display }})</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
