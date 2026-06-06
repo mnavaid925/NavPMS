@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Generate Scorecard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Generate a scorecard</h1>
+  <p class="page-subtitle">Pick a vendor and an evaluation period. The engine reads goods receipts, RFx/PO responses, invoices and feedback over that window and freezes the result.</p>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-body">
+      {{ form|crispy }}
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{% url 'supplier_performance:scorecard_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="ri-flashlight-line"></i> Generate</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
