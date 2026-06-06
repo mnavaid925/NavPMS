@@ -234,6 +234,12 @@ class AuditLog(TenantAwareModel, TimeStampedModel):
     payload = models.JSONField(default=dict, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=255, blank=True)
+    # Tamper-evident hash chain (Module 18, sub-module 3). Each row's row_hash is sha256 of the
+    # previous row's row_hash + this row's canonical content, so editing/deleting any historic row
+    # breaks the chain from that point on. Set by services.record_audit; verified by
+    # services.verify_audit_chain. Blank on pre-chain rows until backfilled.
+    prev_hash = models.CharField(max_length=64, blank=True)
+    row_hash = models.CharField(max_length=64, blank=True)
 
     class Meta:
         ordering = ['-created_at']
