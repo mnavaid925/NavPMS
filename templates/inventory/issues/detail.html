@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ gi.number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ gi.number }}
+      <span class="badge badge-soft-{{ gi.status_color }}">{{ gi.get_status_display }}</span>
+    </h1>
+    <p class="page-subtitle">{{ gi.get_issue_type_display }} · {{ gi.warehouse.code }}{% if gi.purpose %} · {{ gi.purpose }}{% endif %}</p>
+  </div>
+  <a href="{% url 'inventory:goods_issue_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-list-check"></i> Lines</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Item</th><th>Location</th><th>Lot</th><th class="text-end">Qty</th><th class="text-end">Value</th>{% if gi.is_editable and can_manage %}<th></th>{% endif %}</tr></thead>
+          <tbody>
+            {% for ln in lines %}
+            <tr>
+              <td>{{ ln.stock_item.catalog_item.name }} <span class="text-muted small">{{ ln.stock_item.sku }}</span></td>
+              <td>{{ ln.location.code|default:"—" }}</td>
+              <td>{{ ln.lot_number|default:"—" }}</td>
+              <td class="text-end">{{ ln.quantity }}</td>
+              <td class="text-end">{{ ln.line_value }}</td>
+              {% if gi.is_editable and can_manage %}
+              <td class="text-end">
+                <form method="post" action="{% url 'inventory:goods_issue_line_delete' gi.pk ln.pk %}" class="d-inline" onsubmit="return confirm('Remove this line?');">
+                  {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No lines yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if gi.is_editable and can_manage %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-add-line"></i> Add line</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'inventory:goods_issue_line_add' gi.pk %}">
+          {% csrf_token %}{{ line_form|crispy }}
+          <button class="btn btn-primary mt-2"><i class="ri-add-line"></i> Add line</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header"><i class="ri-time-line"></i> Timeline</div>
+      <ul class="list-group list-group-flush">
+        {% for ev in events %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span><span class="badge badge-soft-secondary">{{ ev.from_status|default:"—" }} → {{ ev.to_status }}</span>
+            {% if ev.note %}<span class="ms-2">{{ ev.note }}</span>{% endif %}</span>
+          <span class="small text-muted">{{ ev.actor.username|default:"system" }} · {{ ev.created_at|date:"Y-m-d H:i" }}</span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">No events.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% if can_manage %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="ri-edit-line"></i> Actions</div>
+      <div class="card-body d-grid gap-2">
+        {% if gi.is_editable %}
+        <a href="{% url 'inventory:goods_issue_edit' gi.pk %}" class="btn btn-outline-secondary w-100"><i class="ri-pencil-line"></i> Edit header</a>
+        {% endif %}
+        {% if gi.can_post %}
+        <form method="post" action="{% url 'inventory:goods_issue_post' gi.pk %}" onsubmit="return confirm('Post this goods issue to the stock ledger?');">
+          {% csrf_token %}<button class="btn btn-primary w-100"><i class="ri-check-double-line"></i> Post</button>
+        </form>
+        {% endif %}
+        {% if gi.can_cancel %}
+        <form method="post" action="{% url 'inventory:goods_issue_cancel' gi.pk %}" onsubmit="return confirm('Cancel this goods issue?');">
+          {% csrf_token %}<button class="btn btn-outline-warning w-100"><i class="ri-close-circle-line"></i> Cancel</button>
+        </form>
+        <form method="post" action="{% url 'inventory:goods_issue_delete' gi.pk %}" onsubmit="return confirm('Delete this draft?');">
+          {% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-5">Type</dt><dd class="col-7">{{ gi.get_issue_type_display }}</dd>
+          <dt class="col-5">Department</dt><dd class="col-7">{{ gi.department|default:"—" }}</dd>
+          <dt class="col-5">Cost centre</dt><dd class="col-7">{{ gi.cost_center|default:"—" }}</dd>
+          <dt class="col-5">Total qty</dt><dd class="col-7">{{ gi.total_quantity }}</dd>
+          <dt class="col-5">Issued by</dt><dd class="col-7">{{ gi.issued_by.username|default:"—" }}</dd>
+          <dt class="col-5">Issued at</dt><dd class="col-7">{{ gi.issued_at|date:"Y-m-d H:i"|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
