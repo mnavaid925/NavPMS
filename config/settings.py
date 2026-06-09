@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'apps.compliance',
     'apps.inventory',
     'apps.dms',
+    'apps.sysadmin',
 ]
 
 MIDDLEWARE = [
@@ -204,6 +205,22 @@ DMS_EXTRACTION_ENGINE = config('DMS_EXTRACTION_ENGINE', default='mock')
 DMS_EXTRACTION_ALLOWLIST = config('DMS_EXTRACTION_ALLOWLIST', default='')
 DMS_MAX_INDEX_CHARS = config('DMS_MAX_INDEX_CHARS', default='200000', cast=int)
 DMS_UPLOAD_MAX_MB = config('DMS_UPLOAD_MAX_MB', default='10', cast=int)
+
+# Module 21 — System Administration & Security. Each integration is a pluggable connector that is
+# mock by default (works with zero external deps; real backends wire in via the app's connectors.py /
+# backups.py / webhooks.py registries). SSO_METADATA_ALLOWLIST / WEBHOOK_SSRF_ALLOWLIST are
+# comma-separated SSRF allowlists of extra hosts a real (remote) SSO-metadata or webhook target may
+# reach (otherwise HTTPS + public-host only, fail-closed). WEBHOOK_MAX_ATTEMPTS caps webhook retries;
+# WEBHOOK_TIMEOUT_SECONDS bounds each delivery; API_KEY_PREFIX brands issued API keys;
+# BACKUP_RETENTION_DEFAULT_DAYS is the default retention a new backup policy starts with.
+SSO_CONNECTOR = config('SSO_CONNECTOR', default='mock')
+SSO_METADATA_ALLOWLIST = config('SSO_METADATA_ALLOWLIST', default='')
+BACKUP_CONNECTOR = config('BACKUP_CONNECTOR', default='mock')
+BACKUP_RETENTION_DEFAULT_DAYS = config('BACKUP_RETENTION_DEFAULT_DAYS', default='30', cast=int)
+WEBHOOK_SSRF_ALLOWLIST = config('WEBHOOK_SSRF_ALLOWLIST', default='')
+WEBHOOK_MAX_ATTEMPTS = config('WEBHOOK_MAX_ATTEMPTS', default='5', cast=int)
+WEBHOOK_TIMEOUT_SECONDS = config('WEBHOOK_TIMEOUT_SECONDS', default='10', cast=int)
+API_KEY_PREFIX = config('API_KEY_PREFIX', default='pms')
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
