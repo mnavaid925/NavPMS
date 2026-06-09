@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Backup &amp; Recovery{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Data Backup &amp; Recovery</h1>
+    <p class="page-subtitle">Automated backup schedules, run history &amp; disaster-recovery requests</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sysadmin:backup_run_list' %}" class="btn btn-outline-secondary"><i class="ri-history-line"></i> All Runs</a>
+    <a href="{% url 'sysadmin:restore_list' %}" class="btn btn-outline-secondary"><i class="ri-restart-line"></i> Restores</a>
+    <a href="{% url 'sysadmin:backup_policy_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Policy</a>
+  </div>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-9"><label class="form-label">Search</label><input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Policy name"></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+  </form>
+</div></div>
+
+<div class="card mb-3"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Policy</th><th>Frequency</th><th>Scope</th><th>Retention</th><th>Last run</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for p in page_obj %}
+      <tr>
+        <td><a href="{% url 'sysadmin:backup_policy_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.name }}</a><div class="text-muted small">{{ p.storage_target }}{% if p.encryption_enabled %} · encrypted{% endif %}</div></td>
+        <td>{{ p.get_frequency_display }}</td>
+        <td>{{ p.get_scope_display }}</td>
+        <td>{{ p.retention_days }}d</td>
+        <td class="small text-muted">{% if p.last_run_at %}{{ p.last_run_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td><span class="badge badge-soft-{{ p.status_color }}">{% if p.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td class="text-end">
+          <form method="post" action="{% url 'sysadmin:backup_run_now' p.pk %}" class="d-inline">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-primary" title="Run backup now"><i class="ri-play-line"></i></button>
+          </form>
+          <a href="{% url 'sysadmin:backup_policy_edit' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+          <form method="post" action="{% url 'sysadmin:backup_policy_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ p.name }}?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No backup policies yet. <a href="{% url 'sysadmin:backup_policy_create' %}">Create one</a>.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between"><span><i class="ri-time-line"></i> Recent runs</span><a href="{% url 'sysadmin:backup_run_list' %}" class="small text-decoration-none">All runs</a></div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Run</th><th>Policy</th><th>Scope</th><th>Size</th><th>Status</th><th>When</th></tr></thead>
+      <tbody>
+        {% for r in recent_runs %}
+        <tr>
+          <td><a href="{% url 'sysadmin:backup_run_detail' r.pk %}" class="text-decoration-none">{{ r.run_number }}</a></td>
+          <td>{{ r.policy.name|default:"—" }}</td>
+          <td>{{ r.get_scope_display }}</td>
+          <td>{{ r.size_mb }} MB</td>
+          <td><span class="badge badge-soft-{{ r.status_color }}">{{ r.get_status_display }}</span></td>
+          <td class="small text-muted">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No runs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
