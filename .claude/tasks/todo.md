@@ -1,3 +1,77 @@
+# Module 21 — System Administration & Security (`apps/sysadmin/`)
+
+**Created:** 2026-06-08
+**Plan:** `C:\Users\user\.claude\plans\drifting-percolating-curry.md`
+
+> PMS.md `### 20` = real **Module 21** (offset rule). App label **`sysadmin`** · URL **`/sysadmin/`** ·
+> namespace **`sysadmin:`** · templates **`templates/sysadmin/`** · sidebar group **`#sbSysadmin`**.
+> Governance layer (augments tenants.SecuritySettings / accounts.User.role — no rewire of existing
+> apps). All 5 sub-modules, full build. Pluggable mock-default connectors (SSO / Backup / Webhooks).
+
+## Decisions (locked with user 2026-06-08)
+- [x] Permissions = governance layer + `user_has_perm` API; enforce only on new module's own pages.
+- [x] All 5 sub-modules in one full build (CRUD + dashboard + admin + services + tests + seed).
+- [x] Pluggable mock-default connectors; SSRF-guarded URLs; API secret hashed; SSO/webhook secrets write-only.
+
+## Sub-module → models
+1. Roles & Permissions — `RoleDefinition` + `RolePermission` (presence=granted) + `permissions.py` catalog
+2. LDAP/SSO — `IdentityProvider` + `SSOLoginEvent` (append-only) + `connectors.py` (mock)
+3. System Config — `SystemConfiguration` (1:1) + `Currency` + `TaxCode` + `NumberSequence`
+4. Backup & Recovery — `BackupPolicy` + `BackupRun` (append-only) + `RestoreRequest` + `backups.py` (mock)
+5. API & Webhooks — `ApiKey` (hashed) + `Webhook` + `WebhookDelivery` (append-only) + `webhooks.py` (mock)
+
+## Checklist
+- [ ] Scaffold (`__init__`, `apps.py`) + `INSTALLED_APPS` + Module-21 env block
+- [ ] `permissions.py` (PERMISSION_CATALOG + DEFAULT_ROLE_GRANTS)
+- [ ] `models.py` (15 models) → `makemigrations sysadmin` → `0001_initial`
+- [ ] `validators.py` (SSRF + masking), `connectors.py`, `backups.py`, `webhooks.py`
+- [ ] `services.py` (numbering, `allocate_number`, `user_has_perm`, `issue/verify_api_key`, audit wraps, metrics)
+- [ ] `forms.py`, `views.py`, `urls.py` (+ mount), `admin.py`
+- [ ] `templates/sysadmin/*` (dashboard + per sub-module) + sidebar group
+- [ ] `seed_sysadmin` + `run_backups` + `deliver_webhooks` + wire `seed_data.py`
+- [ ] `tests/` (conftest, models, services, views, security)
+- [ ] `.env.example` + `README.md`
+- [ ] migrate + seed + full pytest green; per-file commit snippets
+
+## Review
+
+**Status: complete & verified (2026-06-09).**
+
+- New app `apps/sysadmin/` — 14 models across the 5 sub-modules: `RoleDefinition` + `RolePermission`
+  (roles × permission matrix, presence = granted); `IdentityProvider` + append-only `SSOLoginEvent`;
+  `SystemConfiguration` (1:1 singleton) + `Currency` + `TaxCode` + `NumberSequence`; `BackupPolicy` +
+  append-only `BackupRun` + `RestoreRequest`; `ApiKey` (SHA-256 hashed secret) + `Webhook` +
+  append-only `WebhookDelivery`. `permissions.py` catalog + default-grant matrix; pluggable
+  `connectors.py` (SSO) / `backups.py` (backup) / `webhooks.py` (HMAC-signed, SSRF-guarded delivery +
+  `emit_event`) — all mock-default. Full service layer (`user_has_perm`, `ensure_system_roles`,
+  `sync_default_grants`, `set_role_permissions`, `allocate_number`/`preview_number`, `issue/verify/
+  revoke_api_key`, `test_identity_provider`/`simulate_sso_login`, `run_backup`, metrics), forms (write-
+  only secrets + BootstrapFormMixin), 40+ views (admin-gated CRUD + matrix + actions), admin, urls,
+  27 templates, `seed_sysadmin` + `run_backups` + `deliver_webhooks` commands.
+- **Decisions honoured:** governance layer (matrix + `user_has_perm`, existing apps untouched — zero
+  regression); all 5 sub-modules full build; pluggable mock-default connectors; secrets hashed/
+  write-only; SSRF fail-closed.
+- **Wiring:** `INSTALLED_APPS`, `/sysadmin/` mount, sidebar "System Administration" group (admin-only),
+  `seed_data` orchestrator (last step), 8 new env vars. README updated end to end (Module 21 →
+  Shipped, intro, TOC, structure, env, commands, seeded data, routes, roadmap, test count 1467).
+
+**Verification performed:**
+- `manage.py check` — 0 issues; `makemigrations --check` — no missing migrations; `migrate` clean on MySQL.
+- `seed_sysadmin --flush` then idempotent re-run — 8 roles / 125 grants / 3 currencies / 2 backup runs
+  (success + failed) / 1 API key / 1 webhook per tenant, no duplicates on re-run.
+- Live smoke as `admin_acme`: all 21 `/sysadmin/` GET routes 200; non-admin (`requester`/`buyer`)
+  bounced (302); cross-tenant detail 404.
+- **pytest: 89 sysadmin tests pass; full suite 1467 pass (0 failures)** — shared-file edits broke nothing.
+
+**Bug found & fixed during smoke:** `run_detail.html` used `|default:run.triggered_by.username` — a
+non-literal `default:` argument does attribute access on `None`, so the seeded *failed* run (no
+`triggered_by`) 500'd. Fixed with an `{% if run.triggered_by %}` guard.
+
+**Files:** 30 new `apps/sysadmin/` files (incl. migration + tests) + 29 new templates + 6 modified
+(settings, config/urls, sidebar, seed_data, .env.example, README) + this todo.
+
+---
+
 # Module 20 — Document & Knowledge Management (`apps/dms/`)
 
 **Created:** 2026-06-06
