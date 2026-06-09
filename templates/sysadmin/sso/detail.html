@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}{{ provider.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ provider.name }}
+      <span class="badge badge-soft-{{ provider.protocol_color }}">{{ provider.get_protocol_display }}</span>
+      <span class="badge badge-soft-{{ provider.status_color }}">{% if provider.is_active %}Active{% else %}Inactive{% endif %}</span>
+    </h1>
+    <p class="page-subtitle">Connector: {{ provider.connector }} · JIT provisioning {% if provider.jit_provisioning %}on{% else %}off{% endif %}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sysadmin:provider_edit' provider.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+    <a href="{% url 'sysadmin:provider_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-body small">
+      <dl class="row mb-0">
+        <dt class="col-4">Entity ID / Issuer</dt><dd class="col-8">{{ provider.entity_id|default:"—" }}</dd>
+        <dt class="col-4">Sign-in URL</dt><dd class="col-8">{{ provider.sso_url|default:"—" }}</dd>
+        <dt class="col-4">Metadata URL</dt><dd class="col-8">{{ provider.metadata_url|default:"—" }}</dd>
+        <dt class="col-4">LDAP server</dt><dd class="col-8">{{ provider.server_uri|default:"—" }}</dd>
+        <dt class="col-4">Bind DN</dt><dd class="col-8">{{ provider.bind_dn|default:"—" }}</dd>
+        <dt class="col-4">Secret stored</dt><dd class="col-8">{% if provider.has_secret %}<span class="badge badge-soft-success">Yes (hidden)</span>{% else %}<span class="text-muted">No</span>{% endif %}</dd>
+        <dt class="col-4">Default role</dt><dd class="col-8"><code>{{ provider.default_role_code }}</code></dd>
+        <dt class="col-4">Allowed domains</dt><dd class="col-8">{{ provider.allowed_domains|default:"any" }}</dd>
+      </dl>
+    </div></div>
+
+    <div class="card mt-3">
+      <div class="card-header"><i class="ri-history-line"></i> Recent login events</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Email</th><th>Outcome</th><th>When</th></tr></thead>
+          <tbody>
+            {% for e in events %}
+            <tr>
+              <td>{{ e.email|default:"—" }}</td>
+              <td><span class="badge badge-soft-{{ e.outcome_color }}">{{ e.get_outcome_display }}</span></td>
+              <td class="small text-muted">{{ e.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-4">No login events yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="ri-plug-line"></i> Test connection</div>
+      <div class="card-body">
+        <p class="small text-muted">Validate the configuration through the <code>{{ provider.connector }}</code> connector.</p>
+        <form method="post" action="{% url 'sysadmin:provider_test' provider.pk %}">
+          {% csrf_token %}<button class="btn btn-outline-primary w-100"><i class="ri-pulse-line"></i> Run connection test</button>
+        </form>
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header"><i class="ri-login-box-line"></i> Simulate login</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'sysadmin:provider_simulate' provider.pk %}">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label">User email</label>
+            <input type="email" name="email" class="form-control" placeholder="user@company.com" required>
+          </div>
+          <button class="btn btn-outline-secondary w-100"><i class="ri-play-line"></i> Simulate</button>
+        </form>
+      </div>
+    </div>
+    <div class="card mt-3"><div class="card-body">
+      <form method="post" action="{% url 'sysadmin:provider_delete' provider.pk %}" onsubmit="return confirm('Delete {{ provider.name }}?');">
+        {% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete provider</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
