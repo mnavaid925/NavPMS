@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}{{ webhook.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ webhook.name }} <span class="badge badge-soft-{{ webhook.status_color }}">{% if webhook.is_active %}Active{% else %}Inactive{% endif %}</span></h1>
+    <p class="page-subtitle" style="word-break:break-all">{{ webhook.target_url }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'sysadmin:webhook_test' webhook.pk %}">{% csrf_token %}
+      <button class="btn btn-primary"><i class="ri-send-plane-line"></i> Send test</button></form>
+    <a href="{% url 'sysadmin:webhook_edit' webhook.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+    <a href="{% url 'sysadmin:webhook_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card"><div class="card-body">
+      <h6 class="card-title">Subscribed events</h6>
+      {% for code in webhook.events %}
+      <span class="badge badge-soft-primary mb-1"><code>{{ code }}</code></span>
+      {% empty %}<p class="text-muted small mb-0">No events subscribed.</p>{% endfor %}
+      <hr>
+      <dl class="row mb-0 small">
+        <dt class="col-6">Signing secret</dt><dd class="col-6">{% if webhook.secret %}<span class="badge badge-soft-success">Set (hidden)</span>{% else %}<span class="text-muted">none</span>{% endif %}</dd>
+        <dt class="col-6">Last delivered</dt><dd class="col-6">{% if webhook.last_delivered_at %}{{ webhook.last_delivered_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
+      </dl>
+    </div></div>
+    <div class="card mt-3"><div class="card-body">
+      <form method="post" action="{% url 'sysadmin:webhook_delete' webhook.pk %}" onsubmit="return confirm('Delete {{ webhook.name }}?');">
+        {% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete webhook</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Recent deliveries</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Event</th><th>Status</th><th>Code</th><th>Attempts</th><th>When</th></tr></thead>
+          <tbody>
+            {% for d in deliveries %}
+            <tr>
+              <td><code>{{ d.event }}</code></td>
+              <td><span class="badge badge-soft-{{ d.status_color }}">{{ d.get_status_display }}</span></td>
+              <td>{{ d.status_code|default:"—" }}</td>
+              <td>{{ d.attempts }}</td>
+              <td class="small text-muted">{{ d.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No deliveries yet — use “Send test”.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
