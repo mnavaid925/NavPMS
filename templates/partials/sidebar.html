@@ -368,6 +368,29 @@
     </ul>
     {% endif %}
 
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <div class="sidebar-section">System Administration</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbSysadmin" role="button" aria-expanded="false">
+          <i class="ri-shield-keyhole-line"></i> <span class="flex-grow-1">System &amp; Security</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbSysadmin">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:role_list' %}">Roles &amp; Permissions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:provider_list' %}">SSO Providers</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:config_overview' %}">System Configuration</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:backup_policy_list' %}">Backup &amp; Recovery</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:apikey_list' %}">API Keys</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'sysadmin:webhook_list' %}">Webhooks</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+    {% endif %}
+
     <div class="sidebar-section">My Account</div>
     <ul class="nav">
       <li class="nav-item">
