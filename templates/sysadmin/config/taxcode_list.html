@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Tax Codes{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Tax Codes</h1>
+    <p class="page-subtitle">Reusable tax rates applied across procurement documents</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sysadmin:config_overview' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Config</a>
+    <a href="{% url 'sysadmin:taxcode_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Tax Code</a>
+  </div>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-7"><label class="form-label">Search</label><input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Code or name"></div>
+    <div class="col-md-3"><label class="form-label">Type</label>
+      <select name="tax_type" class="form-select"><option value="">All</option>
+        {% for value, label in tax_type_choices %}<option value="{{ value }}" {% if tax_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Code</th><th>Name</th><th>Rate</th><th>Type</th><th>Jurisdiction</th><th>Default</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for t in page_obj %}
+      <tr>
+        <td class="fw-semibold">{{ t.code }}</td>
+        <td>{{ t.name }}</td>
+        <td>{{ t.rate }}%</td>
+        <td>{{ t.get_tax_type_display }}</td>
+        <td>{{ t.jurisdiction|default:"—" }}</td>
+        <td>{% if t.is_default %}<i class="ri-star-fill text-warning"></i>{% else %}—{% endif %}</td>
+        <td><span class="badge badge-soft-{{ t.status_color }}">{% if t.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td class="text-end">
+          <a href="{% url 'sysadmin:taxcode_edit' t.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+          <form method="post" action="{% url 'sysadmin:taxcode_delete' t.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ t.code }}?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No tax codes yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+{% endblock %}
