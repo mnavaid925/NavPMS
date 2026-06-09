@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Restore Requests{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Restore Requests</h1>
+    <p class="page-subtitle">Disaster-recovery requests — request → approve → mark restored</p>
+  </div>
+  <a href="{% url 'sysadmin:backup_policy_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Backups</a>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label">Status</label>
+      <select name="status" class="form-select" onchange="this.form.submit()"><option value="">All</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Backup</th><th>Requested by</th><th>Reason</th><th>Status</th><th>Requested</th><th class="text-end">Decision</th></tr></thead>
+    <tbody>
+      {% for rr in page_obj %}
+      <tr>
+        <td><a href="{% url 'sysadmin:backup_run_detail' rr.backup_run.pk %}" class="text-decoration-none">{{ rr.backup_run.run_number }}</a></td>
+        <td>{{ rr.requested_by.username|default:"—" }}</td>
+        <td class="small">{{ rr.reason|truncatechars:50|default:"—" }}</td>
+        <td><span class="badge badge-soft-{{ rr.status_color }}">{{ rr.get_status_display }}</span></td>
+        <td class="small text-muted">{{ rr.created_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-end">
+          {% if rr.status == 'requested' %}
+          <form method="post" action="{% url 'sysadmin:restore_decide' rr.pk %}" class="d-inline">
+            {% csrf_token %}<input type="hidden" name="decision" value="approve">
+            <button class="btn btn-sm btn-outline-success" title="Approve"><i class="ri-check-line"></i></button>
+          </form>
+          <form method="post" action="{% url 'sysadmin:restore_decide' rr.pk %}" class="d-inline">
+            {% csrf_token %}<input type="hidden" name="decision" value="reject">
+            <button class="btn btn-sm btn-outline-danger" title="Reject"><i class="ri-close-line"></i></button>
+          </form>
+          {% elif rr.status == 'approved' %}
+          <form method="post" action="{% url 'sysadmin:restore_decide' rr.pk %}" class="d-inline" onsubmit="return confirm('Mark this restore as completed?');">
+            {% csrf_token %}<input type="hidden" name="decision" value="restored">
+            <button class="btn btn-sm btn-outline-primary" title="Mark restored"><i class="ri-check-double-line"></i> Restored</button>
+          </form>
+          {% else %}<span class="text-muted small">{{ rr.decided_by.username|default:"" }}</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No restore requests.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+{% endblock %}
