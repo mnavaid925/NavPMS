@@ -654,6 +654,8 @@ Open the **theme customizer** via the cog icon in the topbar to toggle:
 | **Sidebar Size** | Default / Compact / Small Icon / Icon Hover |
 | **Direction** | LTR / RTL |
 
+The **sidebar** groups the modules by procurement lifecycle (Overview, My Workspace, Source-to-Contract, Procure-to-Pay, Inventory & Fulfillment, Suppliers, Analytics & Intelligence, Administration, My Account) and behaves as an **accordion** — opening one group auto-collapses the others, and the active page's group expands on load with the current item highlighted.
+
 Other UI touches: site **preloader**, sidebar overlay on mobile, soft badges, sticky topbar.
 
 ---
