@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}System Configuration{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">System Configuration &amp; Setup</h1>
+  <p class="page-subtitle">Company-wide defaults — currency, tax, fiscal year, numbering &amp; formats</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><a href="{% url 'sysadmin:currency_list' %}" class="card stat-card text-decoration-none"><div class="card-body">
+    <div class="stat-label">Currencies</div><div class="stat-value">{{ currency_count }}</div><div class="text-muted small">Manage currencies &amp; rates</div>
+  </div></a></div>
+  <div class="col-md-4"><a href="{% url 'sysadmin:taxcode_list' %}" class="card stat-card text-decoration-none"><div class="card-body">
+    <div class="stat-label">Tax codes</div><div class="stat-value">{{ taxcode_count }}</div><div class="text-muted small">VAT / GST / sales tax</div>
+  </div></a></div>
+  <div class="col-md-4"><a href="{% url 'sysadmin:sequence_list' %}" class="card stat-card text-decoration-none"><div class="card-body">
+    <div class="stat-label">Number sequences</div><div class="stat-value">{{ sequence_count }}</div><div class="text-muted small">Document numbering rules</div>
+  </div></a></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="ri-settings-3-line"></i> Company defaults</div>
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form.visible_fields %}
+      <div class="col-md-6">
+        {% if field.field.widget.input_type == 'checkbox' %}
+        <div class="form-check mt-4">{{ field }}<label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+        {% else %}
+        <label class="form-label">{{ field.label }}</label>{{ field }}
+        {% endif %}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <div class="col-12"><button class="btn btn-primary"><i class="ri-save-line"></i> Save configuration</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}
