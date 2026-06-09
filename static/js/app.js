@@ -155,6 +155,21 @@
     }, 100);
   }
 
+  // The sidebar is its own scroll container (fixed layout) and resets to the top
+  // on every full-page navigation, which can push the just-clicked item out of
+  // view. Scroll ONLY the sidebar (never the window) the minimum needed to keep
+  // the active item visible after the reload.
+  function keepActiveNavInView(sidebar, active) {
+    var pad = 12;
+    var s = sidebar.getBoundingClientRect();
+    var a = active.getBoundingClientRect();
+    if (a.top < s.top + pad) {
+      sidebar.scrollTop -= (s.top + pad) - a.top;
+    } else if (a.bottom > s.bottom - pad) {
+      sidebar.scrollTop += a.bottom - (s.bottom - pad);
+    }
+  }
+
   // Highlight the ONE sidebar link that best matches the current URL and open
   // only its group. We pick the longest matching href (exact match, or a prefix
   // ending on a path boundary) so e.g. /requisitions/create/ lights up "New
@@ -196,6 +211,11 @@
         toggle.classList.add('has-active-child');
       }
     }
+
+    // Group is now expanded, so the active item's position is final — keep it
+    // on screen across the full-page reload that navigation triggers.
+    var sidebar = best.closest('.app-sidebar');
+    if (sidebar) keepActiveNavInView(sidebar, best);
   }
 
   // Accordion: opening one sidebar group auto-collapses any other open group,
