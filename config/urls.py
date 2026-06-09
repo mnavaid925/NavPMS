@@ -29,6 +29,7 @@ urlpatterns = [
     path('compliance/', include('apps.compliance.urls')),
     path('inventory/', include('apps.inventory.urls')),
     path('dms/', include('apps.dms.urls')),
+    path('sysadmin/', include('apps.sysadmin.urls')),
 ]
 
 if settings.DEBUG:
