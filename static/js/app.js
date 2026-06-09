@@ -155,17 +155,62 @@
     }, 100);
   }
 
+  // Highlight the ONE sidebar link that best matches the current URL and open
+  // only its group. We pick the longest matching href (exact match, or a prefix
+  // ending on a path boundary) so e.g. /requisitions/create/ lights up "New
+  // Requisition" alone — not also "All Requisitions" (/requisitions/).
   function markActiveNav() {
-    var path = window.location.pathname;
-    document.querySelectorAll('.app-sidebar .nav-link[href]').forEach(function (a) {
+    // Normalize current path to a trailing slash so the prefix test respects
+    // path segments (and stays correct even for a future non-slash route).
+    var path = window.location.pathname.replace(/\/?$/, '/');
+    var links = document.querySelectorAll('.app-sidebar .nav-link[href]');
+    var best = null;
+    var bestLen = -1;
+
+    links.forEach(function (a) {
       var href = a.getAttribute('href');
-      if (href && href !== '/' && path.indexOf(href) === 0) {
-        a.classList.add('active');
-        var group = a.closest('.collapse');
-        if (group) group.classList.add('show');
-      } else if (href === path) {
-        a.classList.add('active');
+      if (!href || href.charAt(0) !== '/') return; // skip "#sbXxx" toggles / external
+      var boundary = href.replace(/\/?$/, '/');
+      // Exact match, or a prefix ending on a "/" boundary. The boundary !== '/'
+      // guard stops the root link from prefix-matching every page.
+      var isMatch = (path === boundary) || (boundary !== '/' && path.indexOf(boundary) === 0);
+      if (isMatch && href.length > bestLen) {
+        best = a;
+        bestLen = href.length;
       }
+    });
+
+    if (!best) return;
+
+    best.classList.add('active');
+
+    // Open the ancestor collapse group (if this leaf lives in a submenu) and
+    // flag its toggle so the group reads as active even when collapsed.
+    var group = best.closest('.collapse');
+    if (group && group.id) {
+      group.classList.add('show');
+      var toggle = document.querySelector('.app-sidebar [href="#' + group.id + '"]');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.classList.remove('collapsed');
+        toggle.classList.add('has-active-child');
+      }
+    }
+  }
+
+  // Accordion: opening one sidebar group auto-collapses any other open group,
+  // keeping the (long) nav compact. Uses Bootstrap's collapse events so it
+  // cooperates with the manual open in markActiveNav (hide() reads the .show
+  // class). Nested chains are left intact via the contains() guards.
+  function initSidebarAccordion() {
+    var sidebar = document.querySelector('.app-sidebar');
+    if (!sidebar || !window.bootstrap) return;
+    sidebar.addEventListener('show.bs.collapse', function (e) {
+      var opening = e.target;
+      sidebar.querySelectorAll('.collapse.show').forEach(function (openEl) {
+        if (openEl === opening || openEl.contains(opening) || opening.contains(openEl)) return;
+        window.bootstrap.Collapse.getOrCreateInstance(openEl, { toggle: false }).hide();
+      });
     });
   }
 
@@ -174,6 +219,7 @@
     initCustomizerTabs();
     initThemeToggle();
     initSidebarToggle();
+    initSidebarAccordion();
     markActiveNav();
     fadePreloader();
   });
