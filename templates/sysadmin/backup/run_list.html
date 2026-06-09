@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Backup Runs{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Backup Runs</h1>
+    <p class="page-subtitle">Append-only history of every backup execution</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sysadmin:backup_run_export' %}" class="btn btn-outline-secondary"><i class="ri-download-line"></i> Export CSV</a>
+    <a href="{% url 'sysadmin:backup_policy_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Policies</a>
+  </div>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-5"><label class="form-label">Search</label><input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Run number or location"></div>
+    <div class="col-md-3"><label class="form-label">Status</label>
+      <select name="status" class="form-select"><option value="">All</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Scope</label>
+      <select name="scope" class="form-select"><option value="">All</option>
+        {% for value, label in scope_choices %}<option value="{{ value }}" {% if scope == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Run</th><th>Policy</th><th>Scope</th><th>Trigger</th><th>Size</th><th>Status</th><th>When</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for r in page_obj %}
+      <tr>
+        <td class="fw-semibold">{{ r.run_number }}</td>
+        <td>{{ r.policy.name|default:"—" }}</td>
+        <td>{{ r.get_scope_display }}</td>
+        <td>{{ r.get_trigger_display }}</td>
+        <td>{{ r.size_mb }} MB</td>
+        <td><span class="badge badge-soft-{{ r.status_color }}">{{ r.get_status_display }}</span></td>
+        <td class="small text-muted">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+        <td class="text-end"><a href="{% url 'sysadmin:backup_run_detail' r.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a></td>
+      </tr>
+      {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No backup runs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+{% endblock %}
