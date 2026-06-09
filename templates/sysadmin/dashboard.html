@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}System Administration{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">System Administration &amp; Security</h1>
+  <p class="page-subtitle">Roles &amp; permissions · SSO · configuration · backups · API &amp; webhooks</p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Roles</div>
+    <div class="stat-value">{{ metrics.role_count }}</div>
+    <a href="{% url 'sysadmin:role_list' %}" class="small text-decoration-none">{{ metrics.permission_total }} permissions</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">SSO providers</div>
+    <div class="stat-value">{{ metrics.active_provider_count }}<span class="text-muted small">/{{ metrics.provider_count }}</span></div>
+    <a href="{% url 'sysadmin:provider_list' %}" class="small text-decoration-none">Manage SSO</a>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">Backups</div>
+    <div class="stat-value">{{ metrics.backup_run_count }}</div>
+    <div class="text-muted small">{% if metrics.last_backup %}Last: <span class="badge badge-soft-{{ metrics.last_backup.status_color }}">{{ metrics.last_backup.get_status_display }}</span>{% else %}None yet{% endif %}</div>
+  </div></div></div>
+  <div class="col-md-3"><div class="card stat-card"><div class="card-body">
+    <div class="stat-label">API keys &amp; webhooks</div>
+    <div class="stat-value">{{ metrics.api_key_count }} <span class="text-muted small">keys</span></div>
+    <div class="text-muted small">{{ metrics.webhook_count }} webhook(s){% if metrics.webhook_failed_count %} · <span class="text-danger">{{ metrics.webhook_failed_count }} failed</span>{% endif %}</div>
+  </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="ri-database-2-line"></i> Backup runs by status</div>
+      <div class="card-body">
+        {% if metrics.backup_run_count %}<canvas id="backupChart" height="180"></canvas>
+        {% else %}<p class="text-center text-muted py-5 mb-0">No backups yet. <a href="{% url 'sysadmin:backup_policy_list' %}">Configure a policy</a>.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="ri-time-line"></i> Recent backup runs</span>
+        <a href="{% url 'sysadmin:backup_run_list' %}" class="small text-decoration-none">All runs</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Run</th><th>Scope</th><th>Size</th><th>Status</th><th>When</th></tr></thead>
+          <tbody>
+            {% for r in metrics.recent_runs %}
+            <tr>
+              <td><a href="{% url 'sysadmin:backup_run_detail' r.pk %}" class="fw-semibold text-decoration-none">{{ r.run_number }}</a></td>
+              <td>{{ r.get_scope_display }}</td>
+              <td>{{ r.size_mb }} MB</td>
+              <td><span class="badge badge-soft-{{ r.status_color }}">{{ r.get_status_display }}</span></td>
+              <td class="small text-muted">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No backup runs yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="ri-shield-keyhole-line"></i> Recent SSO activity</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Provider</th><th>Email</th><th>Outcome</th><th>When</th></tr></thead>
+      <tbody>
+        {% for e in metrics.recent_sso %}
+        <tr>
+          <td>{{ e.provider.name }}</td>
+          <td>{{ e.email|default:"—" }}</td>
+          <td><span class="badge badge-soft-{{ e.outcome_color }}">{{ e.get_outcome_display }}</span></td>
+          <td class="small text-muted">{{ e.created_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No SSO activity yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ metrics.backup_status_labels|json_script:"bkLabels" }}
+{{ metrics.backup_status_data|json_script:"bkData" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    function read(id) { var e = document.getElementById(id); return e ? JSON.parse(e.textContent) : []; }
+    var el = document.getElementById('backupChart');
+    if (el) new Chart(el, {
+      type: 'doughnut',
+      data: { labels: read('bkLabels'),
+        datasets: [{ data: read('bkData'), backgroundColor: ['#22c55e', '#ef4444', '#3b82f6', '#9ca3af'] }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  })();
+</script>
+{% endblock %}
