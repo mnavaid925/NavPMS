@@ -16,7 +16,7 @@
       </li>
     </ul>
 
-    <div class="sidebar-section">User Portal</div>
+    <div class="sidebar-section">My Workspace</div>
     <ul class="nav">
       <li class="nav-item">
         <a class="nav-link" href="{% url 'portal:dashboard' %}">
@@ -24,58 +24,34 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbPortal" role="button" aria-expanded="false">
-          <i class="ri-apps-2-line"></i> <span class="flex-grow-1">Dashboard</span>
-          <i class="ri-arrow-down-s-line"></i>
+        <a class="nav-link" href="{% url 'portal:notification_list' %}">
+          <i class="ri-notification-3-line"></i> <span>Tasks &amp; Alerts</span>
         </a>
-        <div class="collapse" id="sbPortal">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'portal:notification_list' %}">Task &amp; Alert Center</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'portal:requisition_list' %}">Quick Requisitions</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'portal:activity_feed' %}">Activity Feed</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'portal:report_list' %}">My Reports</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'portal:widget_list' %}">Customize Widgets</a></li>
-          </ul>
-        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:requisition_list' %}">
+          <i class="ri-flashlight-line"></i> <span>Quick Requisitions</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:activity_feed' %}">
+          <i class="ri-pulse-line"></i> <span>Activity Feed</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:report_list' %}">
+          <i class="ri-file-chart-line"></i> <span>My Reports</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'portal:widget_list' %}">
+          <i class="ri-layout-masonry-line"></i> <span>Customize Widgets</span>
+        </a>
       </li>
     </ul>
 
-    <div class="sidebar-section">Procurement</div>
+    <div class="sidebar-section">Source-to-Contract</div>
     <ul class="nav">
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbRequisitions" role="button" aria-expanded="false">
-          <i class="ri-file-list-3-line"></i> <span class="flex-grow-1">Requisitions</span>
-          <i class="ri-arrow-down-s-line"></i>
-        </a>
-        <div class="collapse" id="sbRequisitions">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_list' %}">All Requisitions</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_create' %}">New Requisition</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:tracking' %}">Tracking Board</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:template_list' %}">Templates</a></li>
-            {% if request.user.is_tenant_admin or request.user.is_superuser %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:account_code_list' %}">Account Codes</a></li>
-            {% endif %}
-          </ul>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbApprovals" role="button" aria-expanded="false">
-          <i class="ri-checkbox-circle-line"></i> <span class="flex-grow-1">Approvals</span>
-          <i class="ri-arrow-down-s-line"></i>
-        </a>
-        <div class="collapse" id="sbApprovals">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:inbox' %}">My Approvals</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:request_list' %}">Approval Requests</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:delegation_list' %}">Delegations</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:history' %}">History</a></li>
-            {% if request.user.is_tenant_admin or request.user.is_superuser %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:rule_list' %}">Approval Rules</a></li>
-            {% endif %}
-          </ul>
-        </div>
-      </li>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbSourcing" role="button" aria-expanded="false">
           <i class="ri-auction-line"></i> <span class="flex-grow-1">Sourcing</span>
@@ -135,6 +111,44 @@
           </ul>
         </div>
       </li>
+    </ul>
+
+    <div class="sidebar-section">Procure-to-Pay</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbRequisitions" role="button" aria-expanded="false">
+          <i class="ri-file-list-3-line"></i> <span class="flex-grow-1">Requisitions</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbRequisitions">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_list' %}">All Requisitions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:requisition_create' %}">New Requisition</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:tracking' %}">Tracking Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:template_list' %}">Templates</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'requisitions:account_code_list' %}">Account Codes</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbApprovals" role="button" aria-expanded="false">
+          <i class="ri-checkbox-circle-line"></i> <span class="flex-grow-1">Approvals</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbApprovals">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:inbox' %}">My Approvals</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:request_list' %}">Approval Requests</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:delegation_list' %}">Delegations</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:history' %}">History</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'approvals:rule_list' %}">Approval Rules</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      </li>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbCatalog" role="button" aria-expanded="false">
           <i class="ri-store-3-line"></i> <span class="flex-grow-1">Catalog</span>
@@ -169,21 +183,6 @@
         </div>
       </li>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbFulfillment" role="button" aria-expanded="false">
-          <i class="ri-truck-line"></i> <span class="flex-grow-1">Fulfillment</span>
-          <i class="ri-arrow-down-s-line"></i>
-        </a>
-        <div class="collapse" id="sbFulfillment">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_list' %}">Shipments</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_create' %}">New Shipment</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:tracking_board' %}">Tracking Board</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:backorder_board' %}">Backorders</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:analytics_dashboard' %}">Analytics</a></li>
-          </ul>
-        </div>
-      </li>
-      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbGoodsReceipt" role="button" aria-expanded="false">
           <i class="ri-inbox-archive-line"></i> <span class="flex-grow-1">Goods Receipt</span>
           <i class="ri-arrow-down-s-line"></i>
@@ -196,6 +195,25 @@
           </ul>
         </div>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbInvoicing" role="button" aria-expanded="false">
+          <i class="ri-bill-line"></i> <span class="flex-grow-1">Invoices</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbInvoicing">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_list' %}">All Invoices</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_capture' %}">Capture Invoice</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:voucher_list' %}">Payment Vouchers</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:term_list' %}">Payment Terms</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:analytics_dashboard' %}">Analytics</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
+    <div class="sidebar-section">Inventory &amp; Fulfillment</div>
+    <ul class="nav">
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbInventory" role="button" aria-expanded="false">
           <i class="ri-stack-line"></i> <span class="flex-grow-1">Inventory</span>
@@ -216,20 +234,63 @@
         </div>
       </li>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbInvoicing" role="button" aria-expanded="false">
-          <i class="ri-bill-line"></i> <span class="flex-grow-1">Invoices</span>
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbFulfillment" role="button" aria-expanded="false">
+          <i class="ri-truck-line"></i> <span class="flex-grow-1">Fulfillment</span>
           <i class="ri-arrow-down-s-line"></i>
         </a>
-        <div class="collapse" id="sbInvoicing">
+        <div class="collapse" id="sbFulfillment">
           <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_list' %}">All Invoices</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:invoice_capture' %}">Capture Invoice</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:voucher_list' %}">Payment Vouchers</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:term_list' %}">Payment Terms</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'invoicing:analytics_dashboard' %}">Analytics</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_list' %}">Shipments</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:shipment_create' %}">New Shipment</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:tracking_board' %}">Tracking Board</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:backorder_board' %}">Backorders</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'fulfillment:analytics_dashboard' %}">Analytics</a></li>
           </ul>
         </div>
       </li>
+    </ul>
+
+    <div class="sidebar-section">Suppliers</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
+          <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbVendors">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:vendor_list' %}">All Vendors</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:vendor_create' %}">New Vendor</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:onboarding_list' %}">Onboarding Queue</a></li>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:category_list' %}">Categories</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:segment_list' %}">Segments</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:blacklist_history' %}">Blacklist History</a></li>
+          </ul>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#sbSupplierPerformance" role="button" aria-expanded="false">
+          <i class="ri-award-line"></i> <span class="flex-grow-1">Supplier Performance</span>
+          <i class="ri-arrow-down-s-line"></i>
+        </a>
+        <div class="collapse" id="sbSupplierPerformance">
+          <ul class="submenu nav">
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:dashboard' %}">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:scorecard_list' %}">Scorecards</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:kpi_list' %}">KPI Definitions</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:feedback_list' %}">360° Feedback</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:pip_list' %}">Improvement Plans</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:trending' %}">Trending</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:benchmarking' %}">Benchmarking</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
+    <div class="sidebar-section">Analytics &amp; Intelligence</div>
+    <ul class="nav">
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbSpendAnalytics" role="button" aria-expanded="false">
           <i class="ri-bar-chart-box-line"></i> <span class="flex-grow-1">Spend Analytics</span>
@@ -256,23 +317,6 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'budget:variance' %}">Variance Analysis</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'budget:period_list' %}">Periods</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'budget:check_log' %}">Availability Checks</a></li>
-          </ul>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbSupplierPerformance" role="button" aria-expanded="false">
-          <i class="ri-award-line"></i> <span class="flex-grow-1">Supplier Performance</span>
-          <i class="ri-arrow-down-s-line"></i>
-        </a>
-        <div class="collapse" id="sbSupplierPerformance">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:dashboard' %}">Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:scorecard_list' %}">Scorecards</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:kpi_list' %}">KPI Definitions</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:feedback_list' %}">360° Feedback</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:pip_list' %}">Improvement Plans</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:trending' %}">Trending</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'supplier_performance:benchmarking' %}">Benchmarking</a></li>
           </ul>
         </div>
       </li>
@@ -308,31 +352,13 @@
           </ul>
         </div>
       </li>
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#sbVendors" role="button" aria-expanded="false">
-          <i class="ri-store-2-line"></i> <span class="flex-grow-1">Vendors</span>
-          <i class="ri-arrow-down-s-line"></i>
-        </a>
-        <div class="collapse" id="sbVendors">
-          <ul class="submenu nav">
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:vendor_list' %}">All Vendors</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:vendor_create' %}">New Vendor</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:onboarding_list' %}">Onboarding Queue</a></li>
-            {% if request.user.is_tenant_admin or request.user.is_superuser %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:category_list' %}">Categories</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:segment_list' %}">Segments</a></li>
-            {% endif %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'vendors:blacklist_history' %}">Blacklist History</a></li>
-          </ul>
-        </div>
-      </li>
     </ul>
 
-    <div class="sidebar-section">Tenant Management</div>
+    <div class="sidebar-section">Administration</div>
     <ul class="nav">
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbTenants" role="button" aria-expanded="false">
-          <i class="ri-building-line"></i> <span class="flex-grow-1">Tenant & Subscription</span>
+          <i class="ri-building-line"></i> <span class="flex-grow-1">Tenant &amp; Subscription</span>
           <i class="ri-arrow-down-s-line"></i>
         </a>
         <div class="collapse" id="sbTenants">
@@ -350,11 +376,7 @@
           </ul>
         </div>
       </li>
-    </ul>
-
-    {% if request.user.is_tenant_admin or request.user.is_superuser %}
-    <div class="sidebar-section">User Management</div>
-    <ul class="nav">
+      {% if request.user.is_tenant_admin or request.user.is_superuser %}
       <li class="nav-item">
         <a class="nav-link" href="{% url 'accounts:user_list' %}">
           <i class="ri-team-line"></i> <span>Users</span>
@@ -365,12 +387,6 @@
           <i class="ri-mail-send-line"></i> <span>Invites</span>
         </a>
       </li>
-    </ul>
-    {% endif %}
-
-    {% if request.user.is_tenant_admin or request.user.is_superuser %}
-    <div class="sidebar-section">System Administration</div>
-    <ul class="nav">
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#sbSysadmin" role="button" aria-expanded="false">
           <i class="ri-shield-keyhole-line"></i> <span class="flex-grow-1">System &amp; Security</span>
@@ -388,8 +404,8 @@
           </ul>
         </div>
       </li>
+      {% endif %}
     </ul>
-    {% endif %}
 
     <div class="sidebar-section">My Account</div>
     <ul class="nav">
