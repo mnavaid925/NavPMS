@@ -22,6 +22,9 @@
   --color-bg-topbar: #ffffff;
   --color-border: #e5e7eb;
   --color-border-strong: #d1d5db;
+  /* Hairlines inside the sidebar (section dividers + submenu guide).
+     Overridden per sidebar color variant so dark/brand keep contrast. */
+  --color-sidebar-line: #e5e7eb;
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
@@ -52,12 +55,14 @@ html[data-theme="dark"] {
   --color-bg-topbar: #1e293b;
   --color-border: #334155;
   --color-border-strong: #475569;
+  --color-sidebar-line: rgba(255, 255, 255, 0.08);
 }
 
 /* ---------- Sidebar color: dark ---------- */
 html[data-sidebar="dark"] {
   --color-bg-sidebar: #1f2937;
   --color-bg-sidebar-active: rgba(255, 255, 255, 0.08);
+  --color-sidebar-line: rgba(255, 255, 255, 0.10);
 }
 html[data-sidebar="dark"] .app-sidebar,
 html[data-sidebar="dark"] .app-sidebar .nav-link {
@@ -70,12 +75,14 @@ html[data-sidebar="dark"] .app-sidebar .nav-link.active {
   background: var(--color-bg-sidebar-active);
   color: #ffffff;
 }
+html[data-sidebar="dark"] .app-sidebar .nav-link.has-active-child { color: #ffffff; }
 html[data-sidebar="dark"] .app-sidebar .sidebar-header { border-color: rgba(255, 255, 255, 0.06); }
 
 /* ---------- Sidebar color: brand ---------- */
 html[data-sidebar="brand"] {
   --color-bg-sidebar: var(--brand-primary);
   --color-bg-sidebar-active: rgba(255, 255, 255, 0.16);
+  --color-sidebar-line: rgba(255, 255, 255, 0.18);
 }
 html[data-sidebar="brand"] .app-sidebar,
 html[data-sidebar="brand"] .app-sidebar .nav-link {
@@ -86,6 +93,7 @@ html[data-sidebar="brand"] .app-sidebar .nav-link.active {
   color: #ffffff;
   background: var(--color-bg-sidebar-active);
 }
+html[data-sidebar="brand"] .app-sidebar .nav-link.has-active-child { color: #ffffff; }
 
 /* ---------- Topbar color: dark ---------- */
 html[data-topbar="dark"] {
@@ -226,6 +234,16 @@ html[dir="rtl"] .app-sidebar { border-left: 1px solid var(--color-border); borde
   background: var(--color-bg-sidebar);
   border-right: 1px solid var(--color-border);
   overflow-y: auto;
+  padding-bottom: 16px;
+  /* Slim, unobtrusive scrollbar (the nav is long). */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-sidebar-line) transparent;
+}
+.app-sidebar::-webkit-scrollbar { width: 6px; height: 6px; }
+.app-sidebar::-webkit-scrollbar-track { background: transparent; }
+.app-sidebar::-webkit-scrollbar-thumb {
+  background: var(--color-sidebar-line);
+  border-radius: 3px;
 }
 .app-sidebar .sidebar-header {
   padding: 18px 20px;
@@ -248,6 +266,13 @@ html[dir="rtl"] .app-sidebar { border-left: 1px solid var(--color-border); borde
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
+/* Hairline divider above every section except the first, to visually
+   separate the lifecycle groups without adding chrome. */
+.app-sidebar nav > .sidebar-section:not(:first-of-type) {
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-sidebar-line);
+}
 .app-sidebar .nav { list-style: none; padding: 0; margin: 0; flex-direction: column; }
 .app-sidebar .nav-link {
   display: flex;
@@ -258,11 +283,20 @@ html[dir="rtl"] .app-sidebar { border-left: 1px solid var(--color-border); borde
   border-radius: 0;
   font-weight: 500;
   font-size: 14px;
+  transition: background var(--transition-base), color var(--transition-base);
 }
 .app-sidebar .nav-link i {
   font-size: 18px;
   width: 20px;
   text-align: center;
+}
+/* Chevron on collapsible parents rotates when its group is expanded. */
+.app-sidebar .nav-link .ri-arrow-down-s-line {
+  font-size: 16px;
+  transition: transform var(--transition-base);
+}
+.app-sidebar .nav-link[aria-expanded="true"] .ri-arrow-down-s-line {
+  transform: rotate(180deg);
 }
 .app-sidebar .nav-link:hover {
   background: var(--color-bg-sidebar-active);
@@ -282,9 +316,23 @@ html[dir="rtl"] .app-sidebar { border-left: 1px solid var(--color-border); borde
   background: var(--brand-primary);
   border-radius: 0 3px 3px 0;
 }
+/* Collapsed group that contains the active page: tint its label/icon so the
+   user can see where they are even while the submenu is closed (set by app.js). */
+.app-sidebar .nav-link.has-active-child {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
 .app-sidebar .nav-item { position: relative; }
-.app-sidebar .submenu { padding-left: 36px; list-style: none; margin: 0; }
-.app-sidebar .submenu .nav-link { padding: 7px 20px 7px 0; font-size: 13px; }
+.app-sidebar .submenu {
+  list-style: none;
+  margin-block: 4px;
+  margin-inline-start: 31px;
+  padding-inline-start: 13px;
+  /* Vertical guide line aligns the children under the parent icon. Logical
+     props so the indent + guide mirror correctly under dir="rtl". */
+  border-inline-start: 1px solid var(--color-sidebar-line);
+}
+.app-sidebar .submenu .nav-link { padding-block: 7px; padding-inline: 8px 16px; font-size: 13px; }
 
 /* ---------- Topbar ---------- */
 .app-topbar {
