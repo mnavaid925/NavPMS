@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Permissions · {{ role.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">Permissions — {{ role.name }}</h1>
+    <p class="page-subtitle">Tick the access rights this role grants</p>
+  </div>
+  <a href="{% url 'sysadmin:role_detail' role.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-3">
+    {% for group in groups %}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between">
+          <span>{{ group.name }}</span>
+          <a href="#" class="small text-decoration-none toggle-group">Toggle all</a>
+        </div>
+        <div class="card-body">
+          {% for p in group.perms %}
+          <div class="form-check">
+            <input class="form-check-input grp-{{ forloop.parentloop.counter }}" type="checkbox" name="permissions" value="{{ p.code }}" id="perm_{{ p.code }}" {% if p.granted %}checked{% endif %}>
+            <label class="form-check-label" for="perm_{{ p.code }}">{{ p.label }} <code class="small text-muted">{{ p.code }}</code></label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="d-flex gap-2 mt-3">
+    <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save Permissions</button>
+    <a href="{% url 'sysadmin:role_detail' role.pk %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.toggle-group').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      var boxes = link.closest('.card').querySelectorAll('input[type=checkbox]');
+      var anyUnchecked = Array.prototype.some.call(boxes, function (b) { return !b.checked; });
+      boxes.forEach(function (b) { b.checked = anyUnchecked; });
+    });
+  });
+</script>
+{% endblock %}
