@@ -40,6 +40,7 @@ class Command(BaseCommand):
             ('seed_compliance', 'Restricted-party lists + screenings + financial risk + fraud rules/alerts + policies'),
             ('seed_inventory', 'Warehouses + bins + stock on-hand from receipts + goods issues + cycle counts + auto-reorder'),
             ('seed_documents', 'Document repository + versions (indexed text) + policy library + best-practice templates'),
+            ('seed_sysadmin', 'Roles & permission matrix + system config (currency/tax/numbering) + SSO + backups + API keys + webhooks'),
         ]
 
         for cmd, label in steps:
