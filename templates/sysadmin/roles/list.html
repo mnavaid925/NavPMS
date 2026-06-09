@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Roles &amp; Permissions{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Roles &amp; Permissions</h1>
+    <p class="page-subtitle">Define access rights per job role (Buyer, Approver, Admin…)</p>
+  </div>
+  <a href="{% url 'sysadmin:role_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Role</a>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-6">
+      <label class="form-label">Search</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Code or name">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Role</th><th>Code</th><th>Permissions</th><th>Type</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for role in page_obj %}
+      <tr>
+        <td><a href="{% url 'sysadmin:role_detail' role.pk %}" class="fw-semibold text-decoration-none">{{ role.name }}</a><div class="text-muted small">{{ role.description|truncatechars:50 }}</div></td>
+        <td><code>{{ role.code }}</code></td>
+        <td>{{ role.permission_count }}</td>
+        <td>{% if role.is_system %}<span class="badge badge-soft-info">Built-in</span>{% else %}<span class="badge badge-soft-secondary">Custom</span>{% endif %}</td>
+        <td><span class="badge badge-soft-{{ role.status_color }}">{% if role.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td class="text-end">
+          <a href="{% url 'sysadmin:role_permissions' role.pk %}" class="btn btn-sm btn-outline-primary" title="Edit permissions"><i class="ri-shield-keyhole-line"></i></a>
+          <a href="{% url 'sysadmin:role_edit' role.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+          {% if not role.is_system %}
+          <form method="post" action="{% url 'sysadmin:role_delete' role.pk %}" class="d-inline" onsubmit="return confirm('Delete role {{ role.name }}?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No roles found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+{% endblock %}
