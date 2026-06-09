@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}SSO Providers{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">LDAP / SSO Integration</h1>
+    <p class="page-subtitle">Secure login via corporate directories (Active Directory, Okta, …)</p>
+  </div>
+  <a href="{% url 'sysadmin:provider_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Provider</a>
+</div>
+
+<div class="card filter-card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-5">
+      <label class="form-label">Search</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Name or entity ID">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Protocol</label>
+      <select name="protocol" class="form-select">
+        <option value="">All</option>
+        {% for value, label in protocol_choices %}
+        <option value="{{ value }}" {% if protocol == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Provider</th><th>Protocol</th><th>Default</th><th>JIT</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for p in page_obj %}
+      <tr>
+        <td><a href="{% url 'sysadmin:provider_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.name }}</a><div class="text-muted small">{{ p.entity_id|truncatechars:40 }}</div></td>
+        <td><span class="badge badge-soft-{{ p.protocol_color }}">{{ p.get_protocol_display }}</span></td>
+        <td>{% if p.is_default %}<i class="ri-star-fill text-warning"></i>{% else %}—{% endif %}</td>
+        <td>{% if p.jit_provisioning %}<i class="ri-check-line text-success"></i>{% else %}—{% endif %}</td>
+        <td><span class="badge badge-soft-{{ p.status_color }}">{% if p.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td class="text-end">
+          <a href="{% url 'sysadmin:provider_detail' p.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+          <a href="{% url 'sysadmin:provider_edit' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+          <form method="post" action="{% url 'sysadmin:provider_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ p.name }}?');">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No identity providers yet. <a href="{% url 'sysadmin:provider_create' %}">Add one</a>.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% include 'sysadmin/_pagination.html' %}
+{% endblock %}
