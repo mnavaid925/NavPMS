@@ -1,3 +1,54 @@
+# Sidebar Revamp — Full Overhaul (`templates/partials/sidebar.html`)
+
+**Created:** 2026-06-10
+**Plan:** `C:\Users\user\.claude\plans\woolly-sprouting-blum.md`
+
+UI-only change (no app/model/route changes). Reorganized the sidebar's flat 18-module
+"Procurement" wall into 9 lifecycle sections, polished the visuals, and added accordion
+behavior. User choices (via AskUserQuestion): full overhaul · lifecycle sub-grouping · accordion
+only (NO search / favorites / remember-state).
+
+## Changes
+- **`templates/partials/sidebar.html`** — sections: Overview · My Workspace · Source-to-Contract ·
+  Procure-to-Pay · Inventory & Fulfillment · Suppliers · Analytics & Intelligence · Administration ·
+  My Account. Every `{% url %}` and admin `{% if %}` gate preserved (move, not re-target). Flattened
+  the redundant nested portal `#sbPortal` "Dashboard" collapse into 6 direct "My Workspace" links.
+  Merged the old separate User-Management + System-Administration section gates into one Administration
+  gate (same items). Deliberate deviation from the previewed grouping: Supplier Performance sits with
+  Vendors under a dedicated **Suppliers** section (not under Analytics).
+- **`static/css/style.css`** — new themeable `--color-sidebar-line` var (defined in :root + dark-theme +
+  dark/brand sidebar); slim scrollbar (both axes); section hairline dividers; chevron rotation on
+  `[aria-expanded="true"]`; `.submenu` guide line via **logical properties** (RTL-safe); `.has-active-child`
+  parent tint with dark/brand white overrides; nav-link transitions.
+- **`static/js/app.js`** — new `initSidebarAccordion()` (one group open at a time, via Bootstrap
+  `show.bs.collapse`); rewrote `markActiveNav()` to single longest-prefix best-match (fixes the
+  create-vs-list double-highlight + multi-open bug), path normalized to trailing slash, opens only the
+  active group and tags its toggle `.has-active-child`.
+- **`README.md`** — UI section documents the lifecycle grouping + accordion.
+
+## Review
+
+**Status: complete & verified (2026-06-10).**
+
+- **No-loss verified:** `{% url %}` name multiset byte-identical old↔new (git diff); all 118 URL
+  occurrences identically gated (admin-gate count 9→8 is the two admin sections merged into one gate,
+  not a leak); 20/20 collapse ids matched to toggles; balanced `{% if %}`/markup.
+- **Render proof:** `render_to_string('partials/sidebar.html')` as admin (forces every gated branch) →
+  no `NoReverseMatch`, 9 sections / 20 groups / 118 links; as non-admin → admin items correctly hidden.
+- **`manage.py check`** 0 issues; **`node --check app.js`** OK; **CSS braces** 269/269.
+- **Adversarial review workflow** (3 independent reviewers — CSS-variants / JS-logic / template-UX):
+  UX **clean**; JS **correct** (create-vs-list + accordion/Bootstrap cooperation traced) with 3 nits;
+  CSS solid with 1 minor + 1 nit. **All actioned:** RTL logical-props (minor), scrollbar `height` (nit),
+  path normalization + dead-code removal (nits), `window.bootstrap` (nit).
+- **Not done (visual-only, needs a human eye):** live browser pass + theme-variant click-through
+  (dark/brand/compact/small/hover/horizontal/detached). Reasoned through statically; recommend a quick
+  manual look.
+
+**Files:** 4 modified (`templates/partials/sidebar.html`, `static/css/style.css`, `static/js/app.js`,
+`README.md`) + this todo. No new files, no migrations.
+
+---
+
 # Module 21 — System Administration & Security (`apps/sysadmin/`)
 
 **Created:** 2026-06-08
