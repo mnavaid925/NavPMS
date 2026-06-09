@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Provider{% else %}New Provider{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ provider.name }}{% else %}New Identity Provider{% endif %}</h1>
+  <p class="page-subtitle">SAML / OIDC fields apply to web SSO; LDAP fields apply to directory bind. Secrets are write-only.</p>
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="post">
+    {% csrf_token %}
+    {% include 'sysadmin/_form.html' %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+      <a href="{% if provider %}{% url 'sysadmin:provider_detail' provider.pk %}{% else %}{% url 'sysadmin:provider_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
