@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ run.run_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ run.run_number }} <span class="badge badge-soft-{{ run.status_color }}">{{ run.get_status_display }}</span></h1>
+    <p class="page-subtitle">{{ run.get_scope_display }} · {{ run.get_trigger_display }} · {{ run.size_mb }} MB</p>
+  </div>
+  <a href="{% url 'sysadmin:backup_run_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-body small">
+      <dl class="row mb-0">
+        <dt class="col-4">Policy</dt><dd class="col-8">{% if run.policy %}<a href="{% url 'sysadmin:backup_policy_detail' run.policy.pk %}">{{ run.policy.name }}</a>{% else %}—{% endif %}</dd>
+        <dt class="col-4">Connector</dt><dd class="col-8">{{ run.connector|default:"—" }}</dd>
+        <dt class="col-4">Location</dt><dd class="col-8" style="word-break:break-all">{{ run.location|default:"—" }}</dd>
+        <dt class="col-4">Checksum</dt><dd class="col-8" style="word-break:break-all"><code class="small">{{ run.checksum|default:"—" }}</code></dd>
+        <dt class="col-4">Started</dt><dd class="col-8">{{ run.started_at|date:"Y-m-d H:i:s"|default:"—" }}</dd>
+        <dt class="col-4">Finished</dt><dd class="col-8">{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</dd>
+        <dt class="col-4">Triggered by</dt><dd class="col-8">{% if run.triggered_by %}{{ run.triggered_by.get_full_name|default:run.triggered_by.username }}{% else %}system{% endif %}</dd>
+        <dt class="col-4">Message</dt><dd class="col-8">{{ run.message|default:"—" }}</dd>
+      </dl>
+    </div></div>
+
+    {% if run.restore_requests.all %}
+    <div class="card mt-3">
+      <div class="card-header"><i class="ri-restart-line"></i> Restore requests</div>
+      <ul class="list-group list-group-flush">
+        {% for rr in restores %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ rr.requested_by.username|default:"—" }} · <span class="badge badge-soft-{{ rr.status_color }}">{{ rr.get_status_display }}</span></span>
+          <span class="small text-muted">{{ rr.created_at|date:"Y-m-d H:i" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    {% if run.status == 'success' %}
+    <div class="card">
+      <div class="card-header"><i class="ri-restart-line"></i> Request restore</div>
+      <div class="card-body">
+        <p class="small text-muted">Recovery is a logged, approval-gated protocol — this records the request, it does not overwrite live data.</p>
+        <form method="post" action="{% url 'sysadmin:restore_request' run.pk %}">
+          {% csrf_token %}
+          <div class="mb-2"><label class="form-label">{{ restore_form.reason.label }}</label>{{ restore_form.reason }}</div>
+          <button class="btn btn-outline-warning w-100"><i class="ri-restart-line"></i> Log restore request</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Only a <strong>successful</strong> backup can be restored.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
