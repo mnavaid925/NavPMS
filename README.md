@@ -49,7 +49,9 @@ hash-chain), Fraud Detection Rules, Policy Management & Acknowledgment), and
 Reorder Point Automation, Goods Issue/Return to Stock, Warehouse Location Mapping, Cycle Count
 Integration), and **Module 20 — Document & Knowledge Management** (all five sub-modules: Central
 Document Repository, Version Control, Procurement Policy Library, Best Practices & Templates,
-Full-Text Search & Indexing).
+Full-Text Search & Indexing), and **Module 21 — System Administration & Security** (all five
+sub-modules: User Role & Permission Management, LDAP/SSO Integration, System Configuration & Setup,
+Data Backup & Recovery, API & Webhook Management).
 
 ---
 
@@ -82,11 +84,12 @@ Full-Text Search & Indexing).
 26. [Module 18 — Risk & Compliance Management](#module-18--risk--compliance-management)
 27. [Module 19 — Inventory & Warehouse Integration](#module-19--inventory--warehouse-integration)
 28. [Module 20 — Document & Knowledge Management](#module-20--document--knowledge-management)
-29. [Routes / UI Tour](#routes--ui-tour)
-30. [Multi-tenancy Model](#multi-tenancy-model)
-31. [Payment Gateway](#payment-gateway)
-32. [Browser Compatibility](#browser-compatibility)
-33. [Roadmap](#roadmap)
+29. [Module 21 — System Administration & Security](#module-21--system-administration--security)
+30. [Routes / UI Tour](#routes--ui-tour)
+31. [Multi-tenancy Model](#multi-tenancy-model)
+32. [Payment Gateway](#payment-gateway)
+33. [Browser Compatibility](#browser-compatibility)
+34. [Roadmap](#roadmap)
 
 ---
 
@@ -174,10 +177,15 @@ NavPMS/
 │   │                         # roll-up + reorder params + moving-avg cost), StockLevel (per-bucket),
 │   │                         # StockMovement (append-only ledger), GoodsIssue (+Line), CycleCount
 │   │                         # (+Line) + services (GRN->stock sync, reorder automation, cron)
-│   └── dms/                  # Module 20: Document (+current_version pointer), DocumentVersion
-│                             # (file + extracted_text index), PolicyTemplate, DocumentEvent
-│                             # (append-only) + extraction.py pluggable text-extraction connector
-│                             # (mock / local pypdf) + services (index, publish/supersede, search)
+│   ├── dms/                  # Module 20: Document (+current_version pointer), DocumentVersion
+│   │                         # (file + extracted_text index), PolicyTemplate, DocumentEvent
+│   │                         # (append-only) + extraction.py pluggable text-extraction connector
+│   │                         # (mock / local pypdf) + services (index, publish/supersede, search)
+│   └── sysadmin/             # Module 21: RoleDefinition (+RolePermission matrix), IdentityProvider
+│                             # (+SSOLoginEvent), SystemConfiguration/Currency/TaxCode/NumberSequence,
+│                             # BackupPolicy (+BackupRun/RestoreRequest), ApiKey, Webhook
+│                             # (+WebhookDelivery) + permissions.py catalog + connectors.py /
+│                             # backups.py / webhooks.py pluggable connectors (mock default)
 ├── config/                   # settings.py, urls.py, wsgi.py, asgi.py
 ├── static/
 │   ├── css/  style.css, auth.css
@@ -212,6 +220,9 @@ NavPMS/
 │   │                         # (+ drill), maverick tracking, report list/form/detail
 │   ├── budget/               # dashboard (allocated/actual/committed), budget + period
 │   │                         # list/form/detail, allocation form, variance, forecast, check log
+│   ├── sysadmin/             # dashboard, roles (list/form/detail/permission-matrix), sso,
+│   │                         # config (overview/currency/tax/sequence), backup (policy/run/restore),
+│   │                         # api (keys/reveal/webhooks)
 │   └── vendor_portal/        # Separate shell for supplier self-service
 │       ├── sourcing/         # Vendor-side bid submission + invitations
 │       ├── rfx/              # Vendor-side RFx invitations + response form
@@ -320,6 +331,14 @@ All values are read via `python-decouple` from `.env`.
 | `DMS_EXTRACTION_ALLOWLIST` | `` | Comma-separated SSRF allowlist of extra hosts a real (remote) extraction backend may target. |
 | `DMS_MAX_INDEX_CHARS` | `200000` | Cap on stored extracted text (chars) so a large PDF cannot bloat the row / search index. |
 | `DMS_UPLOAD_MAX_MB` | `10` | Maximum uploaded document file size (MB). |
+| `SSO_CONNECTOR` | `mock` | Default LDAP/SSO connector (real SAML/OIDC/LDAP backends wire in via `apps/sysadmin/connectors.py`). |
+| `SSO_METADATA_ALLOWLIST` | `` | Comma-separated SSRF allowlist of extra hosts an SSO metadata URL may target (else HTTPS + public-host only). |
+| `BACKUP_CONNECTOR` | `mock` | Default backup connector (real targets — pg_dump→S3, etc. — wire in via `apps/sysadmin/backups.py`). |
+| `BACKUP_RETENTION_DEFAULT_DAYS` | `30` | Default retention window (days) a new backup policy starts with. |
+| `WEBHOOK_SSRF_ALLOWLIST` | `` | Comma-separated SSRF allowlist of extra hosts a webhook target URL may reach (else HTTPS + public-host only). |
+| `WEBHOOK_MAX_ATTEMPTS` | `5` | Maximum delivery attempts before a webhook delivery stops retrying. |
+| `WEBHOOK_TIMEOUT_SECONDS` | `10` | Per-delivery HTTP timeout for an outbound webhook. |
+| `API_KEY_PREFIX` | `pms` | Brand prefix on issued API keys (e.g. `pms_AB12CD…`). |
 | `TIME_ZONE` | `UTC` | |
 | `LANGUAGE_CODE` | `en-us` | |
 
@@ -329,7 +348,7 @@ All values are read via `python-decouple` from `.env`.
 
 | Command | What it does |
 |---------|--------------|
-| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance` → `seed_inventory` → `seed_documents`. |
+| `python manage.py seed_data` | Orchestrator: runs `seed_plans` → `seed_tenants` → `seed_users` → `seed_portal` → `seed_requisitions` → `seed_approvals` → `seed_vendors` → `seed_sourcing` → `seed_rfx` → `seed_auctions` → `seed_contracts` → `seed_catalog` → `seed_purchase_orders` → `seed_fulfillment` → `seed_goods_receipt` → `seed_invoicing` → `seed_spend_analytics` → `seed_budget` → `seed_supplier_performance` → `seed_compliance` → `seed_inventory` → `seed_documents` → `seed_sysadmin`. |
 | `python manage.py seed_plans` | Creates 4 canonical plans (Free / Starter / Professional / Enterprise). |
 | `python manage.py seed_tenants` | Creates 3 demo tenants with subscriptions, invoices, branding, audit, metrics. |
 | `python manage.py seed_users` | Creates a tenant_admin + 4 staff users per tenant. |
@@ -353,6 +372,9 @@ All values are read via `python-decouple` from `.env`.
 | `python manage.py seed_inventory` | Creates a default warehouse + bins, stock items for the live catalog items (with reorder params), folds posted goods receipts into on-hand stock + opening balances, posts a consumption + a return goods issue, runs a posted (with variance) + an in-progress cycle count, and forces one item below reorder so an auto-requisition is raised — driven through the real services (idempotent; `--flush` to re-seed). |
 | `python manage.py seed_documents` | Seeds 5 documents (a published policy / spec / warranty / SOP + a draft) and 2 best-practice templates per tenant, each from a small text fixture so the mock extractor indexes real searchable text out of the box — driven through the real create → index → publish services (idempotent; `--flush` to re-seed). |
 | `python manage.py reindex_documents` | Re-extracts text from every document version still pending/failed across all tenants (`--tenant <slug>` for one) — cron-friendly; idempotent (already-indexed versions are skipped). Useful after switching `DMS_EXTRACTION_ENGINE` to `local`. |
+| `python manage.py seed_sysadmin` | Seeds the 8 built-in roles + default permission matrix, a system-configuration singleton (USD base) + 3 currencies / 3 tax codes / 2 number sequences, a disabled SAML identity provider (mock) with a simulated login event, a daily backup policy with one success + one failed run, an API key and an active webhook with a sample delivery, per tenant (idempotent; `--flush` to re-seed). |
+| `python manage.py run_backups` | Executes every active, non-manual backup policy via the pluggable connector and prunes runs beyond each policy's retention window, across all tenants (`--tenant <slug>` for one) — cron-friendly. |
+| `python manage.py deliver_webhooks` | Re-attempts due pending/failed webhook deliveries still under the attempt cap, across all tenants (`--tenant <slug>` for one) — cron-friendly. |
 | `python manage.py run_escalations` | Escalates overdue approval tasks (cron-friendly; the inbox also sweeps lazily). |
 | `python manage.py run_auction_clock` | Advances scheduled→live and live→closed auctions by the wall clock across all tenants (cron-friendly; the live console also sweeps lazily). |
 | `python manage.py run_contract_alerts` | Raises renewal/expiration alerts, auto-renews or expires past-due contracts and flags overdue obligations across all tenants (cron-friendly; the renewals board also sweeps lazily). |
@@ -385,7 +407,7 @@ pytest apps/portal --cov=apps/portal      # one module, with coverage
 |------|--------|
 | Config | [`pytest.ini`](pytest.ini) (`DJANGO_SETTINGS_MODULE = config.settings_test`) |
 | Dev deps | [`requirements-dev.txt`](requirements-dev.txt) — `pytest`, `pytest-django`, `pytest-cov` |
-| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/), [inventory](apps/inventory/tests/), [dms](apps/dms/tests/) — **1378 tests** |
+| Suites | [tenants](apps/tenants/tests/), [portal](apps/portal/tests/), [requisitions](apps/requisitions/tests/), [approvals](apps/approvals/tests/), [rfx](apps/rfx/tests/), [auctions](apps/auctions/tests/), [contracts](apps/contracts/tests/), [catalog](apps/catalog/tests/), [purchase_orders](apps/purchase_orders/tests/), [goods_receipt](apps/goods_receipt/tests/), [invoicing](apps/invoicing/tests/), [spend_analytics](apps/spend_analytics/tests/), [budget](apps/budget/tests/), [supplier_performance](apps/supplier_performance/tests/), [compliance](apps/compliance/tests/), [inventory](apps/inventory/tests/), [dms](apps/dms/tests/), [sysadmin](apps/sysadmin/tests/) — **1467 tests** |
 | Layout | each `tests/` package has `conftest.py` + `test_models` / `test_services` / `test_views` / `test_security` (high-80s–90s % line coverage per module) |
 
 QA artefacts (SQA reports, manual test plans) live under [.claude/](.claude/) and are not part of the runtime.
@@ -600,6 +622,17 @@ default mock extraction engine fills each version's `extracted_text` and the ful
 `/dms/search/` works immediately (e.g. searching “ISO 9001” or “warranty” returns hits). Each
 document is driven through the real create → upload → index → publish services, so the version
 history, `current_version` pointer and append-only timeline are all populated.
+
+### System Administration & Security data
+Each tenant gets the **8 built-in roles** (Super Admin → Viewer) with the **default permission
+matrix** that mirrors the app's current behaviour, a **system-configuration singleton** (USD base
+currency, default VAT tax code), **3 currencies** (USD base / EUR / GBP), **3 tax codes** (VAT 20%
+default / GST / Zero-rated), **2 number sequences** (`PO-YYYY-NNNNN`, `SINV-NNNNNN`), one disabled
+**SAML identity provider** (mock connector) with a simulated login event, a daily **backup policy**
+with one successful + one failed run (the mock backup connector fabricates a believable size +
+checksum), one **API key** (secret hashed — shown only once at issue) and an active **webhook**
+(`po.issued` / `invoice.paid`) with a sample delivery — all driven through the real services so every
+`/sysadmin/` page populates on first login.
 
 ---
 
@@ -1321,6 +1354,33 @@ a `requester` is bounced (the D-01 lesson). Every view is tenant-scoped (cross-t
 
 ---
 
+## Module 21 — System Administration & Security
+
+The platform-governance layer over the whole procure-to-pay suite (`/sysadmin/`, tenant-admin only).
+It **augments, not replaces**, the existing foundations — `tenants.SecuritySettings` (password / MFA /
+session / IP policy), the reused `tenants.AuditLog` hash-chain, and `accounts.User.role`. All five PMS
+sub-modules:
+
+| Sub-module | Implementation |
+|-----------|----------------|
+| **User Role & Permission Management** | A DB-backed roles × permission matrix: [`RoleDefinition`](apps/sysadmin/models.py) (the 8 built-ins mirror `User.role`, plus custom roles) + [`RolePermission`](apps/sysadmin/models.py) (presence = granted). The permission *catalog* lives in [`permissions.py`](apps/sysadmin/permissions.py); a checkbox **permission matrix** UI saves grants; `services.user_has_perm(user, code)` is the governance API new code can consult. Seeded to mirror current behaviour — the 20 existing apps keep their inline checks (zero regression). |
+| **LDAP/SSO Integration** | [`IdentityProvider`](apps/sysadmin/models.py) (SAML / OIDC / LDAP config; secrets write-only/masked) + an append-only [`SSOLoginEvent`](apps/sysadmin/models.py). Live handshakes are a pluggable [`connectors.py`](apps/sysadmin/connectors.py) registry (mock default); **test connection** + **simulate login** actions are demoable out of the box. Metadata URLs pass a fail-closed SSRF guard. |
+| **System Configuration & Setup** | [`SystemConfiguration`](apps/sysadmin/models.py) (1:1 per-tenant singleton — base currency, fiscal year, formats, default tax/payment terms) + [`Currency`](apps/sysadmin/models.py) (with rate-to-base) + [`TaxCode`](apps/sysadmin/models.py) + [`NumberSequence`](apps/sysadmin/models.py) (`allocate_number` atomic increment / `preview_number`). |
+| **Data Backup & Recovery** | [`BackupPolicy`](apps/sysadmin/models.py) (schedule + retention) + append-only [`BackupRun`](apps/sysadmin/models.py) history + [`RestoreRequest`](apps/sysadmin/models.py) (a logged, approval-gated recovery protocol — never a live overwrite). Execution is a pluggable [`backups.py`](apps/sysadmin/backups.py) connector (mock default); `run_backups` is the cron worker (runs due policies + prunes by retention). |
+| **API & Webhook Management** | [`ApiKey`](apps/sysadmin/models.py) (secret stored **only** as a SHA-256 hash, shown once at issue) + [`Webhook`](apps/sysadmin/models.py) (HMAC-SHA256-signed, SSRF-guarded target) + append-only [`WebhookDelivery`](apps/sysadmin/models.py). [`webhooks.py`](apps/sysadmin/webhooks.py) provides `emit_event(tenant, event, payload)` (the producer API), a **test/ping** action and the `deliver_webhooks` retry worker. |
+
+**Pluggable mock-default connectors.** SSO / backup / webhook integrations follow the existing
+punch-out / OCR / screening pattern: mock by default (zero external deps, fully seeded + demoable),
+real backends wire in via the per-area registries, every outbound URL passes a **fail-closed SSRF
+guard** (HTTPS + public-host only, `*_ALLOWLIST` overrides), and every secret is hashed (API key) or
+write-only/masked (SSO client secret, LDAP bind password, webhook signing secret) — never re-rendered.
+
+**RBAC + tenancy.** The whole module is tenant-admin / super-admin only (a `requester`/`buyer` is
+bounced); every view is tenant-scoped (cross-tenant access 404s) and every mutation is audited via the
+reused `tenants.record_audit`. **Cron:** `run_backups` and `deliver_webhooks`.
+
+---
+
 ## Routes / UI Tour
 
 | URL | Purpose |
@@ -1440,6 +1500,12 @@ a `requester` is bounced (the D-01 lesson). Every view is tenant-scoped (cross-t
 | `/dms/search/` | Full-text search across titles, tags and the text extracted from uploaded files |
 | `/dms/policies/` | Procurement policy library (policy-category documents); cross-links to compliance acknowledgment |
 | `/dms/templates/` | Best-practice template library — author, edit, and **clone to a document** |
+| `/sysadmin/` | System Administration dashboard — roles/SSO/backup/API KPIs + backup-status chart (tenant-admin only) |
+| `/sysadmin/roles/` | Roles & permissions — CRUD + a checkbox **permission matrix** per role |
+| `/sysadmin/sso/` | LDAP/SSO identity providers — CRUD + test-connection + simulate-login |
+| `/sysadmin/config/` | System configuration — company defaults + currencies / tax codes / number sequences |
+| `/sysadmin/backups/` | Backup policies, run history (CSV export) + restore requests; “run backup now” |
+| `/sysadmin/api/keys/` | API keys (issue → one-time secret reveal, revoke) and webhooks (signed, SSRF-guarded, test ping) |
 | `/invoicing/list/` | Supplier invoices — search + status/match/vendor/PO filters |
 | `/invoicing/capture/` | Capture an invoice from a PDF/image (OCR) — optionally `?from_po=<id>` |
 | `/invoicing/new/` | Enter an invoice manually |
@@ -1531,7 +1597,7 @@ Tested against Chrome, Firefox, Safari, Edge (latest two majors). No IE support.
 
 ## Roadmap
 
-Modules 1–19 ship. The remaining PMS modules are not yet implemented:
+All 21 PMS modules ship:
 
 | # | Module | Status |
 |---|--------|--------|
@@ -1555,9 +1621,9 @@ Modules 1–19 ship. The remaining PMS modules are not yet implemented:
 | 18 | Risk & Compliance Management | Shipped |
 | 19 | Inventory & Warehouse Integration | Shipped |
 | 20 | Document & Knowledge Management | Shipped |
-| 21 | System Administration & Security | Planned |
+| 21 | System Administration & Security | Shipped |
 
-See [PMS.md](PMS.md) for the full 20-module spec.
+See [PMS.md](PMS.md) for the full 21-module spec.
 
 ---
 
