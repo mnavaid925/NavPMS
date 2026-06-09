@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_edit %}Edit Policy{% else %}New Policy{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{% if is_edit %}Edit {{ policy.name }}{% else %}New Backup Policy{% endif %}</h1>
+</div>
+<div class="card"><div class="card-body">
+  <form method="post">
+    {% csrf_token %}
+    {% include 'sysadmin/_form.html' %}
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+      <a href="{% if policy %}{% url 'sysadmin:backup_policy_detail' policy.pk %}{% else %}{% url 'sysadmin:backup_policy_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
