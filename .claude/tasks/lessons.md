@@ -10,6 +10,16 @@ then **Why** and **How to apply** lines (see `.claude/CLAUDE.md` self-improvemen
 
 ---
 
+- **2026-06-10 — This app ships an RTL toggle, so new sidebar/menu CSS must use logical properties, not physical `left`/`right`.**
+  The sidebar revamp gave `.submenu` a `border-left` + `margin-left` guide line; under `dir="rtl"`
+  (a real customizer toggle, `html[dir="rtl"]` rules already exist) the indent + visible line landed on
+  the wrong (outer) side. **Why:** physical-side properties don't mirror in RTL, and a visible border
+  makes the mis-placement obvious where the old invisible padding gap hid it. **How to apply:** for
+  anything directional inside `.app-sidebar`/menus use `margin-inline-start` / `padding-inline-start` /
+  `border-inline-start` (and `padding-inline: <start> <end>`) so it auto-flips; only the pre-existing
+  `.nav-link.active::before { left: 0 }` accent remains physical (out of scope here). Reserve a `height`
+  alongside `width` on `::-webkit-scrollbar` too — horizontal-layout sidebars scroll on the other axis.
+
 - **2026-06-04 — `.claude/` tooling was copied from the sibling `NavMSM` repo; verify it targets NavPMS before trusting it.**
   The `dump-module` skill had `$RepoRoot = 'c:\xampp\htdocs\NavMSM'` and a registry of
   manufacturing modules (plm/bom/pps/mrp/mes/qms…) that don't exist here. It printed
