@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}{{ policy.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1 class="page-title">{{ policy.name }} <span class="badge badge-soft-{{ policy.status_color }}">{% if policy.is_active %}Active{% else %}Inactive{% endif %}</span></h1>
+    <p class="page-subtitle">{{ policy.get_frequency_display }} · {{ policy.get_scope_display }} · {{ policy.retention_days }}-day retention</p>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'sysadmin:backup_run_now' policy.pk %}">{% csrf_token %}
+      <button class="btn btn-primary"><i class="ri-play-line"></i> Run backup now</button></form>
+    <a href="{% url 'sysadmin:backup_policy_edit' policy.pk %}" class="btn btn-outline-secondary"><i class="ri-edit-line"></i> Edit</a>
+    <a href="{% url 'sysadmin:backup_policy_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card"><div class="card-body small">
+      <dl class="row mb-0">
+        <dt class="col-6">Storage target</dt><dd class="col-6">{{ policy.storage_target }}</dd>
+        <dt class="col-6">Location</dt><dd class="col-6">{{ policy.storage_location|default:"—" }}</dd>
+        <dt class="col-6">Encryption</dt><dd class="col-6">{% if policy.encryption_enabled %}<span class="badge badge-soft-success">On</span>{% else %}<span class="badge badge-soft-danger">Off</span>{% endif %}</dd>
+        <dt class="col-6">Run hour</dt><dd class="col-6">{{ policy.run_hour }}:00</dd>
+        <dt class="col-6">Last run</dt><dd class="col-6">{% if policy.last_run_at %}{{ policy.last_run_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
+      </dl>
+    </div></div>
+    <div class="card mt-3"><div class="card-body">
+      <form method="post" action="{% url 'sysadmin:backup_policy_delete' policy.pk %}" onsubmit="return confirm('Delete {{ policy.name }}?');">
+        {% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line"></i> Delete policy</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><i class="ri-history-line"></i> Run history</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Run</th><th>Trigger</th><th>Size</th><th>Status</th><th>When</th></tr></thead>
+          <tbody>
+            {% for r in runs %}
+            <tr>
+              <td><a href="{% url 'sysadmin:backup_run_detail' r.pk %}" class="text-decoration-none">{{ r.run_number }}</a></td>
+              <td>{{ r.get_trigger_display }}</td>
+              <td>{{ r.size_mb }} MB</td>
+              <td><span class="badge badge-soft-{{ r.status_color }}">{{ r.get_status_display }}</span></td>
+              <td class="small text-muted">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No runs yet — use “Run backup now”.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
