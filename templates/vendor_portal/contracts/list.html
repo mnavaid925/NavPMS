@@ -3,19 +3,22 @@
 {% block title %}My Contracts{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">My Contracts</h4>
+<div class="page-header">
+  <div>
+    <h1>My Contracts</h1>
+    <div class="breadcrumb-trail">Contracts sent to your company and their signature status</div>
+  </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table">
       <thead>
         <tr>
           <th>Contract</th>
           <th>Status</th>
-          <th>Ends</th>
-          <th class="text-end">Actions</th>
+          <th data-sort="date">Ends</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -32,13 +35,17 @@
             {% elif c.status == 'terminated' %}<span class="badge badge-soft-danger">Terminated</span>
             {% else %}<span class="badge badge-soft-secondary">{{ c.get_status_display }}</span>{% endif %}
           </td>
-          <td>{{ c.end_date|date:"M d, Y"|default:"—" }}</td>
-          <td class="text-end">
-            <a href="{% url 'vendor_portal:contract_detail' c.pk %}" class="btn btn-sm btn-outline-primary">Open</a>
+          <td data-sort-value="{{ c.end_date|date:'c' }}">{{ c.end_date|date:"M d, Y"|default:"—" }}</td>
+          <td class="text-end actions-cell">
+            <a href="{% url 'vendor_portal:contract_detail' c.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" class="text-center text-muted py-4">No contracts yet.</td></tr>
+        <tr>
+          <td colspan="4" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-file-paper-2-line' title='No contracts yet' message='Contracts sent to your company for review or signature will appear here.' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
