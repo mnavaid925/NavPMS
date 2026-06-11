@@ -9,38 +9,41 @@
       <a href="{% url 'requisitions:requisition_list' %}">Requisitions</a> &rsaquo; Account codes
     </div>
   </div>
-  <a href="{% url 'requisitions:account_code_create' %}" class="btn btn-primary">
-    <i class="ri-add-line me-1"></i> New account code
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'requisitions:account_code_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New account code
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-7">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Code or name…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="active" class="form-select">
           <option value="">All</option>
           <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
           <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0 table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Code</th><th>Name</th><th>Description</th><th>Status</th><th class="text-end">Actions</th></tr>
+        <tr><th>Code</th><th>Name</th><th>Description</th><th>Status</th><th class="text-end" data-sort="none">Actions</th></tr>
       </thead>
       <tbody>
         {% for c in account_codes %}
@@ -55,17 +58,22 @@
                 <span class="badge badge-soft-secondary">Inactive</span>
               {% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'requisitions:account_code_edit' c.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'requisitions:account_code_edit' c.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'requisitions:account_code_delete' c.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete account code {{ c.code }}?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">No account codes yet.</td></tr>
+          <tr>
+            <td colspan="5" class="p-0 border-0">
+              {% url 'requisitions:account_code_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-price-tag-3-line' title='No account codes found' message='Adjust your search or filters, or create a new account code.' create_url=create_url create_label='New account code' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
