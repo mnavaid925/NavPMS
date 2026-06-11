@@ -10,20 +10,22 @@
       <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo; Personal usage &amp; spend reports
     </div>
   </div>
-  <a href="{% url 'portal:report_create' %}" class="btn btn-primary">
-    <i class="ri-add-line me-1"></i> New report
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'portal:report_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New report
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-6">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Report name…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Report type</label>
+        <label class="form-label">Report type</label>
         <select name="report_type" class="form-select">
           <option value="">All types</option>
           {% for v, l in report_type_choices %}
@@ -31,20 +33,21 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Name</th><th>Type</th><th>Date range</th>
-          <th>Last run</th><th class="text-end">Actions</th>
+          <th>Name</th><th>Type</th><th data-sort="date">Date range</th>
+          <th data-sort="date">Last run</th><th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -52,22 +55,27 @@
           <tr>
             <td><a href="{% url 'portal:report_run' rep.pk %}">{{ rep.name }}</a></td>
             <td><span class="badge badge-soft-primary">{{ rep.get_report_type_display }}</span></td>
-            <td class="small text-muted">
+            <td class="small text-muted" data-sort-value="{{ rep.date_from|date:'c' }}">
               {{ rep.date_from|date:'M d, Y'|default:'—' }} &rarr; {{ rep.date_to|date:'M d, Y'|default:'today' }}
             </td>
-            <td class="small text-muted">{% if rep.last_run_at %}{{ rep.last_run_at|naturaltime }}{% else %}Never{% endif %}</td>
-            <td class="text-end">
-              <a href="{% url 'portal:report_run' rep.pk %}" class="btn btn-sm btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
-              <a href="{% url 'portal:report_edit' rep.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="small text-muted" data-sort-value="{{ rep.last_run_at|date:'c' }}">{% if rep.last_run_at %}{{ rep.last_run_at|naturaltime }}{% else %}Never{% endif %}</td>
+            <td class="text-end actions-cell">
+              <a href="{% url 'portal:report_run' rep.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
+              <a href="{% url 'portal:report_edit' rep.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'portal:report_delete' rep.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete this report?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">No saved reports. Create one to track your spend and usage.</td></tr>
+          <tr>
+            <td colspan="5" class="p-0 border-0">
+              {% url 'portal:report_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-bar-chart-box-line' title='No saved reports' message='Create a report to track your spend and usage.' create_url=create_url create_label='New report' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
