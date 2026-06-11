@@ -41,15 +41,15 @@
   </div></div></div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-4">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="RFx number, title…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="status" class="form-select">
           <option value="">All</option>
           {% for value, label in status_choices %}
@@ -58,7 +58,7 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Type</label>
+        <label class="form-label">Type</label>
         <select name="rfx_type" class="form-select">
           <option value="">Any</option>
           {% for value, label in type_choices %}
@@ -66,8 +66,8 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-3">
-        <label class="form-label small">Category</label>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
         <select name="category" class="form-select">
           <option value="">Any</option>
           {% for cat in categories %}
@@ -75,22 +75,23 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-1">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Number</th><th>Title</th><th>Type</th><th>Status</th>
-          <th>Publish</th><th>Close</th><th>Invitees</th><th>Responses</th>
-          <th class="text-end">Actions</th>
+          <th data-sort="date">Publish</th><th data-sort="date">Close</th>
+          <th data-sort="number">Invitees</th><th data-sort="number">Responses</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -114,32 +115,36 @@
               {% elif ev.status == 'cancelled' %}<span class="badge badge-soft-danger">Cancelled</span>
               {% else %}<span class="badge badge-soft-secondary">{{ ev.get_status_display }}</span>{% endif %}
             </td>
-            <td class="small">{{ ev.publish_at|date:'Y-m-d H:i'|default:'—' }}</td>
-            <td class="small">{{ ev.close_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td class="small" data-sort-value="{{ ev.publish_at|date:'c' }}">{{ ev.publish_at|date:'Y-m-d H:i'|default:'—' }}</td>
+            <td class="small" data-sort-value="{{ ev.close_at|date:'c' }}">{{ ev.close_at|date:'Y-m-d H:i'|default:'—' }}</td>
             <td class="small">{{ ev.invitees.count }}</td>
             <td class="small">{{ ev.responses.count }}</td>
-            <td class="text-end">
-              <a href="{% url 'rfx:event_detail' ev.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'rfx:event_detail' ev.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
               {% if can_manage and ev.is_editable %}
-              <a href="{% url 'rfx:event_edit' ev.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+              <a href="{% url 'rfx:event_edit' ev.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'rfx:event_delete' ev.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete RFx {{ ev.event_number }}?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
               {% endif %}
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="text-center text-muted py-4">
-            No RFx events yet.
-            {% if can_manage %}<a href="{% url 'rfx:event_create' %}">Create the first one</a>
-            or <a href="{% url 'rfx:template_list' %}">start from a template</a>.{% endif %}
-          </td></tr>
+          <tr>
+            <td colspan="9" class="p-0 border-0">
+              {% if can_manage %}
+                {% url 'rfx:event_create' as create_url %}
+                {% include 'partials/_empty_state.html' with icon='ri-questionnaire-line' title='No RFx events found' message='Adjust your search or filters, create a new RFx, or start from a template.' create_url=create_url create_label='New RFx' %}
+              {% else %}
+                {% include 'partials/_empty_state.html' with icon='ri-questionnaire-line' title='No RFx events found' message='Adjust your search or filters.' %}
+              {% endif %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
   </div>
 </div>
 {% endblock %}
