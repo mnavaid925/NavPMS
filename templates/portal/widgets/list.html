@@ -9,16 +9,18 @@
       <a href="{% url 'portal:dashboard' %}">My Portal</a> &rsaquo; Customize widgets
     </div>
   </div>
-  <a href="{% url 'portal:widget_create' %}" class="btn btn-primary">
-    <i class="ri-add-line me-1"></i> Add widget
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'portal:widget_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> Add widget
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-5">
-        <label class="form-label small">Widget type</label>
+        <label class="form-label">Widget type</label>
         <select name="widget_type" class="form-select">
           <option value="">All types</option>
           {% for v, l in widget_type_choices %}
@@ -27,27 +29,28 @@
         </select>
       </div>
       <div class="col-md-4">
-        <label class="form-label small">Visibility</label>
+        <label class="form-label">Visibility</label>
         <select name="visible" class="form-select">
           <option value="">All</option>
           <option value="visible" {% if request.GET.visible == 'visible' %}selected{% endif %}>Visible</option>
           <option value="hidden" {% if request.GET.visible == 'hidden' %}selected{% endif %}>Hidden</option>
         </select>
       </div>
-      <div class="col-md-3">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>#</th><th>Title</th><th>Type</th><th>Size</th>
-          <th>Visibility</th><th class="text-end">Actions</th>
+          <th data-sort="number">#</th><th>Title</th><th>Type</th><th>Size</th>
+          <th>Visibility</th><th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -64,17 +67,22 @@
                 <span class="badge badge-soft-secondary">Hidden</span>
               {% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'portal:widget_edit' w.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'portal:widget_edit' w.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'portal:widget_delete' w.pk %}" class="d-inline"
                     onsubmit="return confirm('Remove this widget?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No widgets yet. Add one to build your dashboard.</td></tr>
+          <tr>
+            <td colspan="6" class="p-0 border-0">
+              {% url 'portal:widget_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-dashboard-line' title='No widgets found' message='Add a widget to build your personalized dashboard.' create_url=create_url create_label='Add widget' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
