@@ -3,10 +3,10 @@
 {% block title %}Catalog Items{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Catalog Items</h1>
-    <p class="page-subtitle">Internal stock items &amp; supplier products &mdash; pricing, tiers &amp; approval</p>
+    <h1>Catalog Items</h1>
+    <div class="breadcrumb-trail">Internal stock items &amp; supplier products &mdash; pricing, tiers &amp; approval</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'catalog:approval_board' %}" class="btn btn-outline-secondary">
@@ -25,13 +25,13 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-4">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control"
                placeholder="Number, name, SKU, keywords or supplier">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label">Status</label>
         <select name="status" class="form-select">
           <option value="">All</option>
@@ -58,16 +58,17 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-1">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i></button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Number</th>
@@ -75,9 +76,9 @@
           <th>Source</th>
           <th>Supplier</th>
           <th>Status</th>
-          <th class="text-end">Base price</th>
+          <th class="text-end" data-sort="number">Base price</th>
           <th>UoM</th>
-          <th class="text-end">Actions</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -88,23 +89,28 @@
           <td><span class="badge bg-light text-dark">{{ item.get_source_display }}</span></td>
           <td>{{ item.vendor.legal_name|default:"—" }}</td>
           <td>{% include 'catalog/_status_badge.html' with status=item.status %}</td>
-          <td class="text-end">{{ item.currency }} {{ item.base_price|floatformat:2|intcomma }}</td>
+          <td class="text-end" data-sort-value="{{ item.base_price }}">{{ item.currency }} {{ item.base_price|floatformat:2|intcomma }}</td>
           <td>{{ item.get_uom_display }}</td>
-          <td class="text-end">
-            <a href="{% url 'catalog:item_detail' item.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+          <td class="text-end actions-cell">
+            <a href="{% url 'catalog:item_detail' item.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             {% if can_manage and item.is_editable %}
-            <a href="{% url 'catalog:item_edit' item.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <a href="{% url 'catalog:item_edit' item.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'catalog:item_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ item.item_number }}?');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="8" class="text-center text-muted py-4">
-            No catalog items yet.{% if can_manage %} <a href="{% url 'catalog:item_create' %}">Create one</a>.{% endif %}
+          <td colspan="8" class="p-0 border-0">
+            {% if can_manage %}
+              {% url 'catalog:item_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-shopping-bag-3-line' title='No catalog items found' message='Adjust your search or filters, or add a new item.' create_url=create_url create_label='New Item' %}
+            {% else %}
+              {% include 'partials/_empty_state.html' with icon='ri-shopping-bag-3-line' title='No catalog items found' message='Adjust your search or filters.' %}
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -113,17 +119,5 @@
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3">
-  <ul class="pagination justify-content-center">
-    {% if page_obj.has_previous %}
-    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
-    {% endif %}
-    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-    {% if page_obj.has_next %}
-    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
