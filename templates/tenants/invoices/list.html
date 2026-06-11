@@ -9,15 +9,15 @@
   </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-5">
-        <label class="form-label small">Search</label>
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
+      <div class="col-md-6">
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Invoice number or tenant…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="status" class="form-select">
           <option value="">All</option>
           {% for v, l in status_choices %}
@@ -25,19 +25,27 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+      </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Number</th><th>Tenant</th><th>Plan</th>
-          <th>Status</th><th>Issued</th><th>Due</th>
-          <th class="text-end">Total</th><th class="text-end">Actions</th>
+          <th>Number</th>
+          <th>Tenant</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th data-sort="date">Issued</th>
+          <th data-sort="date">Due</th>
+          <th class="text-end" data-sort="number">Total</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -51,15 +59,19 @@
                 {{ inv.get_status_display }}
               </span>
             </td>
-            <td class="small text-muted">{{ inv.issued_at|date:'M d, Y' }}</td>
-            <td class="small text-muted">{{ inv.due_at|date:'M d, Y'|default:'—' }}</td>
-            <td class="text-end"><strong>${{ inv.total|floatformat:2 }}</strong></td>
-            <td class="text-end">
-              <a href="{% url 'tenants:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            <td class="small text-muted" data-sort-value="{{ inv.issued_at|date:'c' }}">{{ inv.issued_at|date:'M d, Y' }}</td>
+            <td class="small text-muted" data-sort-value="{{ inv.due_at|date:'c' }}">{{ inv.due_at|date:'M d, Y'|default:'—' }}</td>
+            <td class="text-end" data-sort-value="{{ inv.total }}"><strong>${{ inv.total|floatformat:2 }}</strong></td>
+            <td class="text-end actions-cell">
+              <a href="{% url 'tenants:invoice_detail' inv.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="8" class="text-center text-muted py-4">No invoices yet.</td></tr>
+          <tr>
+            <td colspan="8" class="p-0 border-0">
+              {% include 'partials/_empty_state.html' with icon='ri-bill-line' title='No invoices found' message='Adjust your search or filters. Invoices appear here once subscriptions are billed.' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
