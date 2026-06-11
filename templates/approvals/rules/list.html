@@ -7,46 +7,53 @@
     <h1>Approval Rules</h1>
     <div class="breadcrumb-trail">Dynamic routing rules for requisition approvals</div>
   </div>
-  <a href="{% url 'approvals:rule_create' %}" class="btn btn-primary">
-    <i class="ri-add-line me-1"></i> New rule
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'approvals:rule_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New rule
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-8">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Rule name or department…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="active" class="form-select">
           <option value="">All</option>
           <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
           <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Priority</th><th>Name</th><th>Conditions</th><th>Steps</th>
-          <th>Status</th><th class="text-end">Actions</th>
+          <th data-sort="number">Priority</th>
+          <th>Name</th>
+          <th>Conditions</th>
+          <th data-sort="number">Steps</th>
+          <th>Status</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for rule in rules %}
           <tr>
-            <td><span class="badge badge-soft-secondary">{{ rule.priority }}</span></td>
+            <td data-sort-value="{{ rule.priority }}"><span class="badge badge-soft-secondary">{{ rule.priority }}</span></td>
             <td><a href="{% url 'approvals:rule_detail' rule.pk %}">{{ rule.name }}</a></td>
             <td class="small text-muted">
               {% if rule.min_amount != None %}≥ ${{ rule.min_amount|floatformat:0 }} {% endif %}
@@ -63,20 +70,23 @@
                 <span class="badge badge-soft-secondary">Inactive</span>
               {% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'approvals:rule_detail' rule.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
-              <a href="{% url 'approvals:rule_edit' rule.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'approvals:rule_detail' rule.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'approvals:rule_edit' rule.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'approvals:rule_delete' rule.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete rule {{ rule.name }}?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">
-            No approval rules. Requisitions fall back to a single admin approve/reject until a rule is added.
-          </td></tr>
+          <tr>
+            <td colspan="6" class="p-0 border-0">
+              {% url 'approvals:rule_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-route-line' title='No approval rules found' message='Requisitions fall back to a single admin approve/reject until a rule is added.' create_url=create_url create_label='New rule' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
