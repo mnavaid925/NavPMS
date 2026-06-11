@@ -11,20 +11,22 @@
       Pre-defined forms for recurring orders
     </div>
   </div>
-  <a href="{% url 'requisitions:template_create' %}" class="btn btn-primary">
-    <i class="ri-add-line me-1"></i> New template
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'requisitions:template_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New template
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-7">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Template name…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Category</label>
+        <label class="form-label">Category</label>
         <select name="category" class="form-select">
           <option value="">All</option>
           {% for v, l in category_choices %}
@@ -32,20 +34,21 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0 table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Name</th><th>Category</th><th>Owner</th><th>Lines</th>
-          <th>Visibility</th><th class="text-end">Est. total</th><th class="text-end">Actions</th>
+          <th>Name</th><th>Category</th><th>Owner</th><th data-sort="number">Lines</th>
+          <th>Visibility</th><th class="text-end" data-sort="number">Est. total</th><th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -62,17 +65,22 @@
                 <span class="badge badge-soft-secondary">Private</span>
               {% endif %}
             </td>
-            <td class="text-end">${{ t.estimated_total|floatformat:2|intcomma }}</td>
-            <td class="text-end">
-              <a href="{% url 'requisitions:template_detail' t.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+            <td class="text-end" data-sort-value="{{ t.estimated_total }}">${{ t.estimated_total|floatformat:2|intcomma }}</td>
+            <td class="text-end actions-cell">
+              <a href="{% url 'requisitions:template_detail' t.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
               <form method="post" action="{% url 'requisitions:template_use' t.pk %}" class="d-inline">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-primary" title="Create requisition from template"><i class="ri-file-copy-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-primary" title="Create requisition from template"><i class="ri-file-copy-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="text-center text-muted py-4">No templates yet.</td></tr>
+          <tr>
+            <td colspan="7" class="p-0 border-0">
+              {% url 'requisitions:template_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-file-copy-2-line' title='No templates found' message='Adjust your search or filters, or create a template for recurring orders.' create_url=create_url create_label='New template' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
