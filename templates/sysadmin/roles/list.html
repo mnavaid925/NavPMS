@@ -2,16 +2,18 @@
 {% block title %}Roles &amp; Permissions{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Roles &amp; Permissions</h1>
-    <p class="page-subtitle">Define access rights per job role (Buyer, Approver, Admin…)</p>
+    <h1>Roles &amp; Permissions</h1>
+    <div class="breadcrumb-trail">Define access rights per job role (Buyer, Approver, Admin…)</div>
   </div>
-  <a href="{% url 'sysadmin:role_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Role</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sysadmin:role_create' %}" class="btn btn-primary"><i class="ri-add-line"></i> New Role</a>
+  </div>
 </div>
 
 <div class="card filter-card mb-3"><div class="card-body">
-  <form method="get" class="row g-2 align-items-end">
+  <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
     <div class="col-md-6">
       <label class="form-label">Search</label>
       <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Code or name">
@@ -24,13 +26,16 @@
         <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
       </select>
     </div>
-    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+    </div>
   </form>
 </div></div>
 
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>Role</th><th>Code</th><th>Permissions</th><th>Type</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+<div class="card table-card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0 list-table" data-sortable>
+    <thead><tr><th>Role</th><th>Code</th><th data-sort="number">Permissions</th><th>Type</th><th>Status</th><th class="text-end" data-sort="none">Actions</th></tr></thead>
     <tbody>
       {% for role in page_obj %}
       <tr>
@@ -39,21 +44,26 @@
         <td>{{ role.permission_count }}</td>
         <td>{% if role.is_system %}<span class="badge badge-soft-info">Built-in</span>{% else %}<span class="badge badge-soft-secondary">Custom</span>{% endif %}</td>
         <td><span class="badge badge-soft-{{ role.status_color }}">{% if role.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-        <td class="text-end">
-          <a href="{% url 'sysadmin:role_permissions' role.pk %}" class="btn btn-sm btn-outline-primary" title="Edit permissions"><i class="ri-shield-keyhole-line"></i></a>
-          <a href="{% url 'sysadmin:role_edit' role.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+        <td class="text-end actions-cell">
+          <a href="{% url 'sysadmin:role_permissions' role.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit permissions"><i class="ri-shield-keyhole-line"></i></a>
+          <a href="{% url 'sysadmin:role_edit' role.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
           {% if not role.is_system %}
           <form method="post" action="{% url 'sysadmin:role_delete' role.pk %}" class="d-inline" onsubmit="return confirm('Delete role {{ role.name }}?');">
-            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
           </form>
           {% endif %}
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="text-center text-muted py-4">No roles found.</td></tr>
+      <tr>
+        <td colspan="6" class="p-0 border-0">
+          {% url 'sysadmin:role_create' as create_url %}
+          {% include 'partials/_empty_state.html' with icon='ri-shield-user-line' title='No roles found' message='Adjust your search or filters, or create a new role.' create_url=create_url create_label='New Role' %}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
 </div></div>
-{% include 'sysadmin/_pagination.html' %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
