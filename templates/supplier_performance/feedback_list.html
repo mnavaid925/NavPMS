@@ -2,10 +2,10 @@
 {% block title %}360° Feedback{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">360° Feedback</h1>
-    <p class="page-subtitle">Internal stakeholder reviews of supplier performance{% if my_pending %} — <span class="text-warning">you have {{ my_pending }} request(s) to complete</span>{% endif %}</p>
+    <h1>360° Feedback</h1>
+    <div class="breadcrumb-trail">Internal stakeholder reviews of supplier performance{% if my_pending %} — <span class="text-warning">you have {{ my_pending }} request(s) to complete</span>{% endif %}</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'supplier_performance:dashboard' %}" class="btn btn-outline-secondary"><i class="ri-dashboard-line"></i> Dashboard</a>
@@ -17,7 +17,7 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-7">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Vendor or comment">
@@ -31,18 +31,19 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Vendor</th><th>Reviewer</th><th>Status</th><th class="text-end">Rating</th><th>Submitted</th><th class="text-end">Actions</th></tr>
+        <tr><th>Vendor</th><th>Reviewer</th><th>Status</th><th class="text-end" data-sort="number">Rating</th><th data-sort="date">Submitted</th><th class="text-end" data-sort="none">Actions</th></tr>
       </thead>
       <tbody>
         {% for f in feedback %}
@@ -50,14 +51,14 @@
           <td>{{ f.vendor.legal_name }}</td>
           <td>{{ f.reviewer.get_full_name|default:f.reviewer.username|default:"—" }}</td>
           <td><span class="badge bg-{% if f.status == 'submitted' %}success{% elif f.status == 'requested' %}warning text-dark{% else %}secondary{% endif %}">{{ f.get_status_display }}</span></td>
-          <td class="text-end">{% if f.rating %}{{ f.rating }}/5{% else %}—{% endif %}</td>
-          <td>{{ f.submitted_at|default:"—" }}</td>
-          <td class="text-end">
+          <td class="text-end" data-sort-value="{{ f.rating|default_if_none:'' }}">{% if f.rating %}{{ f.rating }}/5{% else %}—{% endif %}</td>
+          <td data-sort-value="{{ f.submitted_at|date:'c' }}">{{ f.submitted_at|default:"—" }}</td>
+          <td class="text-end actions-cell">
             {% if f.status == 'requested' %}
             <a href="{% url 'supplier_performance:feedback_submit' f.pk %}" class="btn btn-sm btn-outline-primary" title="Submit"><i class="ri-edit-2-line"></i> Submit</a>
             {% if can_manage %}
             <form method="post" action="{% url 'supplier_performance:feedback_cancel' f.pk %}" class="d-inline" onsubmit="return confirm('Cancel this request?');">
-              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Cancel"><i class="ri-close-line"></i></button>
+              {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Cancel"><i class="ri-close-line"></i></button>
             </form>
             {% endif %}
             {% elif f.status == 'submitted' %}
@@ -66,18 +67,17 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-4">No feedback yet.{% if can_manage %} <a href="{% url 'supplier_performance:feedback_request' %}">Request some</a>.{% endif %}</td></tr>
+        <tr>
+          <td colspan="6" class="p-0 border-0">
+            {% if can_manage %}{% url 'supplier_performance:feedback_request' as create_url %}{% endif %}
+            {% include 'partials/_empty_state.html' with icon='ri-feedback-line' title='No feedback found' message='Adjust your search or filters, or request feedback from internal stakeholders.' create_url=create_url create_label='Request Feedback' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3"><ul class="pagination justify-content-center">
-  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-</ul></nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
