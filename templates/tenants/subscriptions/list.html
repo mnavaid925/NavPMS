@@ -7,16 +7,18 @@
     <h1>Subscriptions</h1>
     <div class="breadcrumb-trail">Active and historic subscriptions</div>
   </div>
-  {% if request.user.is_tenant_admin %}
-    <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-primary"><i class="ri-flashlight-line me-1"></i> Change plan</a>
-  {% endif %}
+  <div class="d-flex gap-2">
+    {% if request.user.is_tenant_admin %}
+      <a href="{% url 'tenants:subscription_assign' %}" class="btn btn-primary"><i class="ri-flashlight-line me-1"></i> Change plan</a>
+    {% endif %}
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-4">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="status" class="form-select">
           <option value="">All</option>
           {% for v, l in status_choices %}
@@ -24,18 +26,26 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+      </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Tenant</th><th>Plan</th><th>Cycle</th><th>Status</th>
-          <th>Started</th><th>Renews</th><th class="text-end">Actions</th>
+          <th>Tenant</th>
+          <th>Plan</th>
+          <th>Cycle</th>
+          <th>Status</th>
+          <th data-sort="date">Started</th>
+          <th data-sort="date">Renews</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -49,14 +59,18 @@
                 {{ s.get_status_display }}
               </span>
             </td>
-            <td class="small text-muted">{{ s.started_at|date:'M d, Y' }}</td>
-            <td class="small text-muted">{{ s.current_period_end|date:'M d, Y'|default:'—' }}</td>
-            <td class="text-end">
-              <a href="{% url 'tenants:subscription_detail' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            <td class="small text-muted" data-sort-value="{{ s.started_at|date:'c' }}">{{ s.started_at|date:'M d, Y' }}</td>
+            <td class="small text-muted" data-sort-value="{{ s.current_period_end|date:'c' }}">{{ s.current_period_end|date:'M d, Y'|default:'—' }}</td>
+            <td class="text-end actions-cell">
+              <a href="{% url 'tenants:subscription_detail' s.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="text-center text-muted py-4">No subscriptions yet.</td></tr>
+          <tr>
+            <td colspan="7" class="p-0 border-0">
+              {% include 'partials/_empty_state.html' with icon='ri-bank-card-line' title='No subscriptions found' message='Subscriptions will appear here once a plan is assigned.' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
