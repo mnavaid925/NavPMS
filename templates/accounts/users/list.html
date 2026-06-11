@@ -7,21 +7,23 @@
     <h1>Users</h1>
     <div class="breadcrumb-trail">Manage users in {{ current_tenant.name }}</div>
   </div>
-  <a href="{% url 'accounts:user_create' %}" class="btn btn-primary">
-    <i class="ri-user-add-line me-1"></i> Add user
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'accounts:user_create' %}" class="btn btn-primary">
+      <i class="ri-user-add-line me-1"></i> Add user
+    </a>
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-5">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Name, email, username…"
                value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Role</label>
+        <label class="form-label">Role</label>
         <select name="role" class="form-select">
           <option value="">All roles</option>
           {% for v, l in role_choices %}
@@ -30,27 +32,28 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="active" class="form-select">
           <option value="">All</option>
           <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
           <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Name</th><th>Email</th><th>Role</th><th>Job title</th>
-          <th>Status</th><th class="text-end">Actions</th>
+          <th>Status</th><th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -76,24 +79,29 @@
               {% endif %}
               {% if u.is_tenant_admin %}<span class="badge badge-soft-warning ms-1">Admin</span>{% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'accounts:user_detail' u.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
-              <a href="{% url 'accounts:user_edit' u.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'accounts:user_detail' u.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'accounts:user_edit' u.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               {% if u != request.user %}
                 <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}" class="d-inline">
                   {% csrf_token %}
-                  <button class="btn btn-sm btn-outline-secondary" title="Toggle active"><i class="ri-toggle-line"></i></button>
+                  <button class="btn btn-sm btn-icon btn-outline-secondary" title="Toggle active"><i class="ri-toggle-line"></i></button>
                 </form>
                 <form method="post" action="{% url 'accounts:user_delete' u.pk %}" class="d-inline"
                       onsubmit="return confirm('Delete this user?');">
                   {% csrf_token %}
-                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                  <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
                 </form>
               {% endif %}
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No users found.</td></tr>
+          <tr>
+            <td colspan="6" class="p-0 border-0">
+              {% url 'accounts:user_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-user-search-line' title='No users found' message='Adjust your search or filters, or add a new user to this tenant.' create_url=create_url create_label='Add user' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
