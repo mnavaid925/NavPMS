@@ -3,10 +3,10 @@
 {% block title %}Spend Reports{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Custom Report Builder</h1>
-    <p class="page-subtitle">Saved, re-runnable spend reports — pick a dimension, measure &amp; filters</p>
+    <h1>Custom Report Builder</h1>
+    <div class="breadcrumb-trail">Saved, re-runnable spend reports — pick a dimension, measure &amp; filters</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'spend_analytics:dashboard' %}" class="btn btn-outline-secondary"><i class="ri-dashboard-line"></i> Dashboard</a>
@@ -18,21 +18,22 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-10">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Report name or description">
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Search</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Name</th>
@@ -40,8 +41,8 @@
           <th>Measure</th>
           <th>Basis</th>
           <th>Shared</th>
-          <th>Last run</th>
-          <th class="text-end">Actions</th>
+          <th data-sort="date">Last run</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -55,22 +56,23 @@
           <td>{{ report.get_measure_display }}</td>
           <td><span class="badge badge-soft-secondary">{{ report.get_basis_display }}</span></td>
           <td>{% if report.is_shared %}<span class="badge badge-soft-success">Shared</span>{% else %}<span class="badge badge-soft-secondary">Private</span>{% endif %}</td>
-          <td>{{ report.last_run_at|naturaltime|default:"—" }}</td>
-          <td class="text-end">
-            <a href="{% url 'spend_analytics:report_detail' report.pk %}" class="btn btn-sm btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
+          <td data-sort-value="{{ report.last_run_at|date:'c' }}">{{ report.last_run_at|naturaltime|default:"—" }}</td>
+          <td class="text-end actions-cell">
+            <a href="{% url 'spend_analytics:report_detail' report.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Run"><i class="ri-play-line"></i></a>
             {% if can_manage %}
-            <a href="{% url 'spend_analytics:report_edit' report.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <a href="{% url 'spend_analytics:report_edit' report.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'spend_analytics:report_delete' report.pk %}" class="d-inline" onsubmit="return confirm('Delete report &quot;{{ report.name|escapejs }}&quot;?');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="7" class="text-center text-muted py-4">
-            No reports yet.{% if can_manage %} <a href="{% url 'spend_analytics:report_create' %}">Create one</a>.{% endif %}
+          <td colspan="7" class="p-0 border-0">
+            {% if can_manage %}{% url 'spend_analytics:report_create' as create_url %}{% endif %}
+            {% include 'partials/_empty_state.html' with icon='ri-bar-chart-box-line' title='No reports found' message='Adjust your search, or build a new spend report.' create_url=create_url create_label='New Report' %}
           </td>
         </tr>
         {% endfor %}
@@ -79,17 +81,5 @@
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3">
-  <ul class="pagination justify-content-center">
-    {% if page_obj.has_previous %}
-    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
-    {% endif %}
-    <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-    {% if page_obj.has_next %}
-    <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
