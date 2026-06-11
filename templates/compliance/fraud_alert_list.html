@@ -2,10 +2,10 @@
 {% block title %}Fraud Alerts{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Fraud Alerts</h1>
-    <p class="page-subtitle">Findings raised by the fraud-detection rules</p>
+    <h1>Fraud Alerts</h1>
+    <div class="breadcrumb-trail">Findings raised by the fraud-detection rules</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'compliance:fraud_rule_list' %}" class="btn btn-outline-secondary"><i class="ri-settings-3-line"></i> Rules</a>
@@ -18,7 +18,7 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-3">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Alert # or summary">
@@ -50,18 +50,19 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Alert</th><th>Rule</th><th>Vendor</th><th>Severity</th><th>Status</th><th>Summary</th><th>Detected</th></tr>
+        <tr><th>Alert</th><th>Rule</th><th>Vendor</th><th>Severity</th><th>Status</th><th>Summary</th><th data-sort="date">Detected</th></tr>
       </thead>
       <tbody>
         {% for a in alerts %}
@@ -72,21 +73,19 @@
           <td><span class="badge badge-soft-{{ a.severity_color }}">{{ a.get_severity_display }}</span></td>
           <td><span class="badge badge-soft-{{ a.status_color }}">{{ a.get_status_display }}</span></td>
           <td class="small">{{ a.summary|truncatechars:60 }}</td>
-          <td class="small text-muted">{{ a.detected_at|date:"Y-m-d H:i" }}</td>
+          <td class="small text-muted" data-sort-value="{{ a.detected_at|date:'c' }}">{{ a.detected_at|date:"Y-m-d H:i" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">No fraud alerts.{% if can_manage %} <form method="post" action="{% url 'compliance:fraud_scan' %}" class="d-inline">{% csrf_token %}<button class="btn btn-link p-0 align-baseline">Run a scan</button></form>.{% endif %}</td></tr>
+        <tr>
+          <td colspan="7" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-alarm-warning-line' title='No fraud alerts found' message='Adjust your search or filters, or run a scan from the button above to evaluate the fraud-detection rules.' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3"><ul class="pagination justify-content-center">
-  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-</ul></nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
