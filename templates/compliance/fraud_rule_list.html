@@ -2,10 +2,10 @@
 {% block title %}Fraud Rules{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Fraud Detection Rules</h1>
-    <p class="page-subtitle">Configurable detectors for suspicious purchasing patterns &amp; conflicts of interest</p>
+    <h1>Fraud Detection Rules</h1>
+    <div class="breadcrumb-trail">Configurable detectors for suspicious purchasing patterns &amp; conflicts of interest</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'compliance:fraud_alert_list' %}" class="btn btn-outline-secondary"><i class="ri-alarm-warning-line"></i> Alerts</a>
@@ -17,11 +17,11 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Rule</th><th>Code</th><th>Severity</th><th>Active</th>{% if can_manage %}<th class="text-end">Actions</th>{% endif %}</tr>
+        <tr><th>Rule</th><th>Code</th><th>Severity</th><th>Active</th>{% if can_manage %}<th class="text-end" data-sort="none">Actions</th>{% endif %}</tr>
       </thead>
       <tbody>
         {% for r in rules %}
@@ -31,17 +31,26 @@
           <td><span class="badge badge-soft-{{ r.severity_color }}">{{ r.get_severity_display }}</span></td>
           <td>{% if r.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Off</span>{% endif %}</td>
           {% if can_manage %}
-          <td class="text-end">
-            <a href="{% url 'compliance:fraud_rule_edit' r.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+          <td class="text-end actions-cell">
+            <a href="{% url 'compliance:fraud_rule_edit' r.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'compliance:fraud_rule_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ r.name }}?');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
           </td>
           {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-4">No fraud rules yet.{% if can_manage %} <a href="{% url 'compliance:fraud_rule_create' %}">Add one</a>.{% endif %}</td></tr>
+        <tr>
+          <td colspan="{% if can_manage %}5{% else %}4{% endif %}" class="p-0 border-0">
+            {% if can_manage %}
+              {% url 'compliance:fraud_rule_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-shield-flash-line' title='No fraud rules yet' message='Create detection rules to flag suspicious purchasing patterns and conflicts of interest.' create_url=create_url create_label='New Rule' %}
+            {% else %}
+              {% include 'partials/_empty_state.html' with icon='ri-shield-flash-line' title='No fraud rules yet' message='Fraud detection rules will appear here once an administrator configures them.' %}
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
