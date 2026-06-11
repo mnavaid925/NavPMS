@@ -2,10 +2,10 @@
 {% block title %}Stock Levels{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Stock Levels</h1>
-    <p class="page-subtitle">Real-time on-hand quantities for stocked items</p>
+    <h1>Stock Levels</h1>
+    <div class="breadcrumb-trail">Real-time on-hand quantities for stocked items</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'inventory:movement_list' %}" class="btn btn-outline-secondary"><i class="ri-history-line"></i> Ledger</a>
@@ -17,7 +17,7 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-5">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="SKU or item name">
@@ -40,53 +40,57 @@
           <option value="out" {% if show == 'out' %}selected{% endif %}>Out of stock</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>SKU</th><th>Item</th><th class="text-end">On hand</th><th class="text-end">Available</th>
-          <th class="text-end">Reorder pt</th><th class="text-end">Avg cost</th><th>Status</th><th class="text-end">Actions</th></tr>
+        <tr><th>SKU</th><th>Item</th><th class="text-end" data-sort="number">On hand</th><th class="text-end" data-sort="number">Available</th>
+          <th class="text-end" data-sort="number">Reorder pt</th><th class="text-end" data-sort="number">Avg cost</th><th>Status</th><th class="text-end" data-sort="none">Actions</th></tr>
       </thead>
       <tbody>
         {% for si in items %}
         <tr>
           <td><a href="{% url 'inventory:stock_item_detail' si.pk %}" class="fw-semibold text-decoration-none">{{ si.sku|default:"—" }}</a></td>
           <td>{{ si.catalog_item.name }}</td>
-          <td class="text-end">{{ si.quantity_on_hand }} <span class="text-muted small">{{ si.catalog_item.uom }}</span></td>
+          <td class="text-end" data-sort-value="{{ si.quantity_on_hand }}">{{ si.quantity_on_hand }} <span class="text-muted small">{{ si.catalog_item.uom }}</span></td>
           <td class="text-end">{{ si.available_quantity }}</td>
           <td class="text-end">{{ si.reorder_point }}</td>
           <td class="text-end">{{ si.moving_avg_cost }}</td>
           <td><span class="badge badge-soft-{{ si.stock_status_color }}">{{ si.stock_status|capfirst }}</span></td>
-          <td class="text-end">
-            <a href="{% url 'inventory:stock_item_detail' si.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+          <td class="text-end actions-cell">
+            <a href="{% url 'inventory:stock_item_detail' si.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             {% if can_manage %}
-            <a href="{% url 'inventory:stock_item_edit' si.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <a href="{% url 'inventory:stock_item_edit' si.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'inventory:stock_item_delete' si.pk %}" class="d-inline" onsubmit="return confirm('Delete this stock item?');">
-              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">No stock items.{% if can_manage %} <a href="{% url 'inventory:stock_item_create' %}">Add one</a>.{% endif %}</td></tr>
+        <tr>
+          <td colspan="8" class="p-0 border-0">
+            {% if can_manage %}
+              {% url 'inventory:stock_item_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-box-3-line' title='No stock items found' message='Adjust your search or filters, or add a stock item.' create_url=create_url create_label='Add Stock Item' %}
+            {% else %}
+              {% include 'partials/_empty_state.html' with icon='ri-box-3-line' title='No stock items found' message='Adjust your search or filters.' %}
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3"><ul class="pagination justify-content-center">
-  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-</ul></nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
