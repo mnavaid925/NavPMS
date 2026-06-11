@@ -2,10 +2,10 @@
 {% block title %}Payment Terms{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Payment Terms</h1>
-    <p class="page-subtitle">Net terms &amp; early-payment discounts applied to supplier invoices</p>
+    <h1>Payment Terms</h1>
+    <div class="breadcrumb-trail">Net terms &amp; early-payment discounts applied to supplier invoices</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'invoicing:invoice_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Invoices</a>
@@ -15,13 +15,17 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Code</th><th>Name</th><th class="text-end">Net days</th>
-          <th>Early-payment discount</th><th>Active</th><th class="text-end">Actions</th>
+          <th>Code</th>
+          <th>Name</th>
+          <th class="text-end" data-sort="number">Net days</th>
+          <th>Early-payment discount</th>
+          <th>Active</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -32,18 +36,23 @@
           <td class="text-end">{{ t.net_days }}</td>
           <td>{% if t.has_discount %}{{ t.discount_percent }}% if paid within {{ t.discount_days }} days{% else %}<span class="text-muted">—</span>{% endif %}</td>
           <td>{% if t.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}</td>
-          <td class="text-end">
+          <td class="text-end actions-cell">
             {% if can_manage %}
-            <a href="{% url 'invoicing:term_edit' t.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <a href="{% url 'invoicing:term_edit' t.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'invoicing:term_delete' t.pk %}" class="d-inline" onsubmit="return confirm('Delete payment term {{ t.code }}?');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-4">No payment terms yet.{% if can_manage %} <a href="{% url 'invoicing:term_create' %}">Create one</a>.{% endif %}</td></tr>
+        <tr>
+          <td colspan="6" class="p-0 border-0">
+            {% if can_manage %}{% url 'invoicing:term_create' as create_url %}{% endif %}
+            {% include 'partials/_empty_state.html' with icon='ri-bank-card-line' title='No payment terms yet' message='Define net terms and early-payment discounts to apply to supplier invoices.' create_url=create_url create_label='New Term' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
