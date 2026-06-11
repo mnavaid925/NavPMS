@@ -1,11 +1,19 @@
-{% if is_paginated %}
-<nav aria-label="Pagination" class="mt-3">
-  <ul class="pagination pagination-sm justify-content-end mb-0">
+{% comment %}
+Shared pagination for list pages. Requires `page_obj` (Django Page) in context —
+works for both ListView (CBV) and Paginator-in-FBV pages; renders nothing when
+page_obj is absent or there is a single page. Links are rebuilt from request.GET
+so every active filter survives page changes (no `querystring` context needed).
+Window: first / last / current ±2, with ellipsis gaps.
+{% endcomment %}
+{% if page_obj.has_other_pages %}
+<nav class="list-pagination mt-3" aria-label="Pagination">
+  <span class="page-results-label d-none d-sm-inline">
+    Showing {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+  </span>
+  <ul class="pagination pagination-sm mb-0">
     {% if page_obj.has_previous %}
       <li class="page-item">
-        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}">
-          <i class="ri-arrow-left-s-line"></i>
-        </a>
+        <a class="page-link" aria-label="Previous page" href="?page={{ page_obj.previous_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}"><i class="ri-arrow-left-s-line"></i></a>
       </li>
     {% else %}
       <li class="page-item disabled"><span class="page-link"><i class="ri-arrow-left-s-line"></i></span></li>
@@ -13,19 +21,19 @@
 
     {% for n in page_obj.paginator.page_range %}
       {% if n == page_obj.number %}
-        <li class="page-item active"><span class="page-link">{{ n }}</span></li>
-      {% elif n > page_obj.number|add:'-3' and n < page_obj.number|add:'3' %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ n }}</span></li>
+      {% elif n == 1 or n == page_obj.paginator.num_pages or n > page_obj.number|add:'-3' and n < page_obj.number|add:'3' %}
         <li class="page-item">
-          <a class="page-link" href="?page={{ n }}{% for k,v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}">{{ n }}</a>
+          <a class="page-link" href="?page={{ n }}{% for k, v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}">{{ n }}</a>
         </li>
+      {% elif n == 2 or n == page_obj.paginator.num_pages|add:'-1' %}
+        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
       {% endif %}
     {% endfor %}
 
     {% if page_obj.has_next %}
       <li class="page-item">
-        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}">
-          <i class="ri-arrow-right-s-line"></i>
-        </a>
+        <a class="page-link" aria-label="Next page" href="?page={{ page_obj.next_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&amp;{{ k|urlencode }}={{ v|urlencode }}{% endif %}{% endfor %}"><i class="ri-arrow-right-s-line"></i></a>
       </li>
     {% else %}
       <li class="page-item disabled"><span class="page-link"><i class="ri-arrow-right-s-line"></i></span></li>
