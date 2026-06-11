@@ -2,27 +2,49 @@
 {% block title %}Catalog Uploads{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">My Catalog Uploads</h4>
-  <a href="{% url 'vendor_portal:catalog_upload_create' %}" class="btn btn-sm btn-primary"><i class="ri-upload-2-line"></i> New Upload</a>
+<div class="page-header">
+  <div>
+    <h1>My Catalog Uploads</h1>
+    <div class="breadcrumb-trail">Upload catalog files and track their import status</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'vendor_portal:catalog_upload_create' %}" class="btn btn-primary"><i class="ri-upload-2-line me-1"></i> New Upload</a>
+  </div>
 </div>
 
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>File</th><th>Status</th><th class="text-end">Rows</th><th class="text-end">Imported</th><th class="text-end">Actions</th></tr></thead>
-    <tbody>
-      {% for u in uploads %}
-      <tr>
-        <td>{{ u.original_filename|default:u.file.name }}</td>
-        <td><span class="badge bg-light text-dark">{{ u.get_status_display }}</span></td>
-        <td class="text-end">{{ u.row_count }}</td>
-        <td class="text-end">{{ u.imported_count }}</td>
-        <td class="text-end"><a href="{% url 'vendor_portal:catalog_upload_detail' u.pk %}" class="btn btn-sm btn-outline-primary">Open</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="text-center text-muted py-4">No uploads yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div></div>
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Status</th>
+          <th class="text-end">Rows</th>
+          <th class="text-end">Imported</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in uploads %}
+          <tr>
+            <td>{{ u.original_filename|default:u.file.name }}</td>
+            <td><span class="badge bg-light text-dark">{{ u.get_status_display }}</span></td>
+            <td class="text-end">{{ u.row_count }}</td>
+            <td class="text-end">{{ u.imported_count }}</td>
+            <td class="text-end actions-cell">
+              <a href="{% url 'vendor_portal:catalog_upload_detail' u.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="p-0 border-0">
+              {% url 'vendor_portal:catalog_upload_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-upload-cloud-2-line' title='No uploads yet' message='Upload a CSV or XLSX file to add items to your catalog.' create_url=create_url create_label='New Upload' %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
