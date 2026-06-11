@@ -11,7 +11,7 @@
       Notifications &middot; {{ unread_count }} unread
     </div>
   </div>
-  <div>
+  <div class="d-flex gap-2">
     {% if unread_count %}
     <form method="post" action="{% url 'portal:notification_mark_all_read' %}" class="d-inline">
       {% csrf_token %}
@@ -24,15 +24,15 @@
   </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-4">
-        <label class="form-label small">Search</label>
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Title or message…" value="{{ request.GET.q }}">
       </div>
-      <div class="col-md-3">
-        <label class="form-label small">Category</label>
+      <div class="col-md-2">
+        <label class="form-label">Category</label>
         <select name="category" class="form-select">
           <option value="">All</option>
           {% for v, l in category_choices %}
@@ -41,7 +41,7 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Priority</label>
+        <label class="form-label">Priority</label>
         <select name="priority" class="form-select">
           <option value="">All</option>
           {% for v, l in priority_choices %}
@@ -50,27 +50,28 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="read" class="form-select">
           <option value="">All</option>
           <option value="unread" {% if request.GET.read == 'unread' %}selected{% endif %}>Unread</option>
           <option value="read" {% if request.GET.read == 'read' %}selected{% endif %}>Read</option>
         </select>
       </div>
-      <div class="col-md-1">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Alert</th><th>Category</th><th>Priority</th>
-          <th>Received</th><th>Status</th><th class="text-end">Actions</th>
+          <th data-sort="date">Received</th><th>Status</th><th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -86,7 +87,7 @@
                 {{ n.get_priority_display }}
               </span>
             </td>
-            <td class="small text-muted fw-normal">{{ n.created_at|naturaltime }}</td>
+            <td class="small text-muted fw-normal" data-sort-value="{{ n.created_at|date:'c' }}">{{ n.created_at|naturaltime }}</td>
             <td>
               {% if n.is_read %}
                 <span class="badge badge-soft-secondary">Read</span>
@@ -94,23 +95,28 @@
                 <span class="badge badge-soft-success">Unread</span>
               {% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'portal:notification_detail' n.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
-              <a href="{% url 'portal:notification_edit' n.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'portal:notification_detail' n.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'portal:notification_edit' n.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'portal:notification_mark_read' n.pk %}" class="d-inline">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'portal:notification_list' %}">
-                <button class="btn btn-sm btn-outline-secondary" title="Toggle read"><i class="ri-check-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-secondary" title="Toggle read"><i class="ri-check-line"></i></button>
               </form>
               <form method="post" action="{% url 'portal:notification_delete' n.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete this alert?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No alerts found.</td></tr>
+          <tr>
+            <td colspan="6" class="p-0 border-0">
+              {% url 'portal:notification_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-notification-3-line' title='No alerts found' message='Adjust your search or filters, or create a new alert.' create_url=create_url create_label='New alert' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
