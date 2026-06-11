@@ -7,6 +7,7 @@ from apps.core.views import DashboardView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', DashboardView.as_view(), name='dashboard'),
+    path('', include('apps.core.urls')),
     path('accounts/', include('apps.accounts.urls')),
     path('tenants/', include('apps.tenants.urls')),
     path('portal/', include('apps.portal.urls')),
