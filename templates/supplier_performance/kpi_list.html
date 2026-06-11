@@ -2,10 +2,10 @@
 {% block title %}KPI Definitions{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">KPI Definitions</h1>
-    <p class="page-subtitle">The metrics that drive supplier scorecards — active weights total <strong>{{ total_weight }}</strong></p>
+    <h1>KPI Definitions</h1>
+    <div class="breadcrumb-trail">The metrics that drive supplier scorecards — active weights total <strong>{{ total_weight }}</strong></div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'supplier_performance:dashboard' %}" class="btn btn-outline-secondary"><i class="ri-dashboard-line"></i> Dashboard</a>
@@ -21,7 +21,7 @@
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-5">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Code or name">
@@ -43,18 +43,19 @@
           <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Code</th><th>Name</th><th>Type</th><th>Source</th><th>Direction</th><th class="text-end">Weight</th><th class="text-end">Target</th><th>Active</th><th class="text-end">Actions</th></tr>
+        <tr><th>Code</th><th>Name</th><th>Type</th><th>Source</th><th>Direction</th><th class="text-end" data-sort="number">Weight</th><th class="text-end" data-sort="number">Target</th><th>Active</th><th class="text-end" data-sort="none">Actions</th></tr>
       </thead>
       <tbody>
         {% for k in kpis %}
@@ -65,31 +66,34 @@
           <td><span class="badge bg-light text-dark">{{ k.get_source_display }}</span></td>
           <td>{{ k.get_direction_display }}</td>
           <td class="text-end">{{ k.weight }}</td>
-          <td class="text-end">{{ k.target_value|default:"—" }}{{ k.unit }}</td>
+          <td class="text-end" data-sort-value="{{ k.target_value|default_if_none:'' }}">{{ k.target_value|default:"—" }}{{ k.unit }}</td>
           <td>{% if k.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
-          <td class="text-end">
+          <td class="text-end actions-cell">
             {% if can_manage %}
-            <a href="{% url 'supplier_performance:kpi_edit' k.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+            <a href="{% url 'supplier_performance:kpi_edit' k.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'supplier_performance:kpi_delete' k.pk %}" class="d-inline" onsubmit="return confirm('Delete KPI {{ k.code }}? Historic scorecards keep their snapshot.');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% else %}<span class="text-muted">—</span>{% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9" class="text-center text-muted py-4">No KPIs yet.{% if can_manage %} <a href="{% url 'supplier_performance:kpi_create' %}">Create one</a> or restore the defaults.{% endif %}</td></tr>
+        <tr>
+          <td colspan="9" class="p-0 border-0">
+            {% if can_manage %}
+              {% url 'supplier_performance:kpi_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-line-chart-line' title='No KPIs found' message='Adjust your search or filters, create a new KPI, or restore the defaults from the button above.' create_url=create_url create_label='New KPI' %}
+            {% else %}
+              {% include 'partials/_empty_state.html' with icon='ri-line-chart-line' title='No KPIs found' message='Adjust your search or filters.' %}
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3"><ul class="pagination justify-content-center">
-  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-</ul></nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
