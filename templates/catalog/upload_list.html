@@ -2,32 +2,52 @@
 {% block title %}Supplier Uploads{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Supplier Catalog Uploads</h1>
-    <p class="page-subtitle">Catalog files suppliers uploaded for review &amp; import</p>
+    <h1>Supplier Catalog Uploads</h1>
+    <div class="breadcrumb-trail">Catalog files suppliers uploaded for review &amp; import</div>
   </div>
-  <a href="{% url 'catalog:item_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All items</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'catalog:item_list' %}" class="btn btn-outline-secondary"><i class="ri-list-check"></i> All items</a>
+  </div>
 </div>
 
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>Supplier</th><th>File</th><th>Status</th><th class="text-end">Rows</th><th class="text-end">Imported</th><th class="text-end">Errors</th><th class="text-end">Actions</th></tr></thead>
-    <tbody>
-      {% for u in uploads %}
-      <tr>
-        <td class="fw-semibold">{{ u.vendor.legal_name }}</td>
-        <td>{{ u.original_filename|default:u.file.name }}</td>
-        <td><span class="badge bg-light text-dark">{{ u.get_status_display }}</span></td>
-        <td class="text-end">{{ u.row_count }}</td>
-        <td class="text-end">{{ u.imported_count }}</td>
-        <td class="text-end">{{ u.error_count }}</td>
-        <td class="text-end"><a href="{% url 'catalog:upload_detail' u.pk %}" class="btn btn-sm btn-outline-primary">Open</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7" class="text-center text-muted py-4">No supplier uploads yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div></div>
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Supplier</th>
+          <th>File</th>
+          <th>Status</th>
+          <th class="text-end" data-sort="number">Rows</th>
+          <th class="text-end" data-sort="number">Imported</th>
+          <th class="text-end" data-sort="number">Errors</th>
+          <th class="text-end" data-sort="none">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in uploads %}
+        <tr>
+          <td class="fw-semibold">{{ u.vendor.legal_name }}</td>
+          <td>{{ u.original_filename|default:u.file.name }}</td>
+          <td><span class="badge bg-light text-dark">{{ u.get_status_display }}</span></td>
+          <td class="text-end">{{ u.row_count }}</td>
+          <td class="text-end">{{ u.imported_count }}</td>
+          <td class="text-end">{{ u.error_count }}</td>
+          <td class="text-end actions-cell">
+            <a href="{% url 'catalog:upload_detail' u.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="Open"><i class="ri-eye-line"></i></a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-upload-cloud-2-line' title='No supplier uploads found' message='Catalog files uploaded by suppliers will appear here for review and import.' %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
