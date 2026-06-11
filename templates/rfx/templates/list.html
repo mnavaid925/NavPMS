@@ -9,7 +9,7 @@
       <a href="{% url 'rfx:event_list' %}">RFx Events</a> &rsaquo; Templates
     </div>
   </div>
-  <div>
+  <div class="d-flex gap-2">
     {% if can_manage %}
     <a href="{% url 'rfx:template_create' %}" class="btn btn-primary">
       <i class="ri-add-line me-1"></i> New template
@@ -18,15 +18,15 @@
   </div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-5">
-        <label class="form-label small">Search</label>
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
+      <div class="col-md-4">
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Title, description…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Type</label>
+        <label class="form-label">Type</label>
         <select name="rfx_type" class="form-select">
           <option value="">Any</option>
           {% for value, label in type_choices %}
@@ -35,27 +35,27 @@
         </select>
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Archived</label>
+        <label class="form-label">Archived</label>
         <select name="archived" class="form-select">
           <option value="">Any</option>
           <option value="no" {% if request.GET.archived == 'no' %}selected{% endif %}>Active</option>
           <option value="yes" {% if request.GET.archived == 'yes' %}selected{% endif %}>Archived</option>
         </select>
       </div>
-      <div class="col-md-1">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead><tr>
-        <th>Title</th><th>Type</th><th>Sections</th><th>Questions</th><th>Shared</th>
-        <th>Created by</th><th>Updated</th><th class="text-end">Actions</th>
+        <th>Title</th><th>Type</th><th data-sort="number">Sections</th><th>Questions</th><th data-sort="none">Shared</th>
+        <th>Created by</th><th data-sort="date">Updated</th><th class="text-end" data-sort="none">Actions</th>
       </tr></thead>
       <tbody>
         {% for t in templates %}
@@ -72,28 +72,33 @@
           <td class="small">{% with sections=t.sections.all %}{% if sections %}{% for s in sections %}{{ s.questions.count }}{% if not forloop.last %}+{% endif %}{% endfor %}{% else %}0{% endif %}{% endwith %}</td>
           <td>{% if t.is_shared %}<i class="ri-check-line text-success"></i>{% else %}—{% endif %}</td>
           <td class="small">{{ t.created_by|default:'—' }}</td>
-          <td class="small">{{ t.updated_at|date:'Y-m-d' }}</td>
-          <td class="text-end">
-            <a href="{% url 'rfx:template_detail' t.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
+          <td class="small" data-sort-value="{{ t.updated_at|date:'c' }}">{{ t.updated_at|date:'Y-m-d' }}</td>
+          <td class="text-end actions-cell">
+            <a href="{% url 'rfx:template_detail' t.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             {% if can_manage %}
-            <a href="{% url 'rfx:template_edit' t.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <a href="{% url 'rfx:template_edit' t.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
             <form method="post" action="{% url 'rfx:template_delete' t.pk %}" class="d-inline"
                   onsubmit="return confirm('Delete template {{ t.title }}?');">
               {% csrf_token %}
-              <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+              <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">
-          No templates yet.
-          {% if can_manage %}<a href="{% url 'rfx:template_create' %}">Create one</a>.{% endif %}
-        </td></tr>
+        <tr>
+          <td colspan="8" class="p-0 border-0">
+            {% if can_manage %}
+              {% url 'rfx:template_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-file-copy-2-line' title='No templates found' message='Adjust your search or filters, or create a reusable RFx template.' create_url=create_url create_label='New template' %}
+            {% else %}
+              {% include 'partials/_empty_state.html' with icon='ri-file-copy-2-line' title='No templates found' message='Adjust your search or filters.' %}
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
   </div>
 </div>
 {% endblock %}
