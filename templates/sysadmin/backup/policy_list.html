@@ -2,10 +2,10 @@
 {% block title %}Backup &amp; Recovery{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Data Backup &amp; Recovery</h1>
-    <p class="page-subtitle">Automated backup schedules, run history &amp; disaster-recovery requests</p>
+    <h1>Data Backup &amp; Recovery</h1>
+    <div class="breadcrumb-trail">Automated backup schedules, run history &amp; disaster-recovery requests</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'sysadmin:backup_run_list' %}" class="btn btn-outline-secondary"><i class="ri-history-line"></i> All Runs</a>
@@ -14,41 +14,67 @@
   </div>
 </div>
 
-<div class="card filter-card mb-3"><div class="card-body">
-  <form method="get" class="row g-2 align-items-end">
-    <div class="col-md-9"><label class="form-label">Search</label><input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Policy name"></div>
-    <div class="col-md-3"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
-  </form>
-</div></div>
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
+      <div class="col-md-9">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Policy name">
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+      </div>
+    </form>
+  </div>
+</div>
 
-<div class="card mb-3"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>Policy</th><th>Frequency</th><th>Scope</th><th>Retention</th><th>Last run</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
-    <tbody>
-      {% for p in page_obj %}
-      <tr>
-        <td><a href="{% url 'sysadmin:backup_policy_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.name }}</a><div class="text-muted small">{{ p.storage_target }}{% if p.encryption_enabled %} · encrypted{% endif %}</div></td>
-        <td>{{ p.get_frequency_display }}</td>
-        <td>{{ p.get_scope_display }}</td>
-        <td>{{ p.retention_days }}d</td>
-        <td class="small text-muted">{% if p.last_run_at %}{{ p.last_run_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
-        <td><span class="badge badge-soft-{{ p.status_color }}">{% if p.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-        <td class="text-end">
-          <form method="post" action="{% url 'sysadmin:backup_run_now' p.pk %}" class="d-inline">
-            {% csrf_token %}<button class="btn btn-sm btn-outline-primary" title="Run backup now"><i class="ri-play-line"></i></button>
-          </form>
-          <a href="{% url 'sysadmin:backup_policy_edit' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
-          <form method="post" action="{% url 'sysadmin:backup_policy_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ p.name }}?');">
-            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No backup policies yet. <a href="{% url 'sysadmin:backup_policy_create' %}">Create one</a>.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div></div>
-{% include 'sysadmin/_pagination.html' %}
+<div class="card table-card mb-3">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Policy</th>
+          <th>Frequency</th>
+          <th>Scope</th>
+          <th data-sort="number">Retention</th>
+          <th data-sort="date">Last run</th>
+          <th>Status</th>
+          <th class="text-end" data-sort="none">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in page_obj %}
+        <tr>
+          <td><a href="{% url 'sysadmin:backup_policy_detail' p.pk %}" class="fw-semibold text-decoration-none">{{ p.name }}</a><div class="text-muted small">{{ p.storage_target }}{% if p.encryption_enabled %} · encrypted{% endif %}</div></td>
+          <td>{{ p.get_frequency_display }}</td>
+          <td>{{ p.get_scope_display }}</td>
+          <td data-sort-value="{{ p.retention_days }}">{{ p.retention_days }}d</td>
+          <td class="small text-muted" data-sort-value="{{ p.last_run_at|date:'c' }}">{% if p.last_run_at %}{{ p.last_run_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+          <td><span class="badge badge-soft-{{ p.status_color }}">{% if p.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+          <td class="text-end actions-cell">
+            <form method="post" action="{% url 'sysadmin:backup_run_now' p.pk %}" class="d-inline">
+              {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-primary" title="Run backup now"><i class="ri-play-line"></i></button>
+            </form>
+            <a href="{% url 'sysadmin:backup_policy_edit' p.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'sysadmin:backup_policy_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ p.name }}?');">
+              {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="p-0 border-0">
+            {% url 'sysadmin:backup_policy_create' as create_url %}
+            {% include 'partials/_empty_state.html' with icon='ri-database-2-line' title='No backup policies found' message='Create a policy to schedule automated backups for this tenant.' create_url=create_url create_label='New Policy' %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include 'partials/_pagination.html' %}
 
 <div class="card">
   <div class="card-header d-flex justify-content-between"><span><i class="ri-time-line"></i> Recent runs</span><a href="{% url 'sysadmin:backup_run_list' %}" class="small text-decoration-none">All runs</a></div>
