@@ -44,22 +44,21 @@
     </div>
   </div>
 {% else %}
-  <div class="card">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-      <table class="table table-hover mb-0">
+  <div class="card table-card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 list-table" data-sortable>
         <thead>
           <tr>
-            <th>Rank</th><th>Bid</th><th>Vendor</th><th>Status</th>
-            <th class="text-end">Total</th><th class="text-end">Score</th>
-            <th>Compliant</th><th>Submitted</th>
-            <th class="text-end">Actions</th>
+            <th data-sort="number">Rank</th><th>Bid</th><th>Vendor</th><th>Status</th>
+            <th class="text-end" data-sort="number">Total</th><th class="text-end" data-sort="number">Score</th>
+            <th data-sort="none">Compliant</th><th data-sort="date">Submitted</th>
+            <th class="text-end" data-sort="none">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for b in bids %}
             <tr>
-              <td><strong>{{ b.rank|default:'—' }}</strong></td>
+              <td data-sort-value="{{ b.rank|default_if_none:'' }}"><strong>{{ b.rank|default:'—' }}</strong></td>
               <td><code class="small">{{ b.bid_number }}</code></td>
               <td>
                 <a href="{% url 'vendors:vendor_detail' b.vendor.pk %}" class="text-decoration-none">
@@ -75,23 +74,26 @@
                 {% elif b.status == 'withdrawn' %}<span class="badge badge-soft-secondary">Withdrawn</span>
                 {% else %}<span class="badge badge-soft-secondary">{{ b.get_status_display }}</span>{% endif %}
               </td>
-              <td class="text-end">{{ b.currency }} {{ b.total_amount|floatformat:2 }}</td>
-              <td class="text-end">{{ b.overall_score|floatformat:2 }}</td>
+              <td class="text-end" data-sort-value="{{ b.total_amount }}">{{ b.currency }} {{ b.total_amount|floatformat:2 }}</td>
+              <td class="text-end" data-sort-value="{{ b.overall_score|default_if_none:'' }}">{{ b.overall_score|floatformat:2 }}</td>
               <td>{% if b.is_compliant %}<i class="ri-check-line text-success"></i>{% else %}<i class="ri-close-line text-danger"></i>{% endif %}</td>
-              <td class="small">{{ b.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
-              <td class="text-end">
-                <a href="{% url 'sourcing:bid_detail' event.pk b.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+              <td class="small" data-sort-value="{{ b.submitted_at|date:'c' }}">{{ b.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+              <td class="text-end actions-cell">
+                <a href="{% url 'sourcing:bid_detail' event.pk b.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
                 {% if can_evaluate %}
-                <a href="{% url 'sourcing:bid_evaluate' event.pk b.pk %}" class="btn btn-sm btn-outline-success" title="Score this bid"><i class="ri-edit-line"></i></a>
+                <a href="{% url 'sourcing:bid_evaluate' event.pk b.pk %}" class="btn btn-sm btn-icon btn-outline-success" title="Score this bid"><i class="ri-edit-line"></i></a>
                 {% endif %}
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="9" class="text-center text-muted py-4">No bids received.</td></tr>
+            <tr>
+              <td colspan="9" class="p-0 border-0">
+                {% include 'partials/_empty_state.html' with icon='ri-hand-coin-line' title='No bids received' message='Bids will appear here once vendors respond to this event.' %}
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
-      </div>
     </div>
   </div>
 {% endif %}
