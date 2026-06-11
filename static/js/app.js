@@ -244,3 +244,168 @@
     fadePreloader();
   });
 })();
+
+/* =====================================================================
+   List pages: client-side column sorting + filter form auto-submit.
+   Pages opt in via data attributes (nothing runs otherwise):
+     <table data-sortable>                  click-to-sort headers
+                                            (sorts the CURRENT page's rows only)
+     <th data-sort="none|number|date|text"> exclude a column / skip the type
+                                            heuristic
+     <td data-sort-value="...">             raw comparison value when the
+                                            display text isn't sortable
+     <form data-filter-autosubmit>          selects submit on change, text
+                                            inputs submit debounced, and an
+                                            optional .filter-clear.d-none link
+                                            is revealed when a filter is active
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------- sorting ---------- */
+
+  // "$1,234.50", "USD 1200", "85%" → 1234.5 / 1200 / 85; non-numeric → null.
+  function parseNumber(v) {
+    var s = v.replace(/^[A-Z]{3}\b/, '').replace(/[$€£¥,%\s]/g, '');
+    if (s === '' || isNaN(s)) return null;
+    return parseFloat(s);
+  }
+
+  function isEmptyValue(v) {
+    return !v || v === '—' || v === '-';
+  }
+
+  function cellValue(row, idx) {
+    var td = row.cells[idx];
+    if (!td) return '';
+    if (td.dataset.sortValue !== undefined) return td.dataset.sortValue;
+    return td.textContent.trim();
+  }
+
+  // Column type when the th carries no data-sort hint: ≥80% numeric wins,
+  // then ≥80% parseable-but-not-numeric dates, else text.
+  function detectType(values) {
+    var present = values.filter(function (v) { return !isEmptyValue(v); });
+    if (!present.length) return 'text';
+    var nums = 0, dates = 0;
+    present.forEach(function (v) {
+      if (parseNumber(v) !== null) nums++;
+      else if (!isNaN(Date.parse(v))) dates++;
+    });
+    if (nums / present.length >= 0.8) return 'number';
+    if (dates / present.length >= 0.8) return 'date';
+    return 'text';
+  }
+
+  function compareValues(type, av, bv) {
+    if (type === 'number') {
+      var an = parseNumber(av), bn = parseNumber(bv);
+      if (an === null && bn === null) return 0;
+      if (an === null) return 1;
+      if (bn === null) return -1;
+      return an - bn;
+    }
+    if (type === 'date') {
+      var ad = Date.parse(av), bd = Date.parse(bv);
+      if (isNaN(ad) && isNaN(bd)) return 0;
+      if (isNaN(ad)) return 1;
+      if (isNaN(bd)) return -1;
+      return ad - bd;
+    }
+    return av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function sortBy(table, tbody, th, idx) {
+    var dir = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+    Array.prototype.forEach.call(table.tHead.rows[0].cells, function (h) {
+      h.removeAttribute('aria-sort');
+    });
+    th.setAttribute('aria-sort', dir);
+
+    // Spanning rows (the empty-state row) are never sorted.
+    var rows = Array.prototype.filter.call(tbody.rows, function (tr) {
+      return !tr.querySelector('td[colspan]');
+    });
+    var values = rows.map(function (tr, i) { return cellValue(tr, idx); });
+    var type = (th.dataset.sort && th.dataset.sort !== 'none') ? th.dataset.sort : detectType(values);
+    var desc = dir === 'descending';
+
+    // Decorate-sort-undecorate with the original index as tiebreaker so equal
+    // rows keep a stable order; empties sort last regardless of direction.
+    var decorated = rows.map(function (tr, i) { return { row: tr, value: values[i], index: i }; });
+    decorated.sort(function (a, b) {
+      var aEmpty = isEmptyValue(a.value), bEmpty = isEmptyValue(b.value);
+      if (aEmpty && bEmpty) return a.index - b.index;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      var cmp = compareValues(type, a.value, b.value);
+      if (cmp === 0) return a.index - b.index;
+      return desc ? -cmp : cmp;
+    });
+    // appendChild MOVES rows (handlers + inline delete forms survive intact).
+    decorated.forEach(function (d) { tbody.appendChild(d.row); });
+  }
+
+  function initListTable(table) {
+    var tbody = table.tBodies[0];
+    if (!tbody || !table.tHead || !table.tHead.rows.length) return;
+    Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th, idx) {
+      if (th.dataset.sort === 'none' || !th.textContent.trim()) return;
+      th.classList.add('sortable');
+      th.setAttribute('tabindex', '0');
+      th.addEventListener('click', function () { sortBy(table, tbody, th, idx); });
+      th.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          sortBy(table, tbody, th, idx);
+        }
+      });
+    });
+  }
+
+  /* ---------- filter forms ---------- */
+
+  function initFilterForm(form) {
+    function submit() {
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.submit();
+    }
+
+    Array.prototype.forEach.call(form.querySelectorAll('select'), function (sel) {
+      sel.addEventListener('change', submit);
+    });
+
+    Array.prototype.forEach.call(
+      form.querySelectorAll('input[type="search"][name], input[type="text"][name]'),
+      function (input) {
+        var initial = input.value.trim();
+        var timer = null;
+        input.addEventListener('input', function () {
+          if (timer) clearTimeout(timer);
+          var v = input.value.trim();
+          if (v === initial) return;
+          if (v.length === 1) return; // wait for ≥2 chars (or a full clear)
+          timer = setTimeout(submit, 400);
+        });
+      }
+    );
+
+    // Reveal the "clear filters" link when any named control holds a value.
+    var clear = form.querySelector('.filter-clear');
+    if (clear) {
+      var active = Array.prototype.some.call(form.elements, function (el) {
+        return el.name && el.name !== 'page' && el.type !== 'submit' && el.value;
+      });
+      if (active) clear.classList.remove('d-none');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('table[data-sortable]').forEach(function (table) {
+      try { initListTable(table); } catch (e) { /* one bad table must not break the rest */ }
+    });
+    document.querySelectorAll('form[data-filter-autosubmit]').forEach(function (form) {
+      try { initFilterForm(form); } catch (e) { /* ditto for filter forms */ }
+    });
+  });
+})();
