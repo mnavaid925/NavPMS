@@ -2,17 +2,19 @@
 {% block title %}Stock Ledger{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Stock Movement Ledger</h1>
-    <p class="page-subtitle">Append-only record of every stock change</p>
+    <h1>Stock Movement Ledger</h1>
+    <div class="breadcrumb-trail">Append-only record of every stock change</div>
   </div>
-  <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary"><i class="ri-stack-line"></i> Stock Levels</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'inventory:stock_list' %}" class="btn btn-outline-secondary"><i class="ri-stack-line"></i> Stock Levels</a>
+  </div>
 </div>
 
 <div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
       <div class="col-md-5">
         <label class="form-label">Search</label>
         <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Movement #, SKU or item">
@@ -35,19 +37,20 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
-        <tr><th>Ref</th><th>Item</th><th>Type</th><th>Warehouse</th><th class="text-end">Qty</th>
-          <th class="text-end">Balance</th><th>By</th><th>When</th></tr>
+        <tr><th>Ref</th><th>Item</th><th>Type</th><th>Warehouse</th><th class="text-end" data-sort="number">Qty</th>
+          <th class="text-end" data-sort="number">Balance</th><th>By</th><th data-sort="date">When</th></tr>
       </thead>
       <tbody>
         {% for m in movements %}
@@ -56,24 +59,22 @@
           <td class="small">{{ m.stock_item.sku|default:m.stock_item.catalog_item.name }}</td>
           <td><span class="badge badge-soft-{{ m.type_color }}">{{ m.get_movement_type_display }}</span></td>
           <td class="small">{{ m.warehouse.code }}{% if m.location %} / {{ m.location.code }}{% endif %}</td>
-          <td class="text-end {% if m.is_inbound %}text-success{% else %}text-danger{% endif %}">{{ m.quantity }}</td>
-          <td class="text-end">{{ m.balance_after }}</td>
+          <td class="text-end {% if m.is_inbound %}text-success{% else %}text-danger{% endif %}" data-sort-value="{{ m.quantity }}">{{ m.quantity }}</td>
+          <td class="text-end" data-sort-value="{{ m.balance_after }}">{{ m.balance_after }}</td>
           <td class="small">{{ m.actor.username|default:"system" }}</td>
-          <td class="small text-muted">{{ m.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="small text-muted" data-sort-value="{{ m.created_at|date:'c' }}">{{ m.created_at|date:"Y-m-d H:i" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">No movements recorded.</td></tr>
+        <tr>
+          <td colspan="8" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-arrow-left-right-line' title='No movements recorded' message='Stock movements appear here automatically as goods are received, issued, transferred or adjusted.' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-{% if page_obj.has_other_pages %}
-<nav class="mt-3"><ul class="pagination justify-content-center">
-  {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
-  <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-  {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
-</ul></nav>
-{% endif %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
