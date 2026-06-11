@@ -8,26 +8,31 @@
     <div class="breadcrumb-trail">All plans available for tenants</div>
   </div>
   {% if request.user.is_superuser or request.user.role == 'super_admin' %}
-    <a href="{% url 'tenants:plan_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New plan</a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'tenants:plan_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New plan</a>
+    </div>
   {% endif %}
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-5">
-        <label class="form-label small">Search</label>
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
+      <div class="col-md-6">
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Name or slug…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="active" class="form-select">
           <option value="">All</option>
           <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
           <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
       </div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+      </div>
     </form>
   </div>
 </div>
@@ -64,7 +69,12 @@
     </div>
   {% empty %}
     <div class="col-12">
-      <div class="card"><div class="card-body text-center text-muted py-5">No plans defined yet.</div></div>
+      <div class="card">
+        {% if request.user.is_superuser or request.user.role == 'super_admin' %}
+          {% url 'tenants:plan_create' as create_url %}
+        {% endif %}
+        {% include 'partials/_empty_state.html' with icon='ri-price-tag-3-line' title='No plans found' message='No plans defined yet, or none match your search and filters.' create_url=create_url create_label='New plan' %}
+      </div>
     </div>
   {% endfor %}
 </div>
