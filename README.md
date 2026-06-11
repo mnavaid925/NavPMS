@@ -659,6 +659,8 @@ The **sidebar** groups the modules by procurement lifecycle (Overview, My Worksp
 
 Every module's **list page** shares one canonical pattern: a filter card that **auto-submits** on dropdown change with a **debounced live search** and a one-click **clear filters** button; a table card with a **sticky header** and **click-to-sort columns** (current page, no reload — numeric/date/text aware, keyboard accessible via `aria-sort`); unified icon action buttons (view / edit / delete with confirm); a designed **empty state** with a create CTA ([`templates/partials/_empty_state.html`](templates/partials/_empty_state.html)); and shared pagination with a results count ([`templates/partials/_pagination.html`](templates/partials/_pagination.html)). Vendor-portal list pages share the same look via markup/CSS only (the portal base intentionally doesn't load `app.js`). Dark theme and RTL are fully supported (token-driven colors, logical CSS properties).
 
+The **topbar search box** is a tenant-scoped **global search**: it submits to `/search/` ([`core:search`](apps/core/views.py)), which walks a declarative registry ([`apps/core/search.py`](apps/core/search.py)) of the main entities (requisitions, POs, GRNs/RTVs, shipments, invoices/vouchers, contracts, RFx/sourcing/auction events, vendors, items, warehouses/stock, documents) and returns hits grouped by type, each linking to its detail page. Adding a new searchable entity = appending one `SearchSpec`.
+
 Other UI touches: site **preloader**, sidebar overlay on mobile, soft badges, sticky topbar.
 
 ---
@@ -1391,6 +1393,7 @@ reused `tenants.record_audit`. **Cron:** `run_backups` and `deliver_webhooks`.
 | URL | Purpose |
 |-----|---------|
 | `/` | Dashboard (stat widgets + usage chart + recent activity) |
+| `/search/` | Global header search — tenant-scoped omni-search across requisitions, POs, GRNs/RTVs, shipments, invoices/vouchers, contracts, RFx/sourcing/auction events, vendors, items, warehouses/stock and documents, grouped by type with links to each detail page |
 | `/accounts/login/` | Sign in (username **or** email) |
 | `/accounts/register/` | Self-service tenant + admin creation |
 | `/accounts/forgot-password/` | Email a reset token |
