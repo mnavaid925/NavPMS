@@ -2,10 +2,10 @@
 {% block title %}Webhooks{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Webhooks</h1>
-    <p class="page-subtitle">Outbound event notifications to external ERPs, accounting &amp; CRM systems</p>
+    <h1>Webhooks</h1>
+    <div class="breadcrumb-trail">Outbound event notifications to external ERPs, accounting &amp; CRM systems</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'sysadmin:apikey_list' %}" class="btn btn-outline-secondary"><i class="ri-key-2-line"></i> API Keys</a>
@@ -14,19 +14,22 @@
 </div>
 
 <div class="card filter-card mb-3"><div class="card-body">
-  <form method="get" class="row g-2 align-items-end">
+  <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
     <div class="col-md-8"><label class="form-label">Search</label><input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Name or URL"></div>
     <div class="col-md-2"><label class="form-label">Status</label>
       <select name="status" class="form-select"><option value="">All</option>
         <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
         <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option></select></div>
-    <div class="col-md-2"><button class="btn btn-primary w-100"><i class="ri-search-line"></i> Filter</button></div>
+    <div class="col-md-2 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+      <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
+    </div>
   </form>
 </div></div>
 
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>Name</th><th>Target URL</th><th>Events</th><th>Last status</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+<div class="card table-card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0 list-table" data-sortable>
+    <thead><tr><th>Name</th><th>Target URL</th><th data-sort="number">Events</th><th>Last status</th><th>Status</th><th class="text-end" data-sort="none">Actions</th></tr></thead>
     <tbody>
       {% for w in page_obj %}
       <tr>
@@ -35,18 +38,24 @@
         <td>{{ w.event_count }}</td>
         <td>{% if w.last_status %}<span class="badge badge-soft-{% if w.last_status == 'success' %}success{% else %}danger{% endif %}">{{ w.last_status }}</span>{% else %}—{% endif %}</td>
         <td><span class="badge badge-soft-{{ w.status_color }}">{% if w.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-        <td class="text-end">
-          <a href="{% url 'sysadmin:webhook_detail' w.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
-          <a href="{% url 'sysadmin:webhook_edit' w.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="ri-edit-line"></i></a>
+        <td class="text-end actions-cell">
+          <a href="{% url 'sysadmin:webhook_detail' w.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+          <a href="{% url 'sysadmin:webhook_edit' w.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
           <form method="post" action="{% url 'sysadmin:webhook_delete' w.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ w.name }}?');">
-            {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+            {% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
           </form>
         </td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No webhooks yet. <a href="{% url 'sysadmin:webhook_create' %}">Create one</a>.</td></tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" class="p-0 border-0">
+          {% url 'sysadmin:webhook_create' as create_url %}
+          {% include 'partials/_empty_state.html' with icon='ri-webhook-line' title='No webhooks yet' message='Notify external ERPs, accounting and CRM systems when events happen.' create_url=create_url create_label='New Webhook' %}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
 </div></div>
-{% include 'sysadmin/_pagination.html' %}
+{% include 'partials/_pagination.html' %}
 {% endblock %}
