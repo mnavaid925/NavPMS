@@ -4,10 +4,10 @@
     <i class="ri-menu-line"></i>
   </button>
 
-  <div class="topbar-search d-none d-md-block">
+  <form class="topbar-search d-none d-md-block" method="get" action="{% url 'core:search' %}" role="search">
     <i class="ri-search-line"></i>
-    <input type="search" placeholder="Search…" aria-label="Search">
-  </div>
+    <input type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search…" aria-label="Search">
+  </form>
 
   <div class="topbar-spacer"></div>
 
