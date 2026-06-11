@@ -36,15 +36,15 @@
   </div></div></div>
 </div>
 
-<div class="card mb-3">
+<div class="card filter-card mb-3">
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label small">Search</label>
+    <form method="get" class="row g-2 align-items-end" data-filter-autosubmit>
+      <div class="col-md-3">
+        <label class="form-label">Search</label>
         <input type="search" name="q" class="form-control" placeholder="Vendor name, number, email, tax ID…" value="{{ request.GET.q }}">
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Status</label>
+        <label class="form-label">Status</label>
         <select name="status" class="form-select">
           <option value="">All</option>
           {% for value, label in status_choices %}
@@ -53,7 +53,7 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Category</label>
+        <label class="form-label">Category</label>
         <select name="category" class="form-select">
           <option value="">Any</option>
           {% for cat in categories %}
@@ -62,7 +62,7 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small">Segment</label>
+        <label class="form-label">Segment</label>
         <select name="segment" class="form-select">
           <option value="">Any</option>
           {% for seg in segments %}
@@ -71,7 +71,7 @@
         </select>
       </div>
       <div class="col-md-1">
-        <label class="form-label small">Risk</label>
+        <label class="form-label">Risk</label>
         <select name="risk" class="form-select">
           <option value="">Any</option>
           {% for value, label in risk_choices %}
@@ -79,22 +79,22 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-1">
-        <button class="btn btn-primary w-100"><i class="ri-filter-3-line"></i></button>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit"><i class="ri-filter-3-line me-1"></i> Filter</button>
+        <a href="{{ request.path }}" class="btn btn-outline-secondary filter-clear d-none" title="Clear filters"><i class="ri-close-line"></i></a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
           <th>Number</th><th>Vendor</th><th>Type</th><th>Category</th>
-          <th>Segment</th><th>Status</th><th>Risk</th><th>Portal</th>
-          <th class="text-end">Actions</th>
+          <th>Segment</th><th>Status</th><th>Risk</th><th data-sort="none">Portal</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -130,25 +130,26 @@
               {% if v.portal_user %}<i class="ri-shield-check-line text-success" title="Portal enabled"></i>
               {% else %}<i class="ri-shield-line text-muted" title="No portal access"></i>{% endif %}
             </td>
-            <td class="text-end">
-              <a href="{% url 'vendors:vendor_detail' v.pk %}" class="btn btn-sm btn-outline-primary" title="View"><i class="ri-eye-line"></i></a>
-              <a href="{% url 'vendors:vendor_edit' v.pk %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <td class="text-end actions-cell">
+              <a href="{% url 'vendors:vendor_detail' v.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
+              <a href="{% url 'vendors:vendor_edit' v.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
               <form method="post" action="{% url 'vendors:vendor_delete' v.pk %}" class="d-inline"
                     onsubmit="return confirm('Delete vendor {{ v.legal_name }}?');">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
+                <button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button>
               </form>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="text-center text-muted py-4">
-            No vendors yet. <a href="{% url 'vendors:vendor_create' %}">Create the first one</a> or check the
-            <a href="{% url 'vendors:onboarding_list' %}">onboarding queue</a>.
-          </td></tr>
+          <tr>
+            <td colspan="9" class="p-0 border-0">
+              {% url 'vendors:vendor_create' as create_url %}
+              {% include 'partials/_empty_state.html' with icon='ri-building-line' title='No vendors found' message='Create your first vendor, or check the onboarding queue for pending registrations.' create_url=create_url create_label='New vendor' %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
   </div>
 </div>
 {% endblock %}
