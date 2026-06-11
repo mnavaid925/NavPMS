@@ -1,0 +1,20 @@
+{% comment %}
+Shared empty state for list pages. Parameters (via {% include ... with %}):
+  icon         remixicon class, default 'ri-inbox-2-line'
+  title        required — short headline ("No requisitions found")
+  message      optional supporting line
+  create_url   optional CTA target (resolve first: {% url '...' as create_url %};
+               keep any can_manage gate around the assignment)
+  create_label optional CTA label, default 'Create'
+Inside a table, wrap it yourself: <tr><td colspan="N" class="p-0 border-0">…</td></tr>
+{% endcomment %}
+<div class="empty-state">
+  <span class="empty-state-icon"><i class="{{ icon|default:'ri-inbox-2-line' }}"></i></span>
+  <p class="empty-state-title">{{ title }}</p>
+  {% if message %}<p class="empty-state-text">{{ message }}</p>{% endif %}
+  {% if create_url %}
+    <a href="{{ create_url }}" class="btn btn-sm btn-primary mt-3">
+      <i class="ri-add-line me-1"></i>{{ create_label|default:'Create' }}
+    </a>
+  {% endif %}
+</div>
