@@ -194,7 +194,8 @@ NavPMS/
 ├── templates/
 │   ├── base.html             # App shell (sidebar/topbar/footer + theme settings)
 │   ├── base_auth.html        # Auth shell (centered card)
-│   ├── partials/             # sidebar, topbar, footer, preloader, theme_settings, ...
+│   ├── partials/             # sidebar, topbar, footer, preloader, theme_settings,
+│   │                         # _pagination (shared list pagination), _empty_state (list empty states)
 │   ├── auth/                 # login, register, forgot, reset, accept invite
 │   ├── dashboard/index.html
 │   ├── accounts/{users,invites,profile}/
@@ -655,6 +656,8 @@ Open the **theme customizer** via the cog icon in the topbar to toggle:
 | **Direction** | LTR / RTL |
 
 The **sidebar** groups the modules by procurement lifecycle (Overview, My Workspace, Source-to-Contract, Procure-to-Pay, Inventory & Fulfillment, Suppliers, Analytics & Intelligence, Administration, My Account) and behaves as an **accordion** — opening one group auto-collapses the others, and the active page's group expands on load with the current item highlighted.
+
+Every module's **list page** shares one canonical pattern: a filter card that **auto-submits** on dropdown change with a **debounced live search** and a one-click **clear filters** button; a table card with a **sticky header** and **click-to-sort columns** (current page, no reload — numeric/date/text aware, keyboard accessible via `aria-sort`); unified icon action buttons (view / edit / delete with confirm); a designed **empty state** with a create CTA ([`templates/partials/_empty_state.html`](templates/partials/_empty_state.html)); and shared pagination with a results count ([`templates/partials/_pagination.html`](templates/partials/_pagination.html)). Vendor-portal list pages share the same look via markup/CSS only (the portal base intentionally doesn't load `app.js`). Dark theme and RTL are fully supported (token-driven colors, logical CSS properties).
 
 Other UI touches: site **preloader**, sidebar overlay on mobile, soft badges, sticky topbar.
 
