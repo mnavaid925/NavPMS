@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Search</h1>
+  <p class="page-subtitle">Find requisitions, purchase orders, vendors, items, contracts and more across your workspace</p>
+</div>
+
+<div class="card filter-card mb-3">
+  <div class="card-body">
+    <form method="get" action="{% url 'core:search' %}" role="search" class="row g-2 align-items-end">
+      <div class="col-md-10">
+        <label class="form-label">Query</label>
+        <input type="search" name="q" value="{{ q }}" class="form-control"
+               placeholder="e.g. PR-00001, a PO number, a vendor or item name" autofocus>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="ri-search-line"></i> Search</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if q %}
+  <p class="text-muted">{{ total }} result{{ total|pluralize }} for “{{ q }}”.</p>
+
+  {% for group in groups %}
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center">
+      <i class="{{ group.icon }} me-2"></i>
+      <span class="fw-semibold">{{ group.label }}</span>
+      <span class="badge badge-soft-secondary ms-2">{{ group.items|length }}{% if group.more %}+{% endif %}</span>
+    </div>
+    <div class="list-group list-group-flush">
+      {% for item in group.items %}
+      <a href="{{ item.url }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">{{ item.number|default:'—' }}</span>
+        {% if item.title %}<span class="text-muted text-truncate ms-3">{{ item.title }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% if group.more %}
+    <div class="card-footer small text-muted">Showing the first {{ group.items|length }} matches — refine your query to narrow down.</div>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="card"><div class="card-body text-center text-muted py-5">
+    <i class="ri-search-2-line" style="font-size:2rem"></i>
+    <p class="mb-0 mt-2">No matches for “{{ q }}”. Try a record number, name or reference.</p>
+  </div></div>
+  {% endfor %}
+{% else %}
+  <div class="card"><div class="card-body text-center text-muted py-5">
+    <i class="ri-search-2-line" style="font-size:2rem"></i>
+    <p class="mb-0 mt-2">Enter a query to search across your requisitions, orders, vendors, items and documents.</p>
+  </div></div>
+{% endif %}
+{% endblock %}
