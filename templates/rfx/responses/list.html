@@ -11,7 +11,7 @@
       Responses
     </div>
   </div>
-  <div>
+  <div class="d-flex gap-2">
     {% if not sealed and responses|length > 1 %}
     <a href="{% url 'rfx:response_compare' event.pk %}" class="btn btn-outline-primary">
       <i class="ri-bar-chart-grouped-line me-1"></i> Compare
@@ -27,20 +27,20 @@
     Contents become visible after the event closes ({{ event.close_at|date:'Y-m-d H:i'|default:'no close date set' }}).
   </div>
 {% else %}
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-    <table class="table table-hover mb-0">
+<div class="card table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
       <thead>
         <tr>
-          <th>Rank</th><th>Vendor</th><th>Status</th>
-          <th class="text-end">Score</th><th>Submitted</th><th>Decision</th><th></th>
+          <th data-sort="number">Rank</th><th>Vendor</th><th>Status</th>
+          <th class="text-end" data-sort="number">Score</th><th data-sort="date">Submitted</th><th>Decision</th>
+          <th class="text-end" data-sort="none">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for r in responses %}
         <tr>
-          <td>{{ r.rank|default:'—' }}</td>
+          <td data-sort-value="{{ r.rank|default_if_none:'' }}">{{ r.rank|default:'—' }}</td>
           <td><strong>{{ r.vendor.legal_name }}</strong>
               <div class="small text-muted">{{ r.vendor.vendor_number }}</div></td>
           <td>
@@ -52,22 +52,25 @@
             {% elif r.status == 'draft' %}<span class="badge badge-soft-secondary">Draft</span>
             {% else %}<span class="badge badge-soft-secondary">{{ r.get_status_display }}</span>{% endif %}
           </td>
-          <td class="text-end">{{ r.overall_score|floatformat:2 }}</td>
-          <td class="small">{{ r.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
+          <td class="text-end" data-sort-value="{{ r.overall_score }}">{{ r.overall_score|floatformat:2 }}</td>
+          <td class="small" data-sort-value="{{ r.submitted_at|date:'c' }}">{{ r.submitted_at|date:'Y-m-d H:i'|default:'—' }}</td>
           <td class="small">{{ r.decision_reason|truncatechars:60|default:'—' }}</td>
-          <td class="text-end">
-            <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+          <td class="text-end actions-cell">
+            <a href="{% url 'rfx:response_detail' event.pk r.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="View"><i class="ri-eye-line"></i></a>
             {% if can_evaluate %}
-            <a href="{% url 'rfx:response_evaluate' event.pk r.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-ruler-line"></i></a>
+            <a href="{% url 'rfx:response_evaluate' event.pk r.pk %}" class="btn btn-sm btn-icon btn-outline-secondary" title="Evaluate"><i class="ri-pencil-ruler-line"></i></a>
             {% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">No responses to show.</td></tr>
+        <tr>
+          <td colspan="7" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-mail-open-line' title='No responses found' message='Vendor responses will appear here once they are submitted.' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
   </div>
 </div>
 {% endif %}
