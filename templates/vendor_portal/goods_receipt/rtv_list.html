@@ -2,28 +2,40 @@
 {% block title %}Returns to Vendor{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
   <div>
-    <h4 class="mb-1">Returns to Vendor</h4>
-    <div class="small text-muted">Items the buyer has authorised to return to you</div>
+    <h1>Returns to Vendor</h1>
+    <div class="breadcrumb-trail">Items the buyer has authorised to return to you</div>
   </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead><tr><th>RTV #</th><th>Purchase order</th><th>Status</th><th class="text-end">Qty</th><th>Raised</th></tr></thead>
+    <table class="table table-hover align-middle mb-0 list-table">
+      <thead>
+        <tr>
+          <th>RTV #</th>
+          <th>Purchase order</th>
+          <th>Status</th>
+          <th class="text-end" data-sort="number">Qty</th>
+          <th data-sort="date">Raised</th>
+        </tr>
+      </thead>
       <tbody>
         {% for rtv in returns %}
         <tr>
           <td><a href="{% url 'vendor_portal:rtv_detail' rtv.pk %}" class="fw-semibold text-decoration-none">{{ rtv.rtv_number }}</a></td>
           <td>{{ rtv.purchase_order.po_number }}</td>
           <td><span class="badge badge-soft-secondary">{{ rtv.get_status_display }}</span></td>
-          <td class="text-end">{{ rtv.total_quantity|floatformat:2 }}</td>
-          <td>{{ rtv.created_at|date:"M d, Y" }}</td>
+          <td class="text-end" data-sort-value="{{ rtv.total_quantity }}">{{ rtv.total_quantity|floatformat:2 }}</td>
+          <td data-sort-value="{{ rtv.created_at|date:'c' }}">{{ rtv.created_at|date:"M d, Y" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-4">No returns to vendor.</td></tr>
+        <tr>
+          <td colspan="5" class="p-0 border-0">
+            {% include 'partials/_empty_state.html' with icon='ri-arrow-go-back-line' title='No returns to vendor' message='Returns the buyer authorises against your company will appear here.' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
