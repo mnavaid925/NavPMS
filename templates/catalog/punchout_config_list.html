@@ -2,10 +2,10 @@
 {% block title %}Punch-out Suppliers{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center">
+<div class="page-header">
   <div>
-    <h1 class="page-title">Punch-out Suppliers</h1>
-    <p class="page-subtitle">cXML / OCI connectivity to external supplier catalogs</p>
+    <h1>Punch-out Suppliers</h1>
+    <div class="breadcrumb-trail">cXML / OCI connectivity to external supplier catalogs</div>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'catalog:punchout_session_list' %}" class="btn btn-outline-secondary"><i class="ri-history-line"></i> Sessions</a>
@@ -13,30 +13,45 @@
   </div>
 </div>
 
-<div class="card mb-3"><div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead><tr><th>Name</th><th>Supplier</th><th>Protocol</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
-    <tbody>
-      {% for c in configs %}
-      <tr>
-        <td class="fw-semibold">{{ c.name }}</td>
-        <td>{{ c.vendor.legal_name }}</td>
-        <td><span class="badge bg-light text-dark">{{ c.get_protocol_display }}</span></td>
-        <td>{% if c.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}</td>
-        <td class="text-end">
-          {% if c.is_active %}
-          <form method="post" action="{% url 'catalog:punchout_start' c.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-primary" title="Punch out"><i class="ri-external-link-line"></i> Punch out</button></form>
-          {% endif %}
-          <a href="{% url 'catalog:punchout_config_edit' c.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-edit-line"></i></a>
-          <form method="post" action="{% url 'catalog:punchout_config_delete' c.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ c.name }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="text-center text-muted py-4">No punch-out suppliers configured.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div></div>
+<div class="card table-card mb-3">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 list-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Supplier</th>
+          <th>Protocol</th>
+          <th>Active</th>
+          <th class="text-end" data-sort="none">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in configs %}
+        <tr>
+          <td class="fw-semibold">{{ c.name }}</td>
+          <td>{{ c.vendor.legal_name }}</td>
+          <td><span class="badge bg-light text-dark">{{ c.get_protocol_display }}</span></td>
+          <td>{% if c.is_active %}<span class="badge badge-soft-success">Active</span>{% else %}<span class="badge badge-soft-secondary">Inactive</span>{% endif %}</td>
+          <td class="text-end actions-cell">
+            {% if c.is_active %}
+            <form method="post" action="{% url 'catalog:punchout_start' c.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-primary" title="Punch out"><i class="ri-external-link-line"></i> Punch out</button></form>
+            {% endif %}
+            <a href="{% url 'catalog:punchout_config_edit' c.pk %}" class="btn btn-sm btn-icon btn-outline-primary" title="Edit"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'catalog:punchout_config_delete' c.pk %}" class="d-inline" onsubmit="return confirm('Delete {{ c.name }}?');">{% csrf_token %}<button class="btn btn-sm btn-icon btn-outline-danger" title="Delete"><i class="ri-delete-bin-line"></i></button></form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="p-0 border-0">
+            {% url 'catalog:punchout_config_create' as create_url %}
+            {% include 'partials/_empty_state.html' with icon='ri-plug-line' title='No punch-out suppliers found' message='Configure a cXML or OCI connection to shop external supplier catalogs.' create_url=create_url create_label='New Supplier' %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 
 <div class="card"><div class="card-header">Recent sessions</div>
   <ul class="list-group list-group-flush">
