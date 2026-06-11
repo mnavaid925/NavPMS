@@ -3,16 +3,21 @@
 {% block title %}My Shipments{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">My Shipments</h4>
-  <a href="{% url 'vendor_portal:asn_create' %}" class="btn btn-primary btn-sm">
-    <i class="ri-add-line"></i> New ASN
-  </a>
+<div class="page-header">
+  <div>
+    <h1>My Shipments</h1>
+    <div class="breadcrumb-trail">Advance shipping notices against your purchase orders</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'vendor_portal:asn_create' %}" class="btn btn-primary">
+      <i class="ri-add-line me-1"></i> New ASN
+    </a>
+  </div>
 </div>
 
-<div class="card">
+<div class="card table-card">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 list-table">
       <thead>
         <tr>
           <th>Shipment #</th>
@@ -37,7 +42,12 @@
           <td>{{ shipment.estimated_delivery_date|date:"M d, Y"|default:"—" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-4">No shipments yet.</td></tr>
+        <tr>
+          <td colspan="5" class="p-0 border-0">
+            {% url 'vendor_portal:asn_create' as create_url %}
+            {% include 'partials/_empty_state.html' with icon='ri-truck-line' title='No shipments yet' message='Create an advance shipping notice against one of your dispatched purchase orders.' create_url=create_url create_label='New ASN' %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
